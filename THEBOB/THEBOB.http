@@ -1,0 +1,6 @@
+@THEBOB_HostAddress = http://localhost:5110
+
+GET {{THEBOB_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

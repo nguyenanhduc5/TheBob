@@ -1,0 +1,6 @@
+node_modules/
+frontend/node_modules/
+appsettings.json
+appsettings.Development.json
+*.env
+.git

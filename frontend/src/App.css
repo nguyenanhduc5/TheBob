@@ -1,0 +1,77 @@
+:root {
+  --bg: #f9f7f1;
+  --surface: #ffffff;
+  --text: #111111;
+  --muted: #5f6362;
+  --accent: #101010;
+  --primary: #101010;
+  --border: rgba(16, 16, 16, 0.12);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  width: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.main-content {
+  min-height: calc(100vh - 200px);
+  padding: 20px;
+}
+
+.btn,
+.btn-primary {
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--accent);
+  transform: scale(1.02);
+}
+
+.full-width {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding: 12px;
+  }
+}
