@@ -21,7 +21,7 @@ export default function AdminCategories() {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5110/api/category');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/category`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -59,8 +59,8 @@ export default function AdminCategories() {
 
     try {
       const url = editingId
-        ? `http://localhost:5110/api/category/${editingId}`
-        : 'http://localhost:5110/api/category';
+        ? `${process.env.REACT_APP_API_URL}/category/${editingId}`
+        : `${process.env.REACT_APP_API_URL}/category`;
 
       const method = editingId ? 'PUT' : 'POST';
 
@@ -115,7 +115,7 @@ fetchCategories();
     }
 
     try {
-      const response = await fetch(`http://localhost:5110/api/category/${categoryId}`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/category/${categoryId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

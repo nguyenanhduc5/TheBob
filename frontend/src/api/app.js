@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5110/api'; // Adjust if needed
+const API_BASE_URL = process.env.REACT_APP_API_URL; // Uses environment variable from .env
 
 export const authAPI = {
   async register(userData) {

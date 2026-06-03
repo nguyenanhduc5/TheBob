@@ -22,7 +22,7 @@ export default function ProductDetail() {
 
   useEffect(() => {
     fetchProduct();
-  }, [id]);
+  }, [id, fetchProduct]);
 
   useEffect(() => {
     if (product) {
@@ -33,7 +33,7 @@ export default function ProductDetail() {
   const fetchProduct = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5110/api/products/${id}`);
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/products/${id}`);
       if (response.ok) {
         const data = await response.json();
         setProduct(data);

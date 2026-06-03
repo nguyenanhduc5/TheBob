@@ -19,12 +19,6 @@ export default function Header() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    setMobileMenuOpen(false);
-    navigate('/');
-  };
-
   const handleNavigate = (path) => {
     setMobileMenuOpen(false);
     navigate(path);

@@ -36,7 +36,7 @@ export default function AdminProducts() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5110/api/products');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/products`);
       if (response.ok) {
         const data = await response.json();
         setProducts(data);
@@ -51,7 +51,7 @@ export default function AdminProducts() {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5110/api/products/categories');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/products/categories`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -138,8 +138,8 @@ export default function AdminProducts() {
 
     try {
       const url = editingId
-        ? `http://localhost:5110/api/products/${editingId}`
-        : 'http://localhost:5110/api/products';
+        ? `${process.env.REACT_APP_API_URL}/products/${editingId}`
+        : `${process.env.REACT_APP_API_URL}/products`;
 
       const method = editingId ? 'PUT' : 'POST';
 
@@ -215,7 +215,7 @@ export default function AdminProducts() {
     }
 
     try {
-      const response = await fetch(`http://localhost:5110/api/products/${productId}`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/products/${productId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

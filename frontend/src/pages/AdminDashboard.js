@@ -21,11 +21,11 @@ export default function AdminDashboard() {
   const fetchStats = useCallback(async () => {
     try {
       // Fetch products count
-      const productsRes = await fetch('http://localhost:5110/api/products');
+      const productsRes = await fetch(`${process.env.REACT_APP_API_URL}/products`);
       const products = productsRes.ok ? await productsRes.json() : [];
 
       // Fetch categories count
-      const categoriesRes = await fetch('http://localhost:5110/api/category');
+      const categoriesRes = await fetch(`${process.env.REACT_APP_API_URL}/category`);
       const categories = categoriesRes.ok ? await categoriesRes.json() : [];
 
       setStats({

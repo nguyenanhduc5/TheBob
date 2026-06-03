@@ -17,7 +17,7 @@ export default function AdminOrders() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5110/api/orders/admin/all', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/orders/admin/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -58,7 +58,7 @@ export default function AdminOrders() {
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
-      const response = await fetch(`http://localhost:5110/api/orders/${orderId}/status`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

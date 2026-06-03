@@ -16,7 +16,7 @@ export default function AdminUsers() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5110/api/users', {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) {
@@ -47,7 +47,7 @@ export default function AdminUsers() {
 
   const changeRole = async (userId, role) => {
     try {
-      const res = await fetch(`http://localhost:5110/api/users/${userId}/role`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${userId}/role`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -72,7 +72,7 @@ export default function AdminUsers() {
 
   const setActive = async (userId, isActive) => {
     try {
-      const res = await fetch(`http://localhost:5110/api/users/${userId}/activate`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${userId}/activate`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

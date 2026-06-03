@@ -15,12 +15,12 @@ export default function OrderDetail() {
 
   useEffect(() => {
     fetchOrder();
-  }, [orderId]);
+  }, [orderId, fetchOrder]);
 
   const fetchOrder = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5110/api/orders/${orderId}`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/orders/${orderId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

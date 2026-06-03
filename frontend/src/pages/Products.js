@@ -25,11 +25,11 @@ export default function Products() {
   useEffect(() => {
     fetchCategories();
     fetchProducts();
-  }, [filters]);
+  }, [filters, fetchCategories, fetchProducts]);
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5110/api/products/categories');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/products/categories`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -49,7 +49,7 @@ export default function Products() {
       if (filters.minPrice) params.append('minPrice', filters.minPrice);
       if (filters.maxPrice) params.append('maxPrice', filters.maxPrice);
 
-      const response = await fetch(`http://localhost:5110/api/products/search?${params}`);
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/products/search?${params}`);
       if (response.ok) {
         let data = await response.json();
         
