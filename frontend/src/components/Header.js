@@ -6,7 +6,7 @@ import '../styles/Header.css';
 
 export default function Header() {
   const navigate = useNavigate();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { cartItems } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
