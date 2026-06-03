@@ -1,219 +1,191 @@
 /* Hero Section */
 .hero-section {
   position: relative;
-  height: 80vh;
-  min-height: 600px;
+  min-height: 76vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(135deg, rgba(17, 17, 17, 0.05), rgba(17, 17, 17, 0.03)), #fff;
   overflow: hidden;
+  padding: 40px 20px;
 }
 
-.hero-media {
+.hero-section::before {
+  content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  inset: 0;
+  background: radial-gradient(circle at top left, rgba(17, 17, 17, 0.12), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(17, 17, 17, 0.08), transparent 30%);
+  pointer-events: none;
 }
 
 .hero-copy {
   position: relative;
   z-index: 2;
   text-align: center;
-  color: white;
-  max-width: 600px;
-  padding: 0 20px;
+  color: var(--text);
+  max-width: 680px;
 }
 
 .hero-copy .hero-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.9rem;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.26em;
   margin-bottom: 1rem;
-  opacity: 0.9;
+  font-weight: 700;
+  color: var(--primary-dark);
+  text-transform: uppercase;
 }
 
 .hero-copy h1 {
-  font-size: 3rem;
-  font-weight: 700;
+  font-size: clamp(3rem, 5vw, 4.4rem);
+  font-weight: 800;
   margin-bottom: 1rem;
-  line-height: 1.2;
+  line-height: 1.03;
 }
 
 .hero-copy p {
   font-size: 1.1rem;
   margin-bottom: 2rem;
-  opacity: 0.9;
-  line-height: 1.6;
+  color: var(--muted);
+  line-height: 1.75;
 }
 
-/* Banner Grid */
-.banner-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-  padding: 60px 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.banner-card {
-  position: relative;
-  height: 400px;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform 0.3s ease;
-}
-
-.banner-card:hover {
-  transform: scale(1.02);
-}
-
-.banner-copy {
-  position: absolute;
-  bottom: 30px;
-  left: 30px;
-  color: white;
-}
-
-.banner-copy h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-}
-
-.banner-copy p {
-  font-size: 1rem;
-  opacity: 0.9;
-}
-
-/* Split Banner Row */
-.split-banner-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 0 20px;
+.banner-grid,
+.split-banner-row,
+.wide-banner {
   max-width: 1200px;
   margin: 0 auto 60px;
 }
 
-.split-card {
-  position: relative;
-  height: 300px;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform 0.3s ease;
+.banner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 22px;
+  padding: 0 20px 40px;
 }
 
-.split-card:hover {
-  transform: scale(1.02);
-}
-
-.split-copy {
-  position: absolute;
-  bottom: 20px;
-  left: 20px;
-  color: white;
-}
-
-.split-copy h3 {
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.split-copy p {
-  font-size: 0.9rem;
-  opacity: 0.9;
-}
-
-/* Wide Banner */
+.banner-card,
+.split-card,
 .wide-banner {
+  border-radius: 20px;
+  overflow: hidden;
   position: relative;
-  height: 500px;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 60px;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition), box-shadow var(--transition);
 }
 
+.banner-card:hover,
+.split-card:hover,
+.wide-banner:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.banner-card {
+  height: 420px;
+}
+
+.banner-card::after,
+.split-card::after,
+.wide-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02) 0%, rgba(0,0,0,0.36) 100%);
+}
+
+.banner-copy,
+.split-copy,
 .wide-content {
-  text-align: center;
+  position: absolute;
+  left: 32px;
+  bottom: 32px;
+  z-index: 2;
   color: white;
-  max-width: 600px;
+}
+
+.banner-copy h2,
+.wide-content h2,
+.split-copy h3 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+}
+
+.banner-copy p,
+.split-copy p,
+.wide-content p {
+  font-size: 1rem;
+  opacity: 0.95;
+  line-height: 1.55;
+}
+
+.split-banner-row {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 22px;
   padding: 0 20px;
 }
 
-.wide-content span {
-  font-size: 0.9rem;
-  letter-spacing: 0.2em;
-  margin-bottom: 1rem;
-  display: block;
-  opacity: 0.9;
+.split-card {
+  min-height: 320px;
 }
 
-.wide-content h2 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  line-height: 1.2;
+.wide-banner {
+  min-height: 460px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 
-.wide-content p {
-  font-size: 1.1rem;
-  margin-bottom: 2rem;
-  opacity: 0.9;
-  line-height: 1.6;
+.wide-content {
+  max-width: 580px;
+  right: auto;
+  left: 40px;
+  bottom: 40px;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .hero-copy h1 {
-    font-size: 2rem;
-  }
-
-  .hero-copy p {
-    font-size: 1rem;
-  }
-
-  .banner-grid {
-    grid-template-columns: 1fr;
-    padding: 40px 20px;
-  }
-
-  .banner-card {
-    height: 300px;
-  }
-
+@media (max-width: 1024px) {
   .split-banner-row {
     grid-template-columns: 1fr;
-    padding: 0 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    min-height: auto;
+    padding: 32px 16px 48px;
+  }
+
+  .hero-copy h1 {
+    font-size: 2.5rem;
+  }
+
+  .banner-grid,
+  .split-banner-row,
+  .wide-banner {
     margin-bottom: 40px;
   }
 
+  .banner-card {
+    height: 320px;
+  }
+
   .split-card {
-    height: 250px;
+    min-height: 260px;
   }
 
   .wide-banner {
-    height: 400px;
+    min-height: 360px;
   }
 
-  .wide-content h2 {
-    font-size: 2rem;
+  .banner-copy,
+  .split-copy,
+  .wide-content {
+    left: 24px;
+    bottom: 24px;
   }
 }

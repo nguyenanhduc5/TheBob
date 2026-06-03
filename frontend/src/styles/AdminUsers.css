@@ -1,0 +1,31 @@
+.admin-users-page {
+  padding: 24px;
+}
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.users-table {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.table-header, .table-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 1.5fr 120px 100px 220px;
+  gap: 12px;
+  padding: 12px;
+  align-items: center;
+}
+.table-header {
+  background: var(--bg);
+  font-weight: 700;
+}
+.table-row:nth-child(odd) { background: #fff; }
+.table-row:nth-child(even) { background: #fafafa; }
+.col-actions button { margin-right: 8px; }
+.btn-promote { background: #2d8fdd; color: white; border: none; padding: 6px 10px; border-radius: 4px; }
+.btn-demote { background: #777; color: white; border: none; padding: 6px 10px; border-radius: 4px; }
+.btn-toggle-active { background: #f2a654; color: white; border: none; padding: 6px 10px; border-radius: 4px; }

@@ -1,20 +1,19 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import '../styles/Header.css';
-
-const menuItems = ['SHOP', 'COLLECTION', 'ABOUT US', 'OUTLET'];
 
 export default function Header() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user, logout } = useAuth();
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  const { user, logout, isAdmin } = useAuth();
+  const { cartItems } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleUserIconClick = () => {
     if (user) {
-      setShowUserMenu(!showUserMenu);
+      const profilePath = isAdmin() ? '/admin/profile' : '/user/profile';
+      navigate(profilePath);
     } else {
       navigate('/login');
     }
@@ -22,7 +21,6 @@ export default function Header() {
 
   const handleLogout = () => {
     logout();
-    setShowUserMenu(false);
     setMobileMenuOpen(false);
     navigate('/');
   };
@@ -32,11 +30,7 @@ export default function Header() {
     navigate(path);
   };
 
-  // Hide header on login/register pages
-  const hideHeaderPages = ['/login', '/register'];
-  if (hideHeaderPages.includes(location.pathname)) {
-    return null;
-  }
+  const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
 
   return (
     <header className="main-header">
@@ -48,14 +42,17 @@ export default function Header() {
           <span />
         </button>
 
-        <div className="logo">THEBOB</div>
+        <button className="logo" onClick={() => handleNavigate('/')}>
+          THEBOB
+        </button>
 
         <div className="header-actions">
-          <button className="icon-button" onClick={() => handleNavigate('/')}>
+          <button className="icon-button" onClick={() => handleNavigate('/products')}>
             🔍
           </button>
-          <button className="icon-button" onClick={() => handleNavigate('/')}>
+          <button className="icon-button cart-icon" onClick={() => handleNavigate('/cart')}>
             🛒
+            {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
           <button className="icon-button user-icon" onClick={handleUserIconClick}>
             👤
@@ -65,27 +62,15 @@ export default function Header() {
 
       <div className={`mobile-menu ${mobileMenuOpen ? 'open' : ''}`}>
         <nav className="mobile-nav">
-          {menuItems.map((item) => (
-            <a key={item} onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); }}>
-              {item}
-            </a>
-          ))}
+          <button onClick={() => handleNavigate('/products')} className="mobile-nav-item">
+            SHOP
+          </button>
+          <a href="#collection" className="mobile-nav-item">COLLECTION</a>
+          <a href="#about" className="mobile-nav-item">ABOUT US</a>
+          <a href="#outlet" className="mobile-nav-item">OUTLET</a>
         </nav>
       </div>
 
-      {user && showUserMenu && (
-        <div className="user-menu-overlay" onMouseLeave={() => setShowUserMenu(false)}>
-          <div className="user-menu">
-            <div className="menu-item">{user.name}</div>
-            <button className="menu-item" onClick={() => handleNavigate('/user/profile')}>
-              Tài khoản của tôi
-            </button>
-            <button className="menu-item logout" onClick={handleLogout}>
-              Đăng xuất
-            </button>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

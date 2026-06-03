@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import './Profile.css';
 
+const API_BASE_URL = 'http://localhost:5110/api';
+
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, updateUser, logout } = useAuth();
+  const { user, token, updateUser, logout } = useAuth();
   const { addNotification } = useNotification();
   const [activeMenu, setActiveMenu] = useState('account');
-  
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -19,6 +21,44 @@ export default function Profile() {
   });
   const [successMessage, setSuccessMessage] = useState('');
 
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!token) return;
+      setLoading(true);
+
+      try {
+        console.log("PROFILE TOKEN:", token);
+        const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+          
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const profile = result.data;
+          if (profile) {
+            setFormData({
+              name: profile.name || '',
+              email: profile.email || '',
+              birthDate: user?.birthDate || '',
+              phone: profile.phone || '',
+              address: profile.address || '',
+            });
+            updateUser(profile);
+          }
+        }
+      } catch (error) {
+        console.error('Fetch profile error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [token, updateUser, user?.birthDate]);
+
   const handleInputChange = (field) => (e) => {
     setFormData({
       ...formData,
@@ -26,10 +66,46 @@ export default function Profile() {
     });
   };
 
-  const handleUpdateInfo = (e) => {
+  const handleUpdateInfo = async (e) => {
     e.preventDefault();
-    updateUser(formData);
-    addNotification('Cập nhật thông tin thành công!', 'success');
+    if (!formData.name || !formData.phone) {
+      addNotification('Vui lòng nhập tên và số điện thoại', 'warning');
+      return;
+    }
+
+    setLoading(true);
+    setSuccessMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          name: formData.name,
+          phone: formData.phone,
+          address: formData.address,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        addNotification(result.message || 'Không thể cập nhật thông tin', 'error');
+      } else {
+        const updatedProfile = result.data;
+        updateUser(updatedProfile);
+        setSuccessMessage('Cập nhật thông tin thành công!');
+        addNotification('Cập nhật thông tin thành công!', 'success');
+      }
+    } catch (error) {
+      console.error('Update profile error:', error);
+      addNotification('Lỗi kết nối server. Vui lòng thử lại.', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChangePassword = (e) => {
@@ -126,21 +202,22 @@ export default function Profile() {
                       placeholder="0908474355"
                     />
                   </div>
-                  <div className="form-group">
-                    <label>Địa chỉ</label>
-                    <input
-                      type="text"
+                  <div className="form-group address-group">
+                    <label>Địa chỉ giao hàng</label>
+                    <textarea
+                      rows={4}
                       value={formData.address}
                       onChange={handleInputChange('address')}
-                      placeholder="76 nguyễn sơn phú thọ hoà tân phú"
+                      placeholder="Số nhà, đường, phường/xã, quận/huyện, thành phố"
                     />
+                    <small>Nhập địa chỉ chi tiết để giao hàng chính xác hơn.</small>
                   </div>
                 </div>
 
                 <div className="form-error" style={{ marginTop: '10px' }}>* Trường bắt buộc</div>
 
-                <button type="submit" className="btn-update">
-                  Cập nhật thông tin
+                <button type="submit" className="btn-update" disabled={loading}>
+                  {loading ? 'Đang cập nhật...' : 'Cập nhật thông tin'}
                 </button>
               </form>
             </div>

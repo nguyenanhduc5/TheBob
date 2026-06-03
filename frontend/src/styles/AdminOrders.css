@@ -1,0 +1,200 @@
+.admin-orders-page {
+  min-height: 80vh;
+  padding: 40px 20px;
+  background-color: #f8f8f8;
+}
+
+.admin-header {
+  max-width: 1400px;
+  margin: 0 auto 30px;
+}
+
+.admin-header h1 {
+  font-size: 28px;
+  color: #333;
+}
+
+/* Orders Filters */
+.orders-filters {
+  max-width: 1400px;
+  margin: 0 auto 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 10px 20px;
+  background-color: white;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.filter-btn:hover {
+  border-color: #333;
+}
+
+.filter-btn.active {
+  background-color: #333;
+  color: white;
+  border-color: #333;
+}
+
+/* Orders Table */
+.orders-table {
+  max-width: 1400px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 0.8fr 1.5fr 1fr 1.2fr 1.2fr 1fr;
+  gap: 15px;
+  padding: 15px 20px;
+  background-color: #f9f9f9;
+  border-bottom: 2px solid #eee;
+  font-weight: bold;
+  font-size: 13px;
+  color: #333;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 0.8fr 1.5fr 1fr 1.2fr 1.2fr 1fr;
+  gap: 15px;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+  align-items: center;
+  font-size: 13px;
+  color: #666;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.col-id {
+  font-weight: bold;
+  color: #333;
+}
+
+.col-customer {
+  color: #333;
+}
+
+.col-date {
+  text-align: center;
+}
+
+.col-total {
+  text-align: right;
+  font-weight: bold;
+  color: #333;
+}
+
+.col-status {
+  text-align: center;
+}
+
+.status-select {
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  color: white;
+  font-weight: bold;
+}
+
+.status-select.status-pending {
+  background-color: rgba(17, 17, 17, 0.08);
+  border-color: rgba(17, 17, 17, 0.12);
+  color: #111111;
+}
+
+.status-select.status-processing {
+  background-color: rgba(17, 17, 17, 0.08);
+  border-color: rgba(17, 17, 17, 0.12);
+  color: #111111;
+}
+
+.status-select.status-shipped {
+  background-color: rgba(17, 17, 17, 0.08);
+  border-color: rgba(17, 17, 17, 0.12);
+  color: #111111;
+}
+
+.status-select.status-delivered {
+  background-color: rgba(17, 17, 17, 0.08);
+  border-color: rgba(17, 17, 17, 0.12);
+  color: #111111;
+}
+
+.status-select.status-cancelled {
+  background-color: rgba(17, 17, 17, 0.08);
+  border-color: rgba(17, 17, 17, 0.12);
+  color: #111111;
+}
+
+.col-actions {
+  text-align: center;
+}
+
+.btn-view {
+  padding: 8px 15px;
+  background-color: rgba(17, 17, 17, 0.08);
+  color: #111111;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+.btn-view:hover {
+  background-color: rgba(17, 17, 17, 0.14);
+}
+
+.no-orders {
+  max-width: 1400px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 60px 20px;
+  background: white;
+  border-radius: 8px;
+  color: #999;
+}
+
+.loading-page {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #666;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .table-header,
+  .table-row {
+    grid-template-columns: 1fr;
+  }
+
+  .orders-filters {
+    flex-direction: column;
+  }
+
+  .filter-btn {
+    width: 100%;
+  }
+}

@@ -19,6 +19,15 @@ namespace THEBOB.Models
         [MaxLength(500)]
         public string PasswordHash { get; set; } = string.Empty;
 
+        [MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        [MaxLength(20)]
+        public string Phone { get; set; } = string.Empty;
+
+        [MaxLength(500)]
+        public string Address { get; set; } = string.Empty;
+
         [Required]
         public UserRole Role { get; set; } = UserRole.User;
 

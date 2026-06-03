@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
@@ -44,10 +45,12 @@ namespace THEBOB.Services
 
             var claims = new[]
             {
-                new System.Security.Claims.Claim("sub", user.Id.ToString()),
-                new System.Security.Claims.Claim("username", user.Username),
-                new System.Security.Claims.Claim("email", user.Email),
-                new System.Security.Claims.Claim("role", user.Role.ToString())
+                new Claim("sub", user.Id.ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim("username", user.Username),
+                new Claim("email", user.Email),
+                new Claim("role", user.Role.ToString()),
+                new Claim(ClaimTypes.Role, user.Role.ToString())
             };
 
             var token = new JwtSecurityToken(

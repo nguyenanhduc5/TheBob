@@ -135,3 +135,4 @@ C:\THEBOB\THEBOB\bin\Debug\net9.0\Microsoft.IdentityModel.Protocols.OpenIdConnec
 C:\THEBOB\THEBOB\bin\Debug\net9.0\Swashbuckle.AspNetCore.Swagger.dll
 C:\THEBOB\THEBOB\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerGen.dll
 C:\THEBOB\THEBOB\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerUI.dll
+C:\THEBOB\THEBOB\obj\Debug\net9.0\THEBOB.sourcelink.json

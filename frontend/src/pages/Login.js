@@ -1,44 +1,79 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import '../styles/Auth.css';
 
+const API_BASE_URL = 'http://localhost:5110/api';
+
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isAuthenticated, isAdmin } = useAuth();
   const { addNotification } = useNotification();
   const [formState, setFormState] = useState({ email: '', password: '' });
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      if (isAdmin()) navigate('/admin');
+      else navigate('/');
+    }
+  }, [isAuthenticated, isAdmin, navigate]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (field) => (e) => {
     setFormState({ ...formState, [field]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setLoading(true);
 
     // Validate inputs
     if (!formState.email || !formState.password) {
       setErrorMessage('Vui lòng nhập đầy đủ thông tin');
+      setLoading(false);
       return;
     }
 
-    // Check in localStorage
-    const accounts = JSON.parse(localStorage.getItem('thebob-accounts')) || [];
-    const user = accounts.find((acc) => acc.email === formState.email && acc.password === formState.password);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formState.email,
+          password: formState.password,
+        }),
+      });
 
-    if (user) {
-      // Save current user
-      const { password, ...userWithoutPassword } = user;
-      login(userWithoutPassword);
-      
+      const result = await response.json();
+      console.log("LOGIN RESPONSE:", result);
+      if (!response.ok) {
+        setErrorMessage(result.message || 'Đăng nhập thất bại');
+        setLoading(false);
+        return;
+      }
+
+      // Save user and token
+      const { data } = result;
+      login(data, data.token);
+
       addNotification('Đăng nhập thành công!', 'success');
-      // Redirect to home
-      navigate('/');
-    } else {
-      setErrorMessage('Email hoặc mật khẩu không chính xác');
+      
+      // Redirect based on role
+      if (data.role === 'Admin') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setErrorMessage('Lỗi kết nối server. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,6 +90,7 @@ export default function Login() {
               value={formState.email}
               onChange={handleChange('email')}
               placeholder="Nhập email"
+              disabled={loading}
             />
           </label>
           <label>
@@ -64,16 +100,17 @@ export default function Login() {
               value={formState.password}
               onChange={handleChange('password')}
               placeholder="Mật khẩu"
+              disabled={loading}
             />
           </label>
           {errorMessage && <div className="auth-error">{errorMessage}</div>}
-          <button type="submit" className="btn btn-primary full-width">
-            Đăng nhập
+          <button type="submit" className="btn btn-primary full-width" disabled={loading}>
+            {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
         </form>
         <div className="auth-footer">
           <span>Chưa có tài khoản?</span>
-          <button type="button" className="link-button" onClick={() => navigate('/register')}>
+          <button type="button" className="link-button" onClick={() => navigate('/register')} disabled={loading}>
             Đăng ký
           </button>
         </div>

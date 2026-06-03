@@ -1,80 +1,127 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import '../styles/Auth.css';
 
+const API_BASE_URL = 'http://localhost:5110/api';
+
 export default function Register() {
   const navigate = useNavigate();
+  const { login, isAuthenticated } = useAuth();
   const { addNotification } = useNotification();
-  const [formState, setFormState] = useState({ name: '', email: '', phone: '', password: '' });
+  const [formState, setFormState] = useState({ 
+    username: '', 
+    email: '', 
+    name: '',
+    phone: '',
+    address: '',
+    password: '',
+    confirmPassword: ''
+  });
   const [errorMessage, setErrorMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (field) => (e) => {
     setFormState({ ...formState, [field]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    if (isAuthenticated()) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setLoading(true);
 
-    const { name, email, phone, password } = formState;
+    const { username, email, name, phone, address, password, confirmPassword } = formState;
 
-    // --- LOGIC VALIDATION (PHẠM VI KIỂM TRA) ---
-    
-    // 1. Kiểm tra trống
-    if (!name || !email || !phone || !password) {
+    // --- VALIDATION ---
+
+    // 1. Check required fields
+    if (!username || !email || !name || !phone || !password || !confirmPassword) {
       setErrorMessage('Vui lòng nhập đầy đủ thông tin');
+      setLoading(false);
       return;
     }
 
-    // 2. Kiểm tra định dạng Email
+    // 2. Check email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       setErrorMessage('Định dạng email không hợp lệ');
+      setLoading(false);
       return;
     }
 
-    // 3. Kiểm tra số điện thoại (Logic: phải là số, từ 10-11 chữ số)
-    const phoneRegex = /^[0-9]{10,11}$/;
+    // 3. Check phone format
+    const phoneRegex = /^(0|\+84)\d{9,10}$/;
     if (!phoneRegex.test(phone)) {
-      setErrorMessage('Số điện thoại phải có 10 hoặc 11 chữ số');
+      setErrorMessage('Định dạng số điện thoại không hợp lệ');
+      setLoading(false);
       return;
     }
 
-    // 4. Kiểm tra độ dài mật khẩu (Logic: ít nhất 6 ký tự)
+    // 4. Check password length
     if (password.length < 6) {
       setErrorMessage('Mật khẩu phải có ít nhất 6 ký tự');
+      setLoading(false);
       return;
     }
 
-    // --- LOGIC KIỂM TRA TRÙNG LẶP ---
-    const accounts = JSON.parse(localStorage.getItem('thebob-accounts')) || [];
-    
-    if (accounts.some((acc) => acc.email === email)) {
-      setErrorMessage('Email này đã được đăng ký');
-      return;
-    }
-    
-    if (accounts.some((acc) => acc.phone === phone)) {
-      setErrorMessage('Số điện thoại này đã được đăng ký');
+    // 5. Check password match
+    if (password !== confirmPassword) {
+      setErrorMessage('Mật khẩu không khớp');
+      setLoading(false);
       return;
     }
 
-    // --- LOGIC LƯU TRỮ ---
-    const newAccount = {
-      name,
-      email,
-      phone,
-      password, // Trong thực tế nên hash mật khẩu, nhưng ở mức local thì lưu thế này
-      birthDate: '',
-      address: '',
-    };
+    // 6. Check username length
+    if (username.length < 3) {
+      setErrorMessage('Tên đăng nhập phải có ít nhất 3 ký tự');
+      setLoading(false);
+      return;
+    }
 
-    accounts.push(newAccount);
-    localStorage.setItem('thebob-accounts', JSON.stringify(accounts));
+    try {
+      // Call backend register API
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          email,
+          name,
+          phone,
+          address,
+          password,
+        }),
+      });
 
-    addNotification('Đăng ký thành công! Vui lòng đăng nhập.', 'success');
-    navigate('/login');
+      const result = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(result.message || 'Đăng ký thất bại');
+        setLoading(false);
+        return;
+      }
+
+      // Auto-login after registration
+      const { data } = result;
+      login(data, data.token);
+
+      addNotification('Đăng ký thành công!', 'success');
+      navigate('/');
+    } catch (error) {
+      console.error('Register error:', error);
+      setErrorMessage('Lỗi kết nối server. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -84,22 +131,24 @@ export default function Register() {
         <p>Tạo tài khoản mới để quản lý thông tin và đơn hàng.</p>
         <form onSubmit={handleSubmit}>
           <label>
-            Họ và tên
+            Tên đăng nhập
+            <input
+              type="text"
+              value={formState.username}
+              onChange={handleChange('username')}
+              placeholder="Nhập tên đăng nhập (ít nhất 3 ký tự)"
+              disabled={loading}
+            />
+          </label>
+
+          <label>
+            Tên đầy đủ
             <input
               type="text"
               value={formState.name}
               onChange={handleChange('name')}
               placeholder="Nhập họ và tên"
-            />
-          </label>
-
-          <label>
-            Số điện thoại
-            <input
-              type="text"
-              value={formState.phone}
-              onChange={handleChange('phone')}
-              placeholder="Nhập số điện thoại"
+              disabled={loading}
             />
           </label>
 
@@ -110,6 +159,29 @@ export default function Register() {
               value={formState.email}
               onChange={handleChange('email')}
               placeholder="Nhập email"
+              disabled={loading}
+            />
+          </label>
+
+          <label>
+            Số điện thoại
+            <input
+              type="tel"
+              value={formState.phone}
+              onChange={handleChange('phone')}
+              placeholder="Nhập số điện thoại"
+              disabled={loading}
+            />
+          </label>
+
+          <label>
+            Địa chỉ (tuỳ chọn)
+            <input
+              type="text"
+              value={formState.address}
+              onChange={handleChange('address')}
+              placeholder="Nhập địa chỉ giao hàng"
+              disabled={loading}
             />
           </label>
 
@@ -120,19 +192,31 @@ export default function Register() {
               value={formState.password}
               onChange={handleChange('password')}
               placeholder="Mật khẩu (ít nhất 6 ký tự)"
+              disabled={loading}
+            />
+          </label>
+
+          <label>
+            Xác nhận mật khẩu
+            <input
+              type="password"
+              value={formState.confirmPassword}
+              onChange={handleChange('confirmPassword')}
+              placeholder="Nhập lại mật khẩu"
+              disabled={loading}
             />
           </label>
 
           {errorMessage && <div className="auth-error">{errorMessage}</div>}
           
-          <button type="submit" className="btn btn-primary full-width">
-            Tạo tài khoản
+          <button type="submit" className="btn btn-primary full-width" disabled={loading}>
+            {loading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
           </button>
         </form>
 
         <div className="auth-footer">
           <span>Đã có tài khoản?</span>
-          <button type="button" className="link-button" onClick={() => navigate('/login')}>
+          <button type="button" className="link-button" onClick={() => navigate('/login')} disabled={loading}>
             Đăng nhập
           </button>
         </div>
