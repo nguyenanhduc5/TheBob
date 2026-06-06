@@ -22,6 +22,11 @@ export default function Products() {
   });
   const [sortBy, setSortBy] = useState('newest');
 
+  useEffect(() => {
+    fetchCategories();
+    fetchProducts();
+  }, [filters]);
+
   const fetchCategories = async () => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/products/categories`);
@@ -66,11 +71,6 @@ export default function Products() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchCategories();
-    fetchProducts();
-  }, [filters]);
 
   const handleFilterChange = (field, value) => {
     setFilters({ ...filters, [field]: value });

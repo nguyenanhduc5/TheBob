@@ -6,7 +6,7 @@ import '../styles/Header.css';
 
 export default function Header() {
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const { cartItems } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -17,6 +17,12 @@ export default function Header() {
     } else {
       navigate('/login');
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    setMobileMenuOpen(false);
+    navigate('/');
   };
 
   const handleNavigate = (path) => {

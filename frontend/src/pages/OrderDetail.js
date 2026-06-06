@@ -13,6 +13,10 @@ export default function OrderDetail() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    fetchOrder();
+  }, [orderId]);
+
   const fetchOrder = async () => {
     setLoading(true);
     try {
@@ -34,12 +38,6 @@ export default function OrderDetail() {
       addNotification('Lỗi khi tải đơn hàng', 'error');
     } finally {
       setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchOrder();
-  }, [orderId, fetchOrder]);
     }
   };
 

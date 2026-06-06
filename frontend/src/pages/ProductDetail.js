@@ -20,6 +20,16 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [inWishlist, setInWishlist] = useState(false);
 
+  useEffect(() => {
+    fetchProduct();
+  }, [id]);
+
+  useEffect(() => {
+    if (product) {
+      setInWishlist(isInWishlist(product.id));
+    }
+  }, [product, isInWishlist]);
+
   const fetchProduct = async () => {
     setLoading(true);
     try {
@@ -44,16 +54,6 @@ export default function ProductDetail() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchProduct();
-  }, [id]);
-
-  useEffect(() => {
-    if (product) {
-      setInWishlist(isInWishlist(product.id));
-    }
-  }, [product, isInWishlist]);
 
   const handleAddToCart = () => {
     if (!selectedSize) {
