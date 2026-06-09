@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -15,24 +15,28 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({
+
+  // Khởi tạo danh sách biến thể động (theo sơ đồ ProductVariants)
+  const [variants, setVariants] = useState([
+    { size: 'S', color: 'Đen', price: '', stock: '', sku: '' }
+  ]);
+
+  const defaultFormData = {
     name: '',
     sku: '',
     description: '',
     brand: '',
     material: '',
-    color: '',
     careInstructions: '',
-    price: '',
-    stock: '',
     mainImageUrl: '',
     isFeatured: false,
     categoryId: '',
-    rating: 0,
-    reviewCount: 0,
+    rating: '0',
+    reviewCount: '0',
     imageUrls: [],
-    sizes: [],
-  });
+  };
+
+  const [formData, setFormData] = useState(defaultFormData);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -42,8 +46,8 @@ export default function AdminProducts() {
         setProducts(data);
       }
     } catch (error) {
-      console.error('Failed to fetch products:', error);
-      addNotification('Lỗi khi tải danh sách sản phẩm', 'error');
+      console.error(error);
+      addNotification('Lỗi tải dữ liệu sản phẩm', 'error');
     } finally {
       setLoading(false);
     }
@@ -57,524 +61,302 @@ export default function AdminProducts() {
         setCategories(data);
       }
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
+      console.error(error);
     }
   }, []);
 
   useEffect(() => {
-    if (!isAdmin()) {
-      navigate('/');
-      return;
-    }
+    if (!isAdmin()) { navigate('/'); return; }
     fetchProducts();
     fetchCategories();
   }, [fetchProducts, fetchCategories, isAdmin, navigate]);
 
   const handleFormChange = (field) => (e) => {
     const value = field === 'isFeatured' ? e.target.checked : e.target.value;
-    setFormData({
-      ...formData,
-      [field]: value,
-    });
+    setFormData({ ...formData, [field]: value });
+  };
+
+  // --- HÀM THAO TÁC MẢNG BIẾN THỂ (VARIANTS) ---
+  const handleAddVariant = () => {
+    setVariants([...variants, { size: '', color: '', price: '', stock: '', sku: '' }]);
+  };
+
+  const handleVariantChange = (index, field, value) => {
+    const newVariants = [...variants];
+    newVariants[index][field] = value;
+    setVariants(newVariants);
+  };
+
+  const handleRemoveVariant = (index) => {
+    setVariants(variants.filter((_, i) => i !== index));
   };
 
   const handleImageUrlAdd = () => {
-    setFormData({
-      ...formData,
-      imageUrls: [...formData.imageUrls, ''],
-    });
+    setFormData({ ...formData, imageUrls: [...formData.imageUrls, ''] });
   };
 
   const handleImageUrlChange = (index, value) => {
     const newImageUrls = [...formData.imageUrls];
     newImageUrls[index] = value;
-    setFormData({
-      ...formData,
-      imageUrls: newImageUrls,
-    });
+    setFormData({ ...formData, imageUrls: newImageUrls });
   };
 
   const handleImageUrlRemove = (index) => {
-    setFormData({
-      ...formData,
-      imageUrls: formData.imageUrls.filter((_, i) => i !== index),
-    });
+    setFormData({ ...formData, imageUrls: formData.imageUrls.filter((_, i) => i !== index) });
   };
 
-  const handleSizeAdd = () => {
-    if (formData.sizes.length < 5) {
-      setFormData({
-        ...formData,
-        sizes: [...formData.sizes, ''],
-      });
-    } else {
-      addNotification('Tối đa 5 kích thước', 'warning');
-    }
-  };
-
-  const handleSizeChange = (index, value) => {
-    const newSizes = [...formData.sizes];
-    newSizes[index] = value;
-    setFormData({
-      ...formData,
-      sizes: newSizes,
-    });
-  };
-
-  const handleSizeRemove = (index) => {
-    setFormData({
-      ...formData,
-      sizes: formData.sizes.filter((_, i) => i !== index),
-    });
+  const resetForm = () => {
+    setFormData(defaultFormData);
+    setVariants([{ size: 'S', color: 'Đen', price: '', stock: '', sku: '' }]);
+    setEditingId(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.price || !formData.stock) {
-      addNotification('Vui lòng điền đầy đủ thông tin bắt buộc', 'warning');
-      return;
+    // Xác thực sơ bộ mảng biến thể
+    for (let i = 0; i < variants.length; i++) {
+      const v = variants[i];
+      if (!v.size || !v.color || v.price === '' || v.stock === '') {
+        addNotification(`Vui lòng nhập đầy đủ Size, Màu, Giá và Kho tại dòng biến thể thứ ${i + 1}`, 'warning');
+        return;
+      }
+      if (Number(v.price) < 0 || parseInt(v.stock, 10) < 0) {
+        addNotification('Giá và Số lượng tồn kho không được âm', 'warning');
+        return;
+      }
     }
 
+    const payload = {
+      ...formData,
+      categoryId: formData.categoryId ? parseInt(formData.categoryId, 10) : null,
+      rating: Number(formData.rating) || 0,
+      reviewCount: parseInt(formData.reviewCount, 10) || 0,
+      imageUrls: formData.imageUrls.filter(url => url.trim()),
+      variants: variants.map(v => ({
+        size: v.size,
+        color: v.color,
+        sku: v.sku.trim() || `${formData.sku}-${v.size}-${v.color}`,
+        price: Number(v.price),
+        stock: parseInt(v.stock, 10)
+      }))
+    };
+
     try {
-      const url = editingId
+      const url = editingId 
         ? `${process.env.REACT_APP_API_URL}/products/${editingId}`
         : `${process.env.REACT_APP_API_URL}/products`;
 
-      const method = editingId ? 'PUT' : 'POST';
-
       const response = await fetch(url, {
-        method,
+        method: editingId ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          ...formData,
-          price: parseFloat(formData.price),
-          stock: parseInt(formData.stock),
-          categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
-          rating: parseFloat(formData.rating),
-          reviewCount: parseInt(formData.reviewCount),
-          imageUrls: formData.imageUrls.filter(url => url.trim()),
-          sizes: formData.sizes.filter(size => size.trim()),
-        }),
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
-        addNotification(
-          editingId ? 'Cập nhật sản phẩm thành công' : 'Thêm sản phẩm thành công',
-          'success'
-        );
+        addNotification(editingId ? 'Cập nhật thành công' : 'Thêm sản phẩm thành công', 'success');
         setShowForm(false);
-        setEditingId(null);
         resetForm();
         fetchProducts();
       } else {
-        let message = 'Lỗi khi lưu sản phẩm';
-        try {
-          const errorData = await response.json();
-          message = errorData?.message || message;
-        } catch {
-          message = `${message} (${response.status})`;
-        }
-        addNotification(message, 'error');
+        addNotification('Lỗi từ hệ thống máy chủ', 'error');
       }
     } catch (error) {
-      console.error('Submit error:', error);
-      addNotification('Lỗi khi lưu sản phẩm', 'error');
+      console.error(error);
+      addNotification('Lỗi kết nối mạng', 'error');
     }
   };
 
   const handleEdit = (product) => {
     setFormData({
-      name: product.name,
-      sku: product.sku,
-      description: product.description,
-      brand: product.brand,
-      material: product.material,
-      color: product.color,
-      careInstructions: product.careInstructions,
-      price: product.price.toString(),
-      stock: product.stock.toString(),
-      mainImageUrl: product.mainImageUrl,
-      isFeatured: product.isFeatured,
+      name: product.name || '',
+      sku: product.sku || '',
+      description: product.description || '',
+      brand: product.brand || '',
+      material: product.material || '',
+      careInstructions: product.careInstructions || '',
+      mainImageUrl: product.mainImageUrl || '',
+      isFeatured: product.isFeatured || false,
       categoryId: product.categoryId?.toString() || '',
-      rating: product.rating.toString(),
-      reviewCount: product.reviewCount.toString(),
+      rating: (product.rating || 0).toString(),
+      reviewCount: (product.reviewCount || 0).toString(),
       imageUrls: product.images?.map(img => img.url) || [],
-      sizes: product.sizes?.map(size => size.sizeValue) || [],
     });
+
+    if (product.productVariants && product.productVariants.length > 0) {
+      setVariants(product.productVariants.map(v => ({
+        size: v.size,
+        color: v.color,
+        price: v.price.toString(),
+        stock: v.stock.toString(),
+        sku: v.sku || ''
+      })));
+    } else {
+      setVariants([{ size: '', color: '', price: '', stock: '', sku: '' }]);
+    }
+
     setEditingId(product.id);
     setShowForm(true);
   };
 
   const handleDelete = async (productId) => {
-    if (!window.confirm('Bạn chắc chắn muốn xóa sản phẩm này?')) {
-      return;
-    }
-
+    if (!window.confirm('Xác nhận xóa sản phẩm cùng toàn bộ biến thể liên quan?')) return;
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/products/${productId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (response.ok) {
-        addNotification('Xóa sản phẩm thành công', 'success');
-        fetchProducts();
-      } else {
-        let message = 'Lỗi khi xóa sản phẩm';
-        try {
-          const errorData = await response.json();
-          message = errorData?.message || message;
-        } catch {
-          message = `${message} (${response.status})`;
-        }
-        addNotification(message, 'error');
-      }
-    } catch (error) {
-      console.error('Delete error:', error);
-      addNotification('Lỗi khi xóa sản phẩm', 'error');
-    }
+      if (response.ok) { addNotification('Xóa thành công', 'success'); fetchProducts(); }
+    } catch (error) { addNotification('Lỗi hệ thống khi xóa', 'error'); }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      sku: '',
-      description: '',
-      brand: '',
-      material: '',
-      color: '',
-      careInstructions: '',
-      price: '',
-      stock: '',
-      mainImageUrl: '',
-      isFeatured: false,
-      categoryId: '',
-      rating: '0',
-      reviewCount: '0',
-      imageUrls: [],
-      sizes: [],
-    });
-    setEditingId(null);
-  };
-
-  if (loading) {
-    return <div className="loading-page">Đang tải...</div>;
-  }
+  if (loading) return <div className="loading-page">Đang xử lý thông tin sản phẩm...</div>;
 
   return (
-    <AdminLayout title="Quản Lý Sản Phẩm">
+    <AdminLayout title="Quản Lý Biến Thể Sản Phẩm">
       <div className="admin-products-page">
-      <div className="admin-header">
-        <h1>Quản Lý Sản Phẩm</h1>
-        <button
-          onClick={() => {
-            if (showForm) {
-              setShowForm(false);
-              resetForm();
-            } else {
-              setShowForm(true);
-            }
-          }}
-          className="btn-add-product"
-        >
-          {showForm ? '← Quay Lại' : '+ Thêm Sản Phẩm'}
-        </button>
-      </div>
-
-      {showForm ? (
-        <div className="product-form-section">
-          <form onSubmit={handleSubmit} className="product-form">
-            <div className="form-section">
-              <h2>{editingId ? 'Chỉnh Sửa Sản Phẩm' : 'Thêm Sản Phẩm Mới'}</h2>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Tên Sản Phẩm *</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={handleFormChange('name')}
-                    placeholder="Tên sản phẩm"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>SKU *</label>
-                  <input
-                    type="text"
-                    value={formData.sku}
-                    onChange={handleFormChange('sku')}
-                    placeholder="SKU-001"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Thương Hiệu</label>
-                  <input
-                    type="text"
-                    value={formData.brand}
-                    onChange={handleFormChange('brand')}
-                    placeholder="THEBOB"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Danh Mục</label>
-                  <select
-                    value={formData.categoryId}
-                    onChange={handleFormChange('categoryId')}
-                  >
-                    <option value="">Chọn danh mục</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group full-width">
-                <label>Mô Tả</label>
-                <textarea
-                  value={formData.description}
-                  onChange={handleFormChange('description')}
-                  placeholder="Mô tả chi tiết sản phẩm"
-                  rows={4}
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Giá (VNĐ) *</label>
-                  <input
-                    type="number"
-                    value={formData.price}
-                    onChange={handleFormChange('price')}
-                    placeholder="299000"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Tồn Kho *</label>
-                  <input
-                    type="number"
-                    value={formData.stock}
-                    onChange={handleFormChange('stock')}
-                    placeholder="100"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Màu Sắc</label>
-                  <input
-                    type="text"
-                    value={formData.color}
-                    onChange={handleFormChange('color')}
-                    placeholder="Đỏ, Xanh, v.v"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Chất Liệu</label>
-                  <input
-                    type="text"
-                    value={formData.material}
-                    onChange={handleFormChange('material')}
-                    placeholder="Cotton 100%"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group full-width">
-                <label>Hướng Dẫn Chăm Sóc</label>
-                <input
-                  type="text"
-                  value={formData.careInstructions}
-                  onChange={handleFormChange('careInstructions')}
-                  placeholder="Giặt tay, không tẩy"
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Ảnh Chính</label>
-                  <input
-                    type="url"
-                    value={formData.mainImageUrl}
-                    onChange={handleFormChange('mainImageUrl')}
-                    placeholder="https://..."
-                  />
-                </div>
-                <div className="form-group">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={formData.isFeatured}
-                      onChange={handleFormChange('isFeatured')}
-                    />
-                    Nổi Bật
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-section-sub">
-                <h3>Ảnh Phụ</h3>
-                {formData.imageUrls.map((url, index) => (
-                  <div key={index} className="image-url-input">
-                    <input
-                      type="url"
-                      value={url}
-                      onChange={(e) => handleImageUrlChange(index, e.target.value)}
-                      placeholder={`https://... (${index + 1})`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleImageUrlRemove(index)}
-                      className="btn-remove-image"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleImageUrlAdd}
-                  className="btn-add-image"
-                >
-                  + Thêm Ảnh
-                </button>
-              </div>
-
-              <div className="form-section-sub">
-                <h3>Kích Thước (Tối đa 5)</h3>
-                {formData.sizes.map((size, index) => (
-                  <div key={index} className="size-input">
-                    <input
-                      type="text"
-                      value={size}
-                      onChange={(e) => handleSizeChange(index, e.target.value)}
-                      placeholder={`Kích thước ${index + 1}`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSizeRemove(index)}
-                      className="btn-remove-size"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleSizeAdd}
-                  className="btn-add-size"
-                >
-                  + Thêm Kích Thước
-                </button>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Đánh Giá</label>
-                  <input
-                    type="number"
-                    value={formData.rating}
-                    onChange={handleFormChange('rating')}
-                    placeholder="4.5"
-                    min="0"
-                    max="5"
-                    step="0.1"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Số Bình Luận</label>
-                  <input
-                    type="number"
-                    value={formData.reviewCount}
-                    onChange={handleFormChange('reviewCount')}
-                    placeholder="0"
-                    min="0"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  resetForm();
-                }}
-                className="btn-cancel"
-              >
-                Hủy
-              </button>
-              <button type="submit" className="btn-save">
-                {editingId ? 'Cập Nhật' : 'Thêm'} Sản Phẩm
-              </button>
-            </div>
-          </form>
+        <div className="admin-header">
+          <h1>Quản Lý Sản Phẩm (Đa biến thể)</h1>
+          <button onClick={() => { if (showForm) { setShowForm(false); resetForm(); } else { setShowForm(true); } }} className="btn-add-product">
+            {showForm ? '← Danh Sách' : '+ Thêm Sản Phẩm'}
+          </button>
         </div>
-      ) : (
-        <div className="products-table-section">
-          {products.length === 0 ? (
-            <div className="no-products">Không có sản phẩm nào</div>
-          ) : (
+
+        {showForm ? (
+          <div className="product-form-section">
+            <form onSubmit={handleSubmit} className="product-form">
+              <div className="form-section">
+                <h2>{editingId ? 'Cập Nhật Sản Phẩm' : 'Tạo Sản Phẩm Mới'}</h2>
+
+                <div className="form-row">
+                  <div className="form-group"> <label>Tên Sản Phẩm *</label> <input type="text" value={formData.name} onChange={handleFormChange('name')} required /> </div>
+                  <div className="form-group"> <label>Mã Sản Phẩm (SKU chính) *</label> <input type="text" value={formData.sku} onChange={handleFormChange('sku')} required /> </div>
+                </div>
+
+                {/* KHU VỰC THIẾT LẬP BIẾN THỂ THEO BẢNG PRODUCTVARIANTS */}
+                <div className="form-section-sub" style={{ background: '#f4f6f9', padding: '20px', borderRadius: '8px', marginBottom: '25px' }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#1a202c', fontSize: '16px' }}>Cấu Hình Thuộc Tính Biến Thể (Size, Màu, Giá, Kho)</h3>
+                  
+                  {variants.map((v, index) => (
+                    <div key={index} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: '12px', borderRadius: '6px', marginBottom: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      <div style={{ width: '80px' }}>
+                        <label style={{ fontSize: '11px', display: 'block' }}>Size *</label>
+                        <input type="text" value={v.size} onChange={(e) => handleVariantChange(index, 'size', e.target.value)} placeholder="S, M, L..." required style={{ padding: '6px' }} />
+                      </div>
+                      <div style={{ width: '90px' }}>
+                        <label style={{ fontSize: '11px', display: 'block' }}>Màu Sắc *</label>
+                        <input type="text" value={v.color} onChange={(e) => handleVariantChange(index, 'color', e.target.value)} placeholder="Đen, Trắng..." required style={{ padding: '6px' }} />
+                      </div>
+                      <div style={{ flex: 2, minWidth: '120px' }}>
+                        <label style={{ fontSize: '11px', display: 'block' }}>Giá Bán (đ) *</label>
+                        <input type="number" value={v.price} onChange={(e) => handleVariantChange(index, 'price', e.target.value)} placeholder="Giá lẻ" required style={{ padding: '6px' }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: '80px' }}>
+                        <label style={{ fontSize: '11px', display: 'block' }}>Số Kho *</label>
+                        <input type="number" value={v.stock} onChange={(e) => handleVariantChange(index, 'stock', e.target.value)} placeholder="Tồn kho" required style={{ padding: '6px' }} />
+                      </div>
+                      <div style={{ flex: 2, minWidth: '120px' }}>
+                        <label style={{ fontSize: '11px', display: 'block' }}>SKU Biến Thể (Tự chọn)</label>
+                        <input type="text" value={v.sku} onChange={(e) => handleVariantChange(index, 'sku', e.target.value)} placeholder="Bỏ trống tự sinh" style={{ padding: '6px' }} />
+                      </div>
+                      {variants.length > 1 && (
+                        <button type="button" onClick={() => handleRemoveVariant(index)} style={{ background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', marginTop: '15px' }}>✕</button>
+                      )}
+                    </div>
+                  ))}
+                  
+                  <button type="button" onClick={handleAddVariant} style={{ background: '#3182ce', color: '#fff', border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontWeight: '500', fontSize: '13px' }}>
+                    + Thêm Dòng Biến Thể Mới
+                  </button>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Thương Hiệu</label> <input type="text" value={formData.brand} onChange={handleFormChange('brand')} />
+                  </div>
+                  <div className="form-group">
+                    <label>Danh Mục</label>
+                    <select value={formData.categoryId} onChange={handleFormChange('categoryId')}>
+                      <option value="">Chọn danh mục</option>
+                      {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group full-width"> <label>Mô Tả</label> <textarea value={formData.description} onChange={handleFormChange('description')} rows={3} /> </div>
+                <div className="form-row">
+                  <div className="form-group"> <label>Chất Liệu</label> <input type="text" value={formData.material} onChange={handleFormChange('material')} /> </div>
+                  <div className="form-group"> <label>Bảo Quản</label> <input type="text" value={formData.careInstructions} onChange={handleFormChange('careInstructions')} /> </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group"> <label>Ảnh Chính</label> <input type="url" value={formData.mainImageUrl} onChange={handleFormChange('mainImageUrl')} /> </div>
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px' }}>
+                      <input type="checkbox" checked={formData.isFeatured} onChange={handleFormChange('isFeatured')} /> Đặt làm sản phẩm nổi bật
+                    </label>
+                  </div>
+                </div>
+
+                <div className="form-section-sub">
+                  <h3>Ảnh Phụ</h3>
+                  {formData.imageUrls.map((url, index) => (
+                    <div key={index} className="image-url-input">
+                      <input type="url" value={url} onChange={(e) => handleImageUrlChange(index, e.target.value)} />
+                      <button type="button" onClick={() => handleImageUrlRemove(index)} className="btn-remove-image">✕</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={handleImageUrlAdd} className="btn-add-image">+ Thêm Ảnh</button>
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button type="button" onClick={() => { setShowForm(false); resetForm(); }} className="btn-cancel">Hủy</button>
+                <button type="submit" className="btn-save">Lưu Toàn Bộ</button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          <div className="products-table-section">
             <div className="products-table">
               <div className="table-header">
                 <span className="col-name">Tên Sản Phẩm</span>
                 <span className="col-sku">SKU</span>
                 <span className="col-category">Danh Mục</span>
-                <span className="col-price">Giá</span>
-                <span className="col-stock">Tồn Kho</span>
+                <span className="col-variants-detail">Thông tin các Biến thể (Màu - Size - Giá - Kho)</span>
                 <span className="col-actions">Thao Tác</span>
               </div>
 
               {products.map((product) => (
                 <div key={product.id} className="table-row">
-                  <span className="col-name">{product.name}</span>
+                  <span className="col-name" style={{ fontWeight: '600' }}>{product.name}</span>
                   <span className="col-sku">{product.sku}</span>
-                  <span className="col-category">
-                    {product.category?.name || '-'}
-                  </span>
-                  <span className="col-price">
-                    {product.price.toLocaleString('vi-VN')} VNĐ
-                  </span>
-                  <span className={`col-stock ${product.stock <= 10 ? 'low' : ''}`}>
-                    {product.stock}
+                  <span className="col-category">{product.category?.name || '-'}</span>
+                  <span className="col-variants-detail" style={{ fontSize: '12px', color: '#4a5568' }}>
+                    {product.productVariants && product.productVariants.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {product.productVariants.map((v, i) => (
+                          <div key={i} style={{ background: '#edf2f7', padding: '2px 6px', borderRadius: '4px' }}>
+                            🎨 {v.color} | 📐 Size {v.size} | 💰 {v.price.toLocaleString('vi-VN')}đ | 📦 Tồn: {v.stock}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ color: '#e53e3e' }}>Chưa thiết lập biến thể</span>
+                    )}
                   </span>
                   <span className="col-actions">
-                    <button
-                      onClick={() => handleEdit(product)}
-                      className="btn-edit"
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id)}
-                      className="btn-delete"
-                    >
-                      Xóa
-                    </button>
+                    <button onClick={() => handleEdit(product)} className="btn-edit">Sửa</button>
+                    <button onClick={() => handleDelete(product.id)} className="btn-delete">Xóa</button>
                   </span>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

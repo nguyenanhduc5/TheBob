@@ -21,42 +21,20 @@ builder.Services.AddControllers();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var jwtKey = builder.Configuration["Jwt:Key"] ?? "THEBOB_JWT_SECRET_KEY_2026_SUPER_SECRET";
+        var issuer = builder.Configuration["Jwt:Issuer"] ?? "THEBOB";
+        var audience = builder.Configuration["Jwt:Audience"] ?? "THEBOB_API";
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = "THEBOB",
-            ValidAudience = "THEBOB_API",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("THEBOB_JWT_SECRET_KEY_2026_SUPER_SECRET")),
+            ValidIssuer = issuer,
+            ValidAudience = audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             RoleClaimType = ClaimTypes.Role
-        };
-
-        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
-        {
-            OnAuthenticationFailed = context =>
-            {
-                Console.WriteLine($"JWT authentication failed: {context.Exception.Message}");
-                return Task.CompletedTask;
-            },
-            OnTokenValidated = context =>
-            {
-                var principal = context.Principal;
-                Console.WriteLine($"JWT validated");
-                Console.WriteLine($"  IsAuthenticated: {principal?.Identity?.IsAuthenticated}");
-                Console.WriteLine($"  Identity.Name: {principal?.Identity?.Name}");
-                Console.WriteLine($"  Claims:");
-                foreach (var claim in principal?.Claims ?? new List<Claim>())
-                {
-                    Console.WriteLine($"    {claim.Type}: {claim.Value}");
-                }
-                var roles = principal?.FindAll(System.Security.Claims.ClaimTypes.Role);
-                Console.WriteLine($"  ClaimTypes.Role claims: {string.Join(", ", roles?.Select(c => c.Value) ?? new List<string>())}");
-                var rolesClaim = principal?.FindAll("role");
-                Console.WriteLine($"  'role' claims: {string.Join(", ", rolesClaim?.Select(c => c.Value) ?? new List<string>())}");
-                return Task.CompletedTask;
-            }
         };
     });
 
@@ -97,45 +75,55 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 
     var adminSeedEnabled = builder.Configuration.GetValue<bool>("AdminSeed:Enable", false);
-    var adminUsername = builder.Configuration["AdminSeed:Username"];
-    var adminPassword = builder.Configuration["AdminSeed:Password"];
     var adminEmail = builder.Configuration["AdminSeed:Email"];
+    var adminPassword = builder.Configuration["AdminSeed:Password"];
     var adminName = builder.Configuration["AdminSeed:Name"];
     var adminPhone = builder.Configuration["AdminSeed:Phone"];
-    var adminAddress = builder.Configuration["AdminSeed:Address"];
 
-    if (adminSeedEnabled &&
-        !string.IsNullOrWhiteSpace(adminUsername) &&
-        !string.IsNullOrWhiteSpace(adminPassword))
+    if (adminSeedEnabled && !string.IsNullOrWhiteSpace(adminEmail) && !string.IsNullOrWhiteSpace(adminPassword))
     {
-        var adminUser = db.Users.FirstOrDefault(u => u.Username == adminUsername);
+        // Ensure Admin role exists
+        var adminRole = db.Roles.FirstOrDefault(r => r.RoleName == "Admin");
+        if (adminRole == null)
+        {
+            adminRole = new Role { RoleName = "Admin" };
+            db.Roles.Add(adminRole);
+            db.SaveChanges();
+        }
 
+        // Ensure User role exists
+        var userRole = db.Roles.FirstOrDefault(r => r.RoleName == "User");
+        if (userRole == null)
+        {
+            userRole = new Role { RoleName = "User" };
+            db.Roles.Add(userRole);
+            db.SaveChanges();
+        }
+
+        // Create or update admin user by email
+        var adminUser = db.Users.FirstOrDefault(u => u.Email == adminEmail);
         if (adminUser == null)
         {
             adminUser = new User
             {
-                Username = adminUsername,
-                Email = adminEmail ?? string.Empty,
-                Name = adminName ?? "Admin",
-                Phone = adminPhone ?? string.Empty,
-                Address = adminAddress ?? string.Empty,
+                Email = adminEmail,
                 PasswordHash = authService.HashPassword(adminPassword),
-                Role = UserRole.Admin,
+                FullName = adminName ?? "Admin",
+                Phone = adminPhone ?? string.Empty,
+                RoleId = adminRole.Id,
+                RoleEntity = adminRole,
                 IsActive = true
             };
-
             db.Users.Add(adminUser);
             db.SaveChanges();
         }
-        else if (adminUser.Role != UserRole.Admin || !adminUser.IsActive)
+        else
         {
-            adminUser.Role = UserRole.Admin;
+            adminUser.RoleId = adminRole.Id;
             adminUser.IsActive = true;
-            adminUser.Email = adminEmail ?? adminUser.Email;
-            adminUser.Name = adminName ?? adminUser.Name;
-            adminUser.Phone = adminPhone ?? adminUser.Phone;
-            adminUser.Address = adminAddress ?? adminUser.Address;
             adminUser.PasswordHash = authService.HashPassword(adminPassword);
+            adminUser.FullName = adminName ?? adminUser.FullName;
+            adminUser.Phone = adminPhone ?? adminUser.Phone;
             db.SaveChanges();
         }
     }

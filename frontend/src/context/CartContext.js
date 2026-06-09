@@ -24,12 +24,15 @@ export const CartProvider = ({ children }) => {
     localStorage.setItem('thebob-cart', JSON.stringify(cartItems));
   }, [cartItems]);
 
+  const getItemKey = (item) => item.variantId ?? item.id;
+
   const addToCart = (product, quantity = 1) => {
     setCartItems(prev => {
-      const existing = prev.find(item => item.id === product.id);
+      const productKey = getItemKey(product);
+      const existing = prev.find(item => getItemKey(item) === productKey);
       if (existing) {
         return prev.map(item =>
-          item.id === product.id
+          getItemKey(item) === productKey
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
@@ -38,18 +41,18 @@ export const CartProvider = ({ children }) => {
     });
   };
 
-  const removeFromCart = (productId) => {
-    setCartItems(prev => prev.filter(item => item.id !== productId));
+  const removeFromCart = (itemKey) => {
+    setCartItems(prev => prev.filter(item => getItemKey(item) !== itemKey));
   };
 
-  const updateQuantity = (productId, quantity) => {
+  const updateQuantity = (itemKey, quantity) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(itemKey);
       return;
     }
     setCartItems(prev =>
       prev.map(item =>
-        item.id === productId ? { ...item, quantity } : item
+        getItemKey(item) === itemKey ? { ...item, quantity } : item
       )
     );
   };

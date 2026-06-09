@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System;
 
 namespace THEBOB.Models
 {
@@ -17,11 +18,10 @@ namespace THEBOB.Models
         public int Id { get; set; }
 
         [Required]
-        public int ProductId { get; set; }
+        public int VariantId { get; set; }
 
-        [ForeignKey("ProductId")]
-        public Product Product { get; set; } = null!;
-
+        [ForeignKey("VariantId")]
+        public ProductVariant Variant { get; set; } = null!;
         [Required]
         public InventoryChangeType ChangeType { get; set; }
 

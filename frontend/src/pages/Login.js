@@ -30,9 +30,19 @@ export default function Login() {
     setErrorMessage('');
     setLoading(true);
 
+    const email = formState.email.trim().toLowerCase();
+    const password = formState.password;
+
     // Validate inputs
-    if (!formState.email || !formState.password) {
+    if (!email || !password) {
       setErrorMessage('Vui lòng nhập đầy đủ thông tin');
+      setLoading(false);
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setErrorMessage('Định dạng email không hợp lệ');
       setLoading(false);
       return;
     }
@@ -44,8 +54,8 @@ export default function Login() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: formState.email,
-          password: formState.password,
+          email,
+          password,
         }),
       });
 

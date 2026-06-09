@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useNotification } from '../context/NotificationContext';
@@ -12,7 +12,7 @@ export default function Cart() {
   const [discountPercent, setDiscountPercent] = useState(0);
 
   const calculateSubtotal = () => {
-    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cartItems.reduce((total, item) => total + ((item.price ?? 0) * (item.quantity ?? 1)), 0);
   };
 
   const subtotal = calculateSubtotal();
@@ -34,8 +34,10 @@ export default function Cart() {
     setAppliedCoupon('');
   };
 
-  const handleRemoveItem = (productId) => {
-    removeFromCart(productId);
+  const getItemKey = (item) => item.variantId ?? item.id;
+
+  const handleRemoveItem = (itemKey) => {
+    removeFromCart(itemKey);
     addNotification('Đã xóa sản phẩm khỏi giỏ hàng', 'info');
   };
 
@@ -81,7 +83,7 @@ export default function Cart() {
           </div>
 
           {cartItems.map((item) => (
-            <div key={`${item.id}-${item.selectedSize}`} className="cart-item">
+            <div key={`${getItemKey(item)}-${item.selectedSize}-${item.selectedColor}`} className="cart-item">
               <div className="col-product">
                 <img
                   src={item.mainImageUrl || '/placeholder.jpg'}
@@ -95,11 +97,11 @@ export default function Cart() {
                 </div>
               </div>
               <div className="col-price">
-                {item.price.toLocaleString('vi-VN')} VNĐ
+                {(item.price ?? 0).toLocaleString('vi-VN')} VNĐ
               </div>
               <div className="col-quantity">
                 <button
-                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                  onClick={() => updateQuantity(getItemKey(item), item.quantity - 1)}
                   disabled={item.quantity <= 1}
                   className="qty-btn"
                 >
@@ -107,18 +109,18 @@ export default function Cart() {
                 </button>
                 <input type="number" value={item.quantity} readOnly />
                 <button
-                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                  onClick={() => updateQuantity(getItemKey(item), item.quantity + 1)}
                   className="qty-btn"
                 >
                   +
                 </button>
               </div>
               <div className="col-subtotal">
-                {(item.price * item.quantity).toLocaleString('vi-VN')} VNĐ
+                {((item.price ?? 0) * (item.quantity ?? 1)).toLocaleString('vi-VN')} VNĐ
               </div>
               <div className="col-action">
                 <button
-                  onClick={() => handleRemoveItem(item.id)}
+                  onClick={() => handleRemoveItem(getItemKey(item))}
                   className="btn-remove"
                 >
                   ✕
@@ -147,24 +149,24 @@ export default function Cart() {
 
           <div className="summary-row">
             <span>Tạm tính:</span>
-            <span>{subtotal.toLocaleString('vi-VN')} VNĐ</span>
+            <span>{(subtotal ?? 0).toLocaleString('vi-VN')} VNĐ</span>
           </div>
 
           {discount > 0 && (
             <div className="summary-row discount">
               <span>Giảm giá ({discountPercent}%):</span>
-              <span>-{discount.toLocaleString('vi-VN')} VNĐ</span>
+              <span>-{(discount ?? 0).toLocaleString('vi-VN')} VNĐ</span>
             </div>
           )}
 
           <div className="summary-row">
             <span>Phí vận chuyển:</span>
-            <span>{shipping === 0 ? 'Miễn Phí' : shipping.toLocaleString('vi-VN') + ' VNĐ'}</span>
+            <span>{shipping === 0 ? 'Miễn Phí' : (shipping ?? 0).toLocaleString('vi-VN') + ' VNĐ'}</span>
           </div>
 
           <div className="summary-row total">
             <span>Tổng cộng:</span>
-            <span>{total.toLocaleString('vi-VN')} VNĐ</span>
+            <span>{(total ?? 0).toLocaleString('vi-VN')} VNĐ</span>
           </div>
 
           <button

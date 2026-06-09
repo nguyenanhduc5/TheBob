@@ -37,7 +37,13 @@ export default function Register() {
     setErrorMessage('');
     setLoading(true);
 
-    const { username, email, name, phone, address, password, confirmPassword } = formState;
+    const username = formState.username.trim();
+    const email = formState.email.trim().toLowerCase();
+    const name = formState.name.trim();
+    const phone = formState.phone.trim();
+    const address = formState.address.trim();
+    const password = formState.password;
+    const confirmPassword = formState.confirmPassword;
 
     // --- VALIDATION ---
 

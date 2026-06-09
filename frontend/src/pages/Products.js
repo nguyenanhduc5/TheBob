@@ -25,7 +25,7 @@ export default function Products() {
   useEffect(() => {
     fetchCategories();
     fetchProducts();
-  }, [filters]);
+  }, [filters, sortBy]); // Đã bổ sung sortBy vào dependency để kích hoạt sắp xếp khi thay đổi
 
   const fetchCategories = async () => {
     try {
@@ -53,13 +53,13 @@ export default function Products() {
       if (response.ok) {
         let data = await response.json();
         
-        // Sort products
+        // Sắp xếp sản phẩm an toàn bằng cách kiểm tra sự tồn tại của thuộc tính price
         if (sortBy === 'price-low') {
-          data.sort((a, b) => a.price - b.price);
+          data.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
         } else if (sortBy === 'price-high') {
-          data.sort((a, b) => b.price - a.price);
+          data.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
         } else if (sortBy === 'rating') {
-          data.sort((a, b) => b.rating - a.rating);
+          data.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
         }
         
         setProducts(data);
@@ -112,6 +112,7 @@ export default function Products() {
               value={filters.categoryId}
               onChange={(e) => handleFilterChange('categoryId', e.target.value)}
               className="filter-select"
+              aria-label="Lọc theo danh mục sản phẩm"
             >
               <option value="">Tất cả danh mục</option>
               {categories.map((cat) => (
@@ -142,6 +143,7 @@ export default function Products() {
                 value={filters.minPrice}
                 onChange={(e) => handleFilterChange('minPrice', e.target.value)}
                 className="filter-input"
+                aria-label="Giá tối thiểu"
               />
               <span>-</span>
               <input
@@ -150,6 +152,7 @@ export default function Products() {
                 value={filters.maxPrice}
                 onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
                 className="filter-input"
+                aria-label="Giá tối đa"
               />
             </div>
           </div>
@@ -172,6 +175,7 @@ export default function Products() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
+                aria-label="Sắp xếp sản phẩm theo tiêu chí"
               >
                 <option value="newest">Mới nhất</option>
                 <option value="price-low">Giá: Thấp → Cao</option>
@@ -205,11 +209,16 @@ export default function Products() {
                       {product.name}
                     </h3>
                     <div className="product-rating">
-                      <span className="stars">⭐ {product.rating.toFixed(1)}</span>
-                      <span className="reviews">({product.reviewCount})</span>
+                      <span className="stars">⭐ {Number(product.rating ?? 0).toFixed(1)}</span>
+                      <span className="reviews">({product.reviewCount ?? 0})</span>
                     </div>
                     <div className="product-price">
-                      {product.price.toLocaleString('vi-VN')} VNĐ
+                      {product.price !== undefined && product.price !== null
+                        ? product.price.toLocaleString('vi-VN')
+                        : product.productVariants?.[0]?.price
+                        ? product.productVariants[0].price.toLocaleString('vi-VN')
+                        : '0'}{' '}
+                      VNĐ
                     </div>
                     <button
                       onClick={() => handleAddToCart(product)}

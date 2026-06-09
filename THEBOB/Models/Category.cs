@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace THEBOB.Models
 {
@@ -23,6 +24,7 @@ namespace THEBOB.Models
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+        [JsonIgnore]
         public ICollection<Product> Products { get; set; } = new List<Product>();
     }
 }

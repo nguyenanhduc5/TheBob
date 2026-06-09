@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -13,11 +13,7 @@ export default function OrderDetail() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchOrder();
-  }, [orderId]);
-
-  const fetchOrder = async () => {
+  const fetchOrder = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/orders/${orderId}`, {
@@ -39,7 +35,11 @@ export default function OrderDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [addNotification, navigate, orderId, token]);
+
+  useEffect(() => {
+    fetchOrder();
+  }, [fetchOrder]);
 
   if (loading) {
     return <div className="loading-page">Đang tải thông tin đơn hàng...</div>;
@@ -54,6 +54,8 @@ export default function OrderDetail() {
       case 'Pending':
         return 'status-pending';
       case 'Processing':
+        return 'status-processing';
+      case 'Paid':
         return 'status-processing';
       case 'Shipped':
         return 'status-shipped';
@@ -70,6 +72,7 @@ export default function OrderDetail() {
     const statusMap = {
       'Pending': 'Chờ xử lý',
       'Processing': 'Đang xử lý',
+      'Paid': 'Đã thanh toán',
       'Shipped': 'Đang giao',
       'Delivered': 'Đã giao',
       'Cancelled': 'Đã hủy',
@@ -163,12 +166,12 @@ export default function OrderDetail() {
               <div className="summary-row">
                 <span>Tạm tính:</span>
                 <span>
-                  {(order.totalAmount - 30000).toLocaleString('vi-VN')} VNĐ
+                  {(order.subtotal ?? order.totalAmount).toLocaleString('vi-VN')} VNĐ
                 </span>
               </div>
               <div className="summary-row">
                 <span>Phí vận chuyển:</span>
-                <span>30,000 VNĐ</span>
+                <span>{(order.shippingAmount ?? 0).toLocaleString('vi-VN')} VNĐ</span>
               </div>
               <div className="summary-row total">
                 <span>Tổng cộng:</span>

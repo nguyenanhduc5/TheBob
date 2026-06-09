@@ -26,12 +26,16 @@ namespace THEBOB.Controllers
             var userId = GetCurrentUserId();
             var cart = await _context.Carts
                 .Include(c => c.CartItems)
-                .ThenInclude(ci => ci.Product)
+                .ThenInclude(ci => ci.Variant)
+                .ThenInclude(v => v.Product)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
 
             if (cart == null)
             {
                 // Create empty cart for user
+                if (!userId.HasValue)
+                    return Unauthorized();
+
                 cart = new Cart { UserId = userId.Value };
                 _context.Carts.Add(cart);
                 await _context.SaveChangesAsync();
@@ -48,12 +52,18 @@ namespace THEBOB.Controllers
                 return BadRequest(ModelState);
 
             var userId = GetCurrentUserId();
-            var product = await _context.Products.FindAsync(request.ProductId);
+            if (!userId.HasValue)
+                return Unauthorized();
 
-            if (product == null)
-                return NotFound("Product not found");
+            var variant = await _context.ProductVariants.FindAsync(request.VariantId);
 
-            if (product.Stock < request.Quantity)
+            if (variant == null)
+                return NotFound("Product variant not found");
+
+            if (request.Quantity <= 0)
+                return BadRequest("Quantity must be greater than zero");
+
+            if (variant.Stock < request.Quantity)
                 return BadRequest("Insufficient stock");
 
             // Get or create cart
@@ -69,10 +79,13 @@ namespace THEBOB.Controllers
             }
 
             // Check if product already in cart
-            var existingItem = cart.CartItems.FirstOrDefault(ci => ci.ProductId == request.ProductId);
+            var existingItem = cart.CartItems.FirstOrDefault(ci => ci.VariantId == request.VariantId);
 
             if (existingItem != null)
             {
+                if (variant.Stock < existingItem.Quantity + request.Quantity)
+                    return BadRequest("Insufficient stock");
+
                 // Update quantity
                 existingItem.Quantity += request.Quantity;
                 existingItem.AddedAt = DateTime.UtcNow;
@@ -83,7 +96,7 @@ namespace THEBOB.Controllers
                 var cartItem = new CartItem
                 {
                     CartId = cart.Id,
-                    ProductId = request.ProductId,
+                    VariantId = request.VariantId,
                     Quantity = request.Quantity
                 };
                 _context.CartItems.Add(cartItem);
@@ -103,9 +116,12 @@ namespace THEBOB.Controllers
                 return BadRequest(ModelState);
 
             var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+                return Unauthorized();
+
             var cartItem = await _context.CartItems
                 .Include(ci => ci.Cart)
-                .Include(ci => ci.Product)
+                .Include(ci => ci.Variant)
                 .FirstOrDefaultAsync(ci => ci.Id == itemId && ci.Cart.UserId == userId);
 
             if (cartItem == null)
@@ -118,7 +134,7 @@ namespace THEBOB.Controllers
             }
             else
             {
-                if (cartItem.Product.Stock < request.Quantity)
+                if (cartItem.Variant.Stock < request.Quantity)
                     return BadRequest("Insufficient stock");
 
                 cartItem.Quantity = request.Quantity;
@@ -135,6 +151,9 @@ namespace THEBOB.Controllers
         public async Task<IActionResult> RemoveCartItem(int itemId)
         {
             var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+                return Unauthorized();
+
             var cartItem = await _context.CartItems
                 .Include(ci => ci.Cart)
                 .FirstOrDefaultAsync(ci => ci.Id == itemId && ci.Cart.UserId == userId);
@@ -154,6 +173,9 @@ namespace THEBOB.Controllers
         public async Task<IActionResult> ClearCart()
         {
             var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+                return Unauthorized();
+
             var cart = await _context.Carts
                 .Include(c => c.CartItems)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
@@ -177,7 +199,7 @@ namespace THEBOB.Controllers
 
     public class AddToCartRequest
     {
-        public int ProductId { get; set; }
+        public int VariantId { get; set; }
         public int Quantity { get; set; } = 1;
     }
 

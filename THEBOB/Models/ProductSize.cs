@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace THEBOB.Models
 {
@@ -12,6 +13,7 @@ namespace THEBOB.Models
         public int ProductId { get; set; }
 
         [ForeignKey("ProductId")]
+        [JsonIgnore]
         public Product Product { get; set; } = null!;
 
         [Required]

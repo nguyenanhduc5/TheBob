@@ -36,7 +36,13 @@ export default function Header() {
     <header className="main-header">
       <div className="top-banner">OUTLET</div>
       <div className="header-container">
-        <button className="hamburger" onClick={() => setMobileMenuOpen((open) => !open)}>
+        <button
+          className="hamburger"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-menu"
+        >
           <span />
           <span />
           <span />
@@ -47,20 +53,32 @@ export default function Header() {
         </button>
 
         <div className="header-actions">
-          <button className="icon-button" onClick={() => handleNavigate('/products')}>
+          <button
+            className="icon-button"
+            onClick={() => handleNavigate('/products')}
+            aria-label="Search products"
+          >
             🔍
           </button>
-          <button className="icon-button cart-icon" onClick={() => handleNavigate('/cart')}>
+          <button
+            className="icon-button cart-icon"
+            onClick={() => handleNavigate('/cart')}
+            aria-label="View cart"
+          >
             🛒
             {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
-          <button className="icon-button user-icon" onClick={handleUserIconClick}>
+          <button
+            className="icon-button user-icon"
+            onClick={handleUserIconClick}
+            aria-label="Account"
+          >
             👤
           </button>
         </div>
       </div>
 
-      <div className={`mobile-menu ${mobileMenuOpen ? 'open' : ''}`}>
+      <div id="mobile-menu" className={`mobile-menu ${mobileMenuOpen ? 'open' : ''}`}>
         <nav className="mobile-nav">
           <button onClick={() => handleNavigate('/products')} className="mobile-nav-item">
             SHOP

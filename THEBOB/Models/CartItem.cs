@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System;
 
 namespace THEBOB.Models
 {
@@ -15,10 +16,10 @@ namespace THEBOB.Models
         public Cart Cart { get; set; } = null!;
 
         [Required]
-        public int ProductId { get; set; }
+        public int VariantId { get; set; }
 
-        [ForeignKey("ProductId")]
-        public Product Product { get; set; } = null!;
+        [ForeignKey("VariantId")]
+        public ProductVariant Variant { get; set; } = null!;
 
         [Required]
         [Range(1, int.MaxValue)]

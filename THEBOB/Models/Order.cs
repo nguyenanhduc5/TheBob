@@ -6,6 +6,7 @@ namespace THEBOB.Models
     public enum OrderStatus
     {
         Pending,
+        Processing,
         Paid,
         Shipped,
         Delivered,
@@ -39,6 +40,14 @@ namespace THEBOB.Models
 
         [MaxLength(100)]
         public string PaymentMethod { get; set; } = string.Empty;
+
+        [MaxLength(50)]
+        public string PaymentStatus { get; set; } = "Pending"; // Pending, Completed, Failed, Refunded
+
+        public int? CouponId { get; set; }
+
+        [ForeignKey("CouponId")]
+        public Coupon? Coupon { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

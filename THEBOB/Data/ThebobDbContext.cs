@@ -12,7 +12,11 @@ namespace THEBOB.Data
         public DbSet<Product> Products { get; set; }
         public DbSet<Category> Categories { get; set; }
         public DbSet<ProductImage> ProductImages { get; set; }
-        public DbSet<ProductSize> ProductSizes { get; set; }
+        public DbSet<ProductVariant> ProductVariants { get; set; }
+        public DbSet<ProductReview> ProductReviews { get; set; }
+        public DbSet<Role> Roles { get; set; }
+        public DbSet<Address> Addresses { get; set; }
+        public DbSet<Coupon> Coupons { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<Cart> Carts { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
@@ -24,41 +28,57 @@ namespace THEBOB.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // Cấu hình Product
-            modelBuilder.Entity<Product>()
-                .Property(p => p.Price)
-                .HasColumnType("decimal(10,2)");
+            // Configure Category
+            modelBuilder.Entity<Category>()
+                .HasIndex(c => c.Slug)
+                .IsUnique();
 
-            modelBuilder.Entity<Product>()
-                .Property(p => p.Rating)
-                .HasColumnType("decimal(3,2)");
-
+            // Configure Product
             modelBuilder.Entity<Product>()
                 .HasOne(p => p.Category)
                 .WithMany(c => c.Products)
                 .HasForeignKey(p => p.CategoryId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            // Cấu hình Order
-            modelBuilder.Entity<Order>()
-                .Property(o => o.TotalAmount)
-                .HasColumnType("decimal(10,2)");
+            // Configure ProductVariant
+            modelBuilder.Entity<ProductVariant>()
+                .HasIndex(v => v.Sku)
+                .IsUnique();
 
+            modelBuilder.Entity<ProductVariant>()
+                .HasIndex(v => new { v.ProductId, v.Size, v.Color })
+                .IsUnique();
+
+            // Configure ProductImage
+            modelBuilder.Entity<ProductImage>()
+                .HasIndex(pi => new { pi.ProductId, pi.SortOrder });
+
+            // Configure Order
             modelBuilder.Entity<Order>()
                 .HasIndex(o => o.OrderNumber)
                 .IsUnique();
 
-            // Cấu hình OrderItem
-            modelBuilder.Entity<OrderItem>()
-                .Property(oi => oi.PriceAtTime)
-                .HasColumnType("decimal(10,2)");
+            // Configure Order-Coupon relationship
+            modelBuilder.Entity<Order>()
+                .HasOne(o => o.Coupon)
+                .WithMany()
+                .HasForeignKey(o => o.CouponId)
+                .OnDelete(DeleteBehavior.SetNull);
 
-            modelBuilder.Entity<Category>()
-                .HasIndex(c => c.Slug)
+            // Configure OrderItem snapshot price
+            modelBuilder.Entity<OrderItem>()
+                .Property(oi => oi.PricePerItem)
+                .HasColumnType("decimal(12,2)");
+
+            // Configure Coupon
+            modelBuilder.Entity<Coupon>()
+                .HasIndex(c => c.Code)
                 .IsUnique();
 
-            modelBuilder.Entity<ProductImage>()
-                .HasIndex(pi => new { pi.ProductId, pi.SortOrder });
+            // Configure ProductReview
+            modelBuilder.Entity<ProductReview>()
+                .HasIndex(r => new { r.ProductId, r.UserId })
+                .IsUnique();
         }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using THEBOB.Data;
 
@@ -11,9 +12,11 @@ using THEBOB.Data;
 namespace THEBOB.Migrations
 {
     [DbContext(typeof(ThebobDbContext))]
-    partial class ThebobDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260606093120_InitialSchema")]
+    partial class InitialSchema
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -266,9 +269,6 @@ namespace THEBOB.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int?>("CouponId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -281,11 +281,6 @@ namespace THEBOB.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
-
-                    b.Property<string>("PaymentStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
 
                     b.Property<string>("ShippingAddress")
                         .IsRequired()
@@ -305,8 +300,6 @@ namespace THEBOB.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CouponId");
 
                     b.HasIndex("OrderNumber")
                         .IsUnique();
@@ -381,6 +374,11 @@ namespace THEBOB.Migrations
                     b.Property<int?>("CategoryId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -407,6 +405,9 @@ namespace THEBOB.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(65,30)");
+
                     b.Property<double>("Rating")
                         .HasColumnType("double");
 
@@ -417,6 +418,9 @@ namespace THEBOB.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Stock")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -457,6 +461,32 @@ namespace THEBOB.Migrations
                     b.ToTable("ProductImages");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.ProductSize", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SizeValue")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductSizes");
+                });
+
             modelBuilder.Entity("THEBOB.Models.ProductVariant", b =>
                 {
                     b.Property<int>("Id")
@@ -467,8 +497,8 @@ namespace THEBOB.Migrations
 
                     b.Property<string>("Color")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -477,20 +507,20 @@ namespace THEBOB.Migrations
                         .HasColumnType("tinyint(1)");
 
                     b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
                     b.Property<string>("Size")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("Sku")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
                     b.Property<int>("Stock")
                         .HasColumnType("int");
@@ -633,18 +663,11 @@ namespace THEBOB.Migrations
 
             modelBuilder.Entity("THEBOB.Models.Order", b =>
                 {
-                    b.HasOne("THEBOB.Models.Coupon", "Coupon")
-                        .WithMany()
-                        .HasForeignKey("CouponId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("THEBOB.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Coupon");
 
                     b.Navigation("User");
                 });
@@ -687,10 +710,21 @@ namespace THEBOB.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.ProductSize", b =>
+                {
+                    b.HasOne("THEBOB.Models.Product", "Product")
+                        .WithMany("Sizes")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("THEBOB.Models.ProductVariant", b =>
                 {
                     b.HasOne("THEBOB.Models.Product", "Product")
-                        .WithMany("ProductVariants")
+                        .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -728,7 +762,7 @@ namespace THEBOB.Migrations
                 {
                     b.Navigation("Images");
 
-                    b.Navigation("ProductVariants");
+                    b.Navigation("Sizes");
                 });
 
             modelBuilder.Entity("THEBOB.Models.User", b =>

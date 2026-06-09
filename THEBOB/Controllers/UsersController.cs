@@ -24,6 +24,7 @@ namespace THEBOB.Controllers
         public async Task<ActionResult<IEnumerable<object>>> GetUsers()
         {
             var users = await _context.Users
+                .Include(u => u.RoleEntity)
                 .Select(u => new {
                     u.Id,
                     u.Username,
@@ -31,7 +32,7 @@ namespace THEBOB.Controllers
                     u.Name,
                     u.Phone,
                     u.Address,
-                    Role = u.Role.ToString(),
+                    Role = u.RoleEntity != null ? u.RoleEntity.RoleName : "User",
                     u.CreatedAt,
                     u.IsActive
                 })
@@ -56,10 +57,21 @@ namespace THEBOB.Controllers
                 return BadRequest(new { success = false, message = "You cannot change your own role" });
             }
 
-            if (!Enum.TryParse<UserRole>(req.Role, true, out var parsedRole))
+            var requestedRole = req.Role.Trim();
+            if (!Enum.TryParse<UserRole>(requestedRole, true, out var parsedRole))
                 return BadRequest(new { success = false, message = "Unknown role" });
+            requestedRole = parsedRole.ToString();
 
-            user.Role = parsedRole;
+            var roleEntity = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == requestedRole);
+            if (roleEntity == null)
+            {
+                roleEntity = new Role { RoleName = requestedRole };
+                _context.Roles.Add(roleEntity);
+                await _context.SaveChangesAsync();
+            }
+
+            user.RoleId = roleEntity.Id;
+            user.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
             return Ok(new { success = true, message = "User role updated" });

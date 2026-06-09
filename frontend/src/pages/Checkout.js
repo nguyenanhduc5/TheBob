@@ -44,18 +44,41 @@ export default function Checkout() {
     setIsProcessing(true);
 
     try {
+      const invalidItem = cartItems.find((item) => !item.variantId);
+      if (invalidItem) {
+        addNotification('Giá» hÃ ng cÃ³ sáº£n pháº©m chÆ°a chá»n biáº¿n thá»ƒ, vui lÃ²ng thÃªm láº¡i sáº£n pháº©m.', 'error');
+        setIsProcessing(false);
+        return;
+      }
+
+      await fetch(`${process.env.REACT_APP_API_URL}/cart`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      for (const item of cartItems) {
+        const cartResponse = await fetch(`${process.env.REACT_APP_API_URL}/cart/add`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            variantId: item.variantId,
+            quantity: item.quantity,
+          }),
+        });
+
+        if (!cartResponse.ok) {
+          throw new Error('Cart sync failed');
+        }
+      }
+
       const orderData = {
-        userId: user?.id,
-        totalAmount: calculateTotal(),
         shippingAddress: formData.address,
         paymentMethod: formData.paymentMethod,
-        items: cartItems.map(item => ({
-          productId: item.id,
-          quantity: item.quantity,
-          price: item.price,
-          size: item.selectedSize,
-          color: item.selectedColor,
-        })),
       };
 
       const response = await fetch(`${process.env.REACT_APP_API_URL}/orders`, {

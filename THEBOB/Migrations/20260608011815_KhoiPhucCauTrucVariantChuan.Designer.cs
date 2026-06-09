@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using THEBOB.Data;
 
@@ -11,9 +12,11 @@ using THEBOB.Data;
 namespace THEBOB.Migrations
 {
     [DbContext(typeof(ThebobDbContext))]
-    partial class ThebobDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260608011815_KhoiPhucCauTrucVariantChuan")]
+    partial class KhoiPhucCauTrucVariantChuan
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -467,8 +470,8 @@ namespace THEBOB.Migrations
 
                     b.Property<string>("Color")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -477,20 +480,20 @@ namespace THEBOB.Migrations
                         .HasColumnType("tinyint(1)");
 
                     b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
                     b.Property<string>("Size")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("Sku")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
                     b.Property<int>("Stock")
                         .HasColumnType("int");

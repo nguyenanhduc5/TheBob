@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using THEBOB.Data;
 
@@ -11,9 +12,11 @@ using THEBOB.Data;
 namespace THEBOB.Migrations
 {
     [DbContext(typeof(ThebobDbContext))]
-    partial class ThebobDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260608010825_THEMGIASOLUONG")]
+    partial class THEMGIASOLUONG
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -407,6 +410,9 @@ namespace THEBOB.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<double>("Rating")
                         .HasColumnType("double");
 
@@ -417,6 +423,9 @@ namespace THEBOB.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Stock")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -467,8 +476,8 @@ namespace THEBOB.Migrations
 
                     b.Property<string>("Color")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -477,20 +486,20 @@ namespace THEBOB.Migrations
                         .HasColumnType("tinyint(1)");
 
                     b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
                     b.Property<string>("Size")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("Sku")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
                     b.Property<int>("Stock")
                         .HasColumnType("int");
@@ -690,7 +699,7 @@ namespace THEBOB.Migrations
             modelBuilder.Entity("THEBOB.Models.ProductVariant", b =>
                 {
                     b.HasOne("THEBOB.Models.Product", "Product")
-                        .WithMany("ProductVariants")
+                        .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -727,8 +736,6 @@ namespace THEBOB.Migrations
             modelBuilder.Entity("THEBOB.Models.Product", b =>
                 {
                     b.Navigation("Images");
-
-                    b.Navigation("ProductVariants");
                 });
 
             modelBuilder.Entity("THEBOB.Models.User", b =>

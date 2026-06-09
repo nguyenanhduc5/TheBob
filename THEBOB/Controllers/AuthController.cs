@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using THEBOB.Data;
 using THEBOB.Models;
 using THEBOB.Services;
@@ -22,28 +24,48 @@ namespace THEBOB.Controllers
         [HttpPost("register")]
         public async Task<ActionResult<object>> Register([FromBody] RegisterRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password) || string.IsNullOrWhiteSpace(request.Phone))
-                return BadRequest(new { success = false, message = "Username, password và số điện thoại là bắt buộc" });
+            var username = (request.Username ?? string.Empty).Trim();
+            var email = (request.Email ?? string.Empty).Trim().ToLowerInvariant();
+            var name = (request.Name ?? string.Empty).Trim();
+            var phone = (request.Phone ?? string.Empty).Trim();
+            var address = request.Address?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(request.Password) || string.IsNullOrEmpty(phone))
+                return BadRequest(new { success = false, message = "Username, email, password và số điện thoại là bắt buộc" });
+
+            if (username.Length < 3)
+                return BadRequest(new { success = false, message = "Tên đăng nhập phải có ít nhất 3 ký tự" });
+
+            if (!new EmailAddressAttribute().IsValid(email))
+                return BadRequest(new { success = false, message = "Định dạng email không hợp lệ" });
 
             if (request.Password.Length < 6)
                 return BadRequest(new { success = false, message = "Password must be at least 6 characters" });
 
-            if (string.IsNullOrWhiteSpace(request.Name))
+            if (string.IsNullOrWhiteSpace(name))
                 return BadRequest(new { success = false, message = "Họ tên là bắt buộc" });
 
-            var existingUser = _context.Users.FirstOrDefault(u => u.Username == request.Username);
+            var existingUser = _context.Users.FirstOrDefault(u => u.Email.ToLower() == email);
             if (existingUser != null)
-                return BadRequest(new { success = false, message = "Username already exists" });
+                return BadRequest(new { success = false, message = "Email đã được sử dụng" });
+
+            var userRole = _context.Roles.FirstOrDefault(r => r.RoleName == "User");
+            if (userRole == null)
+            {
+                userRole = new Role { RoleName = "User" };
+                _context.Roles.Add(userRole);
+                await _context.SaveChangesAsync();
+            }
 
             var user = new User
             {
-                Username = request.Username,
-                Email = request.Email ?? string.Empty,
-                Name = request.Name.Trim(),
-                Phone = request.Phone.Trim(),
-                Address = request.Address?.Trim() ?? string.Empty,
+                Email = email,
+                FullName = name,
+                Phone = phone,
+                Address = address,
                 PasswordHash = _authService.HashPassword(request.Password),
-                Role = UserRole.User
+                RoleId = userRole.Id,
+                RoleEntity = userRole
             };
 
             _context.Users.Add(user);
@@ -64,7 +86,7 @@ namespace THEBOB.Controllers
                     name = user.Name,
                     phone = user.Phone,
                     address = user.Address,
-                    role = user.Role.ToString()
+                    role = user.RoleEntity?.RoleName ?? user.Role.ToString()
                 }
             });
         }
@@ -75,8 +97,11 @@ namespace THEBOB.Controllers
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
                 return BadRequest(new { success = false, message = "Email và mật khẩu là bắt buộc" });
 
-            var normalizedEmail = request.Email.Trim();
-            var user = _context.Users.FirstOrDefault(u => u.Email == normalizedEmail);
+            var normalizedEmail = request.Email?.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(normalizedEmail))
+                return BadRequest(new { success = false, message = "Email và mật khẩu là bắt buộc" });
+
+            var user = _context.Users.Include(u => u.RoleEntity).FirstOrDefault(u => u.Email.ToLower() == normalizedEmail);
             if (user == null || !_authService.VerifyPassword(request.Password, user.PasswordHash))
                 return Unauthorized(new { success = false, message = "Email hoặc mật khẩu không hợp lệ" });
 
@@ -98,7 +123,7 @@ namespace THEBOB.Controllers
                     name = user.Name,
                     phone = user.Phone,
                     address = user.Address,
-                    role = user.Role.ToString()
+                    role = user.RoleEntity?.RoleName ?? user.Role.ToString()
                 }
             });
         }
@@ -111,7 +136,10 @@ namespace THEBOB.Controllers
             if (!int.TryParse(userIdClaim, out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token" });
 
-            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            var user = _context.Users
+                .Include(u => u.RoleEntity)
+                .Include(u => u.Addresses)
+                .FirstOrDefault(u => u.Id == userId);
             if (user == null)
                 return NotFound(new { success = false, message = "User not found" });
 
@@ -127,7 +155,7 @@ namespace THEBOB.Controllers
                     name = user.Name,
                     phone = user.Phone,
                     address = user.Address,
-                    role = user.Role.ToString()
+                    role = user.RoleEntity?.RoleName ?? user.Role.ToString()
                 }
             });
         }
@@ -140,7 +168,10 @@ namespace THEBOB.Controllers
             if (!int.TryParse(userIdClaim, out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token" });
 
-            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            var user = _context.Users
+                .Include(u => u.RoleEntity)
+                .Include(u => u.Addresses)
+                .FirstOrDefault(u => u.Id == userId);
             if (user == null)
                 return NotFound(new { success = false, message = "User not found" });
 
@@ -153,8 +184,14 @@ namespace THEBOB.Controllers
 
             if (!string.IsNullOrWhiteSpace(request.Email))
             {
-                user.Email = request.Email.Trim();
+                var email = request.Email.Trim().ToLowerInvariant();
+                var emailExists = await _context.Users.AnyAsync(u => u.Id != user.Id && u.Email.ToLower() == email);
+                if (emailExists)
+                    return BadRequest(new { success = false, message = "Email da duoc su dung" });
+
+                user.Email = email;
             }
+            user.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
@@ -170,7 +207,7 @@ namespace THEBOB.Controllers
                     name = user.Name,
                     phone = user.Phone,
                     address = user.Address,
-                    role = user.Role.ToString()
+                    role = user.RoleEntity?.RoleName ?? user.Role.ToString()
                 }
             });
         }
