@@ -85,7 +85,9 @@ namespace THEBOB.Controllers
             if (hasProducts)
                 return BadRequest("Cannot delete category with assigned products.");
 
-            _context.Categories.Remove(category);
+            category.IsDeleted = true;
+            category.DeletedAt = DateTime.UtcNow;
+            category.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             return NoContent();
         }

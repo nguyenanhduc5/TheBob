@@ -55,5 +55,7 @@ namespace THEBOB.Models
 
         // Navigation property
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+
+        public ICollection<PaymentTransaction> PaymentTransactions { get; set; } = new List<PaymentTransaction>();
     }
 }

@@ -24,6 +24,10 @@ namespace THEBOB.Models
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+        public bool IsDeleted { get; set; } = false;
+
+        public DateTime? DeletedAt { get; set; }
+
         [JsonIgnore]
         public ICollection<Product> Products { get; set; } = new List<Product>();
     }

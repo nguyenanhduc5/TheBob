@@ -30,12 +30,20 @@ namespace THEBOB.Models
 
         [Required]
         [MaxLength(255)]
-        public string StaticProductName { get; set; } = string.Empty;
+        public string ProductName { get; set; } = string.Empty;
 
         [MaxLength(100)]
-        public string StaticSize { get; set; } = string.Empty;
+        public string Sku { get; set; } = string.Empty;
 
         [MaxLength(100)]
-        public string StaticColor { get; set; } = string.Empty;
+        public string Size { get; set; } = string.Empty;
+
+        [MaxLength(100)]
+        public string Color { get; set; } = string.Empty;
+
+        [MaxLength(500)]
+        public string ProductImage { get; set; } = string.Empty;
+
+        public ICollection<ProductReview> ProductReviews { get; set; } = new List<ProductReview>();
     }
 }

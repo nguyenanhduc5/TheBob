@@ -63,6 +63,7 @@ builder.Services.AddSwaggerGen();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ThebobDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
+    .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning))
 );
 
 var app = builder.Build();

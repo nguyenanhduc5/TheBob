@@ -33,5 +33,7 @@ namespace THEBOB.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        public ICollection<CouponUsage> CouponUsages { get; set; } = new List<CouponUsage>();
     }
 }

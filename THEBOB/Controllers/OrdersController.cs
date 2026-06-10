@@ -29,6 +29,12 @@ namespace THEBOB.Controllers
                 .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Variant)
                 .ThenInclude(v => v.Product)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(v => v.Size)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(v => v.Color)
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync();
 
@@ -44,6 +50,12 @@ namespace THEBOB.Controllers
                 .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Variant)
                 .ThenInclude(v => v.Product)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(v => v.Size)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(v => v.Color)
                 .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId);
 
             if (order == null)
@@ -67,6 +79,12 @@ namespace THEBOB.Controllers
                 .Include(c => c.CartItems)
                 .ThenInclude(ci => ci.Variant)
                 .ThenInclude(v => v.Product)
+                .Include(c => c.CartItems)
+                .ThenInclude(ci => ci.Variant)
+                .ThenInclude(v => v.Size)
+                .Include(c => c.CartItems)
+                .ThenInclude(ci => ci.Variant)
+                .ThenInclude(v => v.Color)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
 
             if (cart == null || !cart.CartItems.Any())
@@ -75,8 +93,11 @@ namespace THEBOB.Controllers
             // Validate stock availability
             foreach (var item in cart.CartItems)
             {
-                if (item.Variant?.Product == null)
+                if (item.Variant?.Product == null || item.Variant.Size == null || item.Variant.Color == null)
                     return BadRequest("Invalid cart item");
+
+                if (!item.Variant.IsAvailable)
+                    return BadRequest($"Variant {item.Variant.Sku} is not available");
 
                 if (item.Variant.Stock < item.Quantity)
                     return BadRequest($"Insufficient stock for {item.Variant.Product.Name} - {item.Variant.Sku}");
@@ -105,6 +126,16 @@ namespace THEBOB.Controllers
             _context.Orders.Add(order);
             await _context.SaveChangesAsync();
 
+            _context.PaymentTransactions.Add(new PaymentTransaction
+            {
+                OrderId = order.Id,
+                Gateway = request.PaymentMethod,
+                TransactionCode = request.TransactionCode ?? string.Empty,
+                Amount = totalAmount,
+                Status = request.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase) ? "Pending" : "Initialized",
+                RawResponse = request.RawPaymentResponse ?? string.Empty
+            });
+
             // Create order items and reduce stock
             foreach (var cartItem in cart.CartItems)
             {
@@ -114,9 +145,11 @@ namespace THEBOB.Controllers
                     VariantId = cartItem.VariantId,
                     Quantity = cartItem.Quantity,
                     PricePerItem = cartItem.Variant.Price,
-                    StaticProductName = cartItem.Variant.Product.Name,
-                    StaticSize = cartItem.Variant.Size,
-                    StaticColor = cartItem.Variant.Color
+                    ProductName = cartItem.Variant.Product.Name,
+                    Sku = cartItem.Variant.Sku,
+                    Size = cartItem.Variant.Size?.Name ?? string.Empty,
+                    Color = cartItem.Variant.Color?.Name ?? string.Empty,
+                    ProductImage = cartItem.Variant.Product.MainImageUrl
                 };
 
                 _context.OrderItems.Add(orderItem);
@@ -125,7 +158,7 @@ namespace THEBOB.Controllers
                 cartItem.Variant.Stock -= cartItem.Quantity;
 
                 // Log inventory change
-                await LogInventoryChange(cartItem.VariantId, InventoryChangeType.Sold,
+                LogInventoryChange(cartItem.VariantId, InventoryChangeType.Sold,
                     -cartItem.Quantity, $"Order {orderNumber}", userId);
             }
 
@@ -140,6 +173,12 @@ namespace THEBOB.Controllers
                 .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Variant)
                 .ThenInclude(v => v.Product)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(v => v.Size)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(v => v.Color)
                 .FirstAsync(o => o.Id == order.Id);
 
             return CreatedAtAction(nameof(GetOrder), new { orderId = order.Id }, ToOrderDto(order));
@@ -154,6 +193,12 @@ namespace THEBOB.Controllers
                 .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Variant)
                 .ThenInclude(v => v.Product)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(v => v.Size)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(v => v.Color)
                 .Include(o => o.User)
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync();
@@ -206,19 +251,22 @@ namespace THEBOB.Controllers
                     item.Id,
                     item.VariantId,
                     ProductId = item.Variant?.ProductId,
-                    ProductName = string.IsNullOrWhiteSpace(item.StaticProductName)
+                    ProductName = string.IsNullOrWhiteSpace(item.ProductName)
                         ? item.Variant?.Product?.Name ?? string.Empty
-                        : item.StaticProductName,
-                    Size = string.IsNullOrWhiteSpace(item.StaticSize) ? item.Variant?.Size ?? string.Empty : item.StaticSize,
-                    Color = string.IsNullOrWhiteSpace(item.StaticColor) ? item.Variant?.Color ?? string.Empty : item.StaticColor,
+                        : item.ProductName,
+                    Sku = string.IsNullOrWhiteSpace(item.Sku) ? item.Variant?.Sku ?? string.Empty : item.Sku,
+                    Size = string.IsNullOrWhiteSpace(item.Size) ? item.Variant?.Size?.Name ?? string.Empty : item.Size,
+                    Color = string.IsNullOrWhiteSpace(item.Color) ? item.Variant?.Color?.Name ?? string.Empty : item.Color,
                     Price = item.PricePerItem,
                     item.Quantity,
-                    ImageUrl = item.Variant?.Product?.MainImageUrl ?? string.Empty
+                    ImageUrl = string.IsNullOrWhiteSpace(item.ProductImage)
+                        ? item.Variant?.Product?.MainImageUrl ?? string.Empty
+                        : item.ProductImage
                 })
             };
         }
 
-        private async Task LogInventoryChange(int variantId, InventoryChangeType changeType, int quantityChanged, string reason, int? userId)
+        private void LogInventoryChange(int variantId, InventoryChangeType changeType, int quantityChanged, string reason, int? userId)
         {
             var log = new InventoryLog
             {
@@ -230,7 +278,6 @@ namespace THEBOB.Controllers
             };
 
             _context.InventoryLogs.Add(log);
-            await _context.SaveChangesAsync();
         }
 
         private int? GetCurrentUserId()
@@ -244,6 +291,8 @@ namespace THEBOB.Controllers
     {
         public string ShippingAddress { get; set; } = string.Empty;
         public string PaymentMethod { get; set; } = string.Empty;
+        public string? TransactionCode { get; set; }
+        public string? RawPaymentResponse { get; set; }
     }
 
     public class UpdateOrderStatusRequest

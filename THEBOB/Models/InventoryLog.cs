@@ -6,6 +6,7 @@ namespace THEBOB.Models
 {
     public enum InventoryChangeType
     {
+        InitialStock,
         Added,      // Stock added (restock)
         Sold,       // Stock reduced (sale)
         Adjusted,   // Manual adjustment

@@ -79,6 +79,76 @@ namespace THEBOB.Migrations
                     b.ToTable("Addresses");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.AuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("NewValues")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("OldValues")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("TableName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TableName", "CreatedAt");
+
+                    b.ToTable("AuditLogs");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Brand", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("LogoUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Brands");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Cart", b =>
                 {
                     b.Property<int>("Id")
@@ -143,10 +213,16 @@ namespace THEBOB.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -167,6 +243,32 @@ namespace THEBOB.Migrations
                         .IsUnique();
 
                     b.ToTable("Categories");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Color", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("HexCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Colors");
                 });
 
             modelBuilder.Entity("THEBOB.Models.Coupon", b =>
@@ -219,6 +321,33 @@ namespace THEBOB.Migrations
                         .IsUnique();
 
                     b.ToTable("Coupons");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.CouponUsage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CouponId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UsedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("CouponId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("CouponUsages");
                 });
 
             modelBuilder.Entity("THEBOB.Models.InventoryLog", b =>
@@ -296,7 +425,7 @@ namespace THEBOB.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("TotalAmount")
-                        .HasColumnType("decimal(65,30)");
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -311,6 +440,8 @@ namespace THEBOB.Migrations
                     b.HasIndex("OrderNumber")
                         .IsUnique();
 
+                    b.HasIndex("Status");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("Orders");
@@ -324,26 +455,36 @@ namespace THEBOB.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
                     b.Property<int>("OrderId")
                         .HasColumnType("int");
 
                     b.Property<decimal>("PricePerItem")
                         .HasColumnType("decimal(12,2)");
 
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<string>("StaticColor")
+                    b.Property<string>("ProductImage")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
 
-                    b.Property<string>("StaticProductName")
+                    b.Property<string>("ProductName")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
 
-                    b.Property<string>("StaticSize")
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Size")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Sku")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
@@ -360,6 +501,51 @@ namespace THEBOB.Migrations
                     b.ToTable("OrderItems");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.PaymentTransaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Gateway")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RawResponse")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("TransactionCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("TransactionCode");
+
+                    b.ToTable("PaymentTransactions");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Product", b =>
                 {
                     b.Property<int>("Id")
@@ -368,10 +554,8 @@ namespace THEBOB.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Brand")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                    b.Property<int?>("BrandId")
+                        .HasColumnType("int");
 
                     b.Property<string>("CareInstructions")
                         .IsRequired()
@@ -384,10 +568,16 @@ namespace THEBOB.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<bool>("IsFeatured")
                         .HasColumnType("tinyint(1)");
@@ -413,17 +603,16 @@ namespace THEBOB.Migrations
                     b.Property<int>("ReviewCount")
                         .HasColumnType("int");
 
-                    b.Property<string>("Sku")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BrandId");
+
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("Name");
 
                     b.ToTable("Products");
                 });
@@ -457,6 +646,51 @@ namespace THEBOB.Migrations
                     b.ToTable("ProductImages");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.ProductReview", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comment")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("OrderItemId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderItemId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ProductId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("ProductReviews", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductReviews_Rating_Range", "`Rating` >= 1 AND `Rating` <= 5");
+                        });
+                });
+
             modelBuilder.Entity("THEBOB.Models.ProductVariant", b =>
                 {
                     b.Property<int>("Id")
@@ -465,27 +699,29 @@ namespace THEBOB.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Color")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                    b.Property<int>("ColorId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<bool>("IsAvailable")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
-                    b.Property<string>("Size")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                    b.Property<int>("SizeId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Sku")
                         .IsRequired()
@@ -500,13 +736,24 @@ namespace THEBOB.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ColorId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SizeId");
+
                     b.HasIndex("Sku")
                         .IsUnique();
 
-                    b.HasIndex("ProductId", "Size", "Color")
+                    b.HasIndex("ProductId", "SizeId", "ColorId")
                         .IsUnique();
 
-                    b.ToTable("ProductVariants");
+                    b.ToTable("ProductVariants", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductVariants_Price_NonNegative", "`Price` >= 0");
+
+                            t.HasCheckConstraint("CK_ProductVariants_Stock_NonNegative", "`Stock` >= 0");
+                        });
                 });
 
             modelBuilder.Entity("THEBOB.Models.Role", b =>
@@ -525,6 +772,27 @@ namespace THEBOB.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Roles");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Size", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Sizes");
                 });
 
             modelBuilder.Entity("THEBOB.Models.User", b =>
@@ -573,6 +841,49 @@ namespace THEBOB.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.Wishlist", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Wishlists");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.WishlistItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WishlistId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("WishlistId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("WishlistItems");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Address", b =>
                 {
                     b.HasOne("THEBOB.Models.User", "User")
@@ -580,6 +891,16 @@ namespace THEBOB.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.AuditLog", b =>
+                {
+                    b.HasOne("THEBOB.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("User");
                 });
@@ -614,16 +935,36 @@ namespace THEBOB.Migrations
                     b.Navigation("Variant");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.CouponUsage", b =>
+                {
+                    b.HasOne("THEBOB.Models.Coupon", "Coupon")
+                        .WithMany("CouponUsages")
+                        .HasForeignKey("CouponId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("THEBOB.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Coupon");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("THEBOB.Models.InventoryLog", b =>
                 {
                     b.HasOne("THEBOB.Models.User", "User")
                         .WithMany()
-                        .HasForeignKey("UserId");
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("THEBOB.Models.ProductVariant", "Variant")
                         .WithMany()
                         .HasForeignKey("VariantId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("User");
@@ -641,7 +982,7 @@ namespace THEBOB.Migrations
                     b.HasOne("THEBOB.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Coupon");
@@ -654,24 +995,43 @@ namespace THEBOB.Migrations
                     b.HasOne("THEBOB.Models.Order", "Order")
                         .WithMany("OrderItems")
                         .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("THEBOB.Models.ProductVariant", "Variant")
                         .WithMany()
-                        .HasForeignKey("VariantId");
+                        .HasForeignKey("VariantId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Order");
 
                     b.Navigation("Variant");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.PaymentTransaction", b =>
+                {
+                    b.HasOne("THEBOB.Models.Order", "Order")
+                        .WithMany("PaymentTransactions")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Product", b =>
                 {
+                    b.HasOne("THEBOB.Models.Brand", "Brand")
+                        .WithMany("Products")
+                        .HasForeignKey("BrandId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("THEBOB.Models.Category", "Category")
                         .WithMany("Products")
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Brand");
 
                     b.Navigation("Category");
                 });
@@ -687,15 +1047,57 @@ namespace THEBOB.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.ProductReview", b =>
+                {
+                    b.HasOne("THEBOB.Models.OrderItem", "OrderItem")
+                        .WithMany("ProductReviews")
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("THEBOB.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("THEBOB.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrderItem");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("THEBOB.Models.ProductVariant", b =>
                 {
+                    b.HasOne("THEBOB.Models.Color", "Color")
+                        .WithMany("ProductVariants")
+                        .HasForeignKey("ColorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("THEBOB.Models.Product", "Product")
                         .WithMany("ProductVariants")
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("THEBOB.Models.Size", "Size")
+                        .WithMany("ProductVariants")
+                        .HasForeignKey("SizeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Color");
+
                     b.Navigation("Product");
+
+                    b.Navigation("Size");
                 });
 
             modelBuilder.Entity("THEBOB.Models.User", b =>
@@ -709,6 +1111,41 @@ namespace THEBOB.Migrations
                     b.Navigation("RoleEntity");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.Wishlist", b =>
+                {
+                    b.HasOne("THEBOB.Models.User", "User")
+                        .WithMany("Wishlists")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.WishlistItem", b =>
+                {
+                    b.HasOne("THEBOB.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("THEBOB.Models.Wishlist", "Wishlist")
+                        .WithMany("WishlistItems")
+                        .HasForeignKey("WishlistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Wishlist");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Brand", b =>
+                {
+                    b.Navigation("Products");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Cart", b =>
                 {
                     b.Navigation("CartItems");
@@ -719,9 +1156,26 @@ namespace THEBOB.Migrations
                     b.Navigation("Products");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.Color", b =>
+                {
+                    b.Navigation("ProductVariants");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Coupon", b =>
+                {
+                    b.Navigation("CouponUsages");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Order", b =>
                 {
                     b.Navigation("OrderItems");
+
+                    b.Navigation("PaymentTransactions");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.OrderItem", b =>
+                {
+                    b.Navigation("ProductReviews");
                 });
 
             modelBuilder.Entity("THEBOB.Models.Product", b =>
@@ -731,9 +1185,21 @@ namespace THEBOB.Migrations
                     b.Navigation("ProductVariants");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.Size", b =>
+                {
+                    b.Navigation("ProductVariants");
+                });
+
             modelBuilder.Entity("THEBOB.Models.User", b =>
                 {
                     b.Navigation("Addresses");
+
+                    b.Navigation("Wishlists");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Wishlist", b =>
+                {
+                    b.Navigation("WishlistItems");
                 });
 #pragma warning restore 612, 618
         }

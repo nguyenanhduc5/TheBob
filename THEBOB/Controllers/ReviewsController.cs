@@ -29,6 +29,7 @@ namespace THEBOB.Controllers
                 {
                     r.Id,
                     r.ProductId,
+                    r.OrderItemId,
                     r.Rating,
                     r.Comment,
                     r.CreatedAt,
@@ -57,6 +58,21 @@ namespace THEBOB.Controllers
             if (product == null)
                 return NotFound(new { message = "Product not found" });
 
+            var purchasedOrderItem = await _context.OrderItems
+                .Include(oi => oi.Order)
+                .Include(oi => oi.Variant)
+                .Where(oi => oi.Order.UserId == userId.Value)
+                .Where(oi => oi.Variant != null && oi.Variant.ProductId == request.ProductId)
+                .Where(oi => oi.Order.Status == OrderStatus.Paid ||
+                             oi.Order.Status == OrderStatus.Shipped ||
+                             oi.Order.Status == OrderStatus.Delivered)
+                .Where(oi => !request.OrderItemId.HasValue || oi.Id == request.OrderItemId.Value)
+                .OrderByDescending(oi => oi.Order.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (purchasedOrderItem == null)
+                return BadRequest(new { message = "Only users who purchased this product can review it." });
+
             var review = await _context.ProductReviews
                 .FirstOrDefaultAsync(r => r.ProductId == request.ProductId && r.UserId == userId.Value);
 
@@ -66,6 +82,7 @@ namespace THEBOB.Controllers
                 {
                     ProductId = request.ProductId,
                     UserId = userId.Value,
+                    OrderItemId = purchasedOrderItem.Id,
                     Rating = request.Rating,
                     Comment = request.Comment.Trim()
                 };
@@ -74,6 +91,7 @@ namespace THEBOB.Controllers
             else
             {
                 review.Rating = request.Rating;
+                review.OrderItemId = purchasedOrderItem.Id;
                 review.Comment = request.Comment.Trim();
                 review.UpdatedAt = DateTime.UtcNow;
             }
@@ -117,6 +135,7 @@ namespace THEBOB.Controllers
     public class ReviewRequest
     {
         public int ProductId { get; set; }
+        public int? OrderItemId { get; set; }
         public int Rating { get; set; }
         public string Comment { get; set; } = string.Empty;
     }

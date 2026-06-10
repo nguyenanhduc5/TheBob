@@ -93,5 +93,7 @@ namespace THEBOB.Models
 
         // Navigation
         public ICollection<Address> Addresses { get; set; } = new List<Address>();
+
+        public ICollection<Wishlist> Wishlists { get; set; } = new List<Wishlist>();
     }
 }
