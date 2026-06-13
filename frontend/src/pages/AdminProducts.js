@@ -16,6 +16,11 @@ const emptyLookups = {
 };
 
 const asText = (value) => (typeof value === 'string' ? value : '');
+const asName = (value) => {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && typeof value.name === 'string') return value.name;
+  return '';
+};
 const asNumber = (value, fallback = 0) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -48,6 +53,7 @@ const normalizeProduct = (product) => {
     isAvailable: variant?.isAvailable !== false,
     images: normalizeImages(variant?.images),
   }));
+  const firstVariantPrice = variants.find((variant) => asNumber(variant.price) > 0)?.price;
 
   return {
     id: product?.id ?? null,
@@ -58,12 +64,13 @@ const normalizeProduct = (product) => {
     mainImageUrl: asText(product?.mainImageUrl),
     material: asText(product?.material),
     careInstructions: asText(product?.careInstructions),
+    price: asNumber(product?.price ?? product?.minPrice ?? firstVariantPrice),
     isFeatured: product?.isFeatured === true,
     isAvailable: product?.isAvailable !== false,
     images: normalizeImages(product?.images),
     variants,
-    brandName: asText(product?.brandName ?? product?.brand),
-    categoryName: asText(product?.categoryName ?? product?.category),
+    brandName: asText(product?.brandName) || asName(product?.brand),
+    categoryName: asText(product?.categoryName) || asName(product?.category),
   };
 };
 

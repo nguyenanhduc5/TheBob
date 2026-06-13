@@ -58,11 +58,16 @@ export default function ProductFilters({
               className="filter-select"
             >
               <option value="all">Tất cả thương hiệu</option>
-              {brands.map((brand) => (
-                <option key={brand} value={brand}>
-                  {brand}
-                </option>
-              ))}
+              {brands.map((brand) => {
+                const brandValue = brand?.id ?? brand?.name ?? String(brand);
+                const brandLabel = brand?.name ?? String(brand);
+
+                return (
+                  <option key={brandValue} value={brandValue}>
+                    {brandLabel}
+                  </option>
+                );
+              })}
             </select>
           </div>
 

@@ -3,24 +3,46 @@ import { formatPrice } from './ProductTable';
 
 const createClientId = () => `variant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const emptyVariant = () => ({
-  clientId: createClientId(),
-  id: null,
-  colorId: '',
-  sizeId: '',
-  sku: '',
-  price: '',
-  stock: 0,
-  isAvailable: true,
-  images: [],
-});
-
 const toNumber = (value, fallback = 0) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 };
 
+const normalizeId = (value) => String(value ?? '');
+
 const getLookupName = (map, id) => map.get(String(id))?.name || '-';
+
+const makeVariantKey = (colorId, sizeId) => `${normalizeId(colorId)}:${normalizeId(sizeId)}`;
+
+const makeDefaultSku = (colorMap, sizeMap, colorId, sizeId) => {
+  const colorName = getLookupName(colorMap, colorId).replace(/\s+/g, '').toUpperCase();
+  const sizeName = getLookupName(sizeMap, sizeId).replace(/\s+/g, '').toUpperCase();
+  return `THEBOB-${colorName}-${sizeName}`;
+};
+
+const buildMatrix = ({ colorIds, sizeIds, variants, colorMap, sizeMap }) => {
+  const existingMap = new Map(
+    variants.map((variant) => [makeVariantKey(variant.colorId, variant.sizeId), variant])
+  );
+
+  return colorIds.flatMap((colorId) =>
+    sizeIds.map((sizeId) => {
+      const existing = existingMap.get(makeVariantKey(colorId, sizeId));
+      if (existing) return existing;
+
+      return {
+        clientId: createClientId(),
+        id: null,
+        colorId,
+        sizeId,
+        sku: makeDefaultSku(colorMap, sizeMap, colorId, sizeId),
+        stock: 0,
+        isAvailable: true,
+        images: [],
+      };
+    })
+  );
+};
 
 function VariantImageEditor({ images, onChange }) {
   const normalizedImages = useMemo(() => (Array.isArray(images) ? images : []), [images]);
@@ -51,27 +73,96 @@ function VariantImageEditor({ images, onChange }) {
             type="url"
             value={image.url || ''}
             onChange={(event) => updateImage(index, event.target.value)}
-            placeholder="URL ảnh riêng của biến thể"
+            placeholder="URL anh rieng cua bien the"
           />
-          {image.url ? <img src={image.url} alt={`Ảnh biến thể ${index + 1}`} loading="lazy" /> : null}
+          {image.url ? <img src={image.url} alt={`Anh bien the ${index + 1}`} loading="lazy" /> : null}
           <button className="pm-mini-button pm-danger" type="button" onClick={() => removeImage(index)}>
-            Xóa
+            Xoa
           </button>
         </div>
       ))}
       <button className="pm-mini-button" type="button" onClick={addImage}>
-        Thêm ảnh biến thể
+        Them anh bien the
       </button>
     </div>
   );
 }
 
-function VariantManager({ variants, colors, sizes, colorMap, sizeMap, errors, onChange }) {
+function OptionToggleGroup({ title, items, selectedIds, onToggle }) {
+  return (
+    <div className="pm-option-group">
+      <h4>{title}</h4>
+      <div className="pm-option-grid">
+        {items.map((item) => {
+          const id = normalizeId(item.id);
+          const checked = selectedIds.includes(id);
+
+          return (
+            <label className={`pm-check-option ${checked ? 'is-selected' : ''}`} key={id}>
+              <input type="checkbox" checked={checked} onChange={() => onToggle(id)} />
+              <span>{item.name}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function VariantManager({ variants, colors, sizes, colorMap, sizeMap, errors, productPrice, onChange }) {
   const safeVariants = useMemo(() => (Array.isArray(variants) ? variants : []), [variants]);
 
-  const addVariant = useCallback(() => {
-    onChange([...safeVariants, emptyVariant()]);
-  }, [onChange, safeVariants]);
+  const selectedColorIds = useMemo(
+    () => [...new Set(safeVariants.map((variant) => normalizeId(variant.colorId)).filter(Boolean))],
+    [safeVariants]
+  );
+
+  const selectedSizeIds = useMemo(
+    () => [...new Set(safeVariants.map((variant) => normalizeId(variant.sizeId)).filter(Boolean))],
+    [safeVariants]
+  );
+
+  const totalStock = useMemo(
+    () => safeVariants.reduce((sum, variant) => sum + toNumber(variant.stock), 0),
+    [safeVariants]
+  );
+
+  const updateMatrix = useCallback(
+    (nextColorIds, nextSizeIds) => {
+      onChange(
+        buildMatrix({
+          colorIds: nextColorIds,
+          sizeIds: nextSizeIds,
+          variants: safeVariants,
+          colorMap,
+          sizeMap,
+        })
+      );
+    },
+    [colorMap, onChange, safeVariants, sizeMap]
+  );
+
+  const toggleColor = useCallback(
+    (colorId) => {
+      const nextColorIds = selectedColorIds.includes(colorId)
+        ? selectedColorIds.filter((id) => id !== colorId)
+        : [...selectedColorIds, colorId];
+
+      updateMatrix(nextColorIds, selectedSizeIds);
+    },
+    [selectedColorIds, selectedSizeIds, updateMatrix]
+  );
+
+  const toggleSize = useCallback(
+    (sizeId) => {
+      const nextSizeIds = selectedSizeIds.includes(sizeId)
+        ? selectedSizeIds.filter((id) => id !== sizeId)
+        : [...selectedSizeIds, sizeId];
+
+      updateMatrix(selectedColorIds, nextSizeIds);
+    },
+    [selectedColorIds, selectedSizeIds, updateMatrix]
+  );
 
   const updateVariant = useCallback(
     (index, patch) => {
@@ -80,88 +171,44 @@ function VariantManager({ variants, colors, sizes, colorMap, sizeMap, errors, on
     [onChange, safeVariants]
   );
 
-  const removeVariant = useCallback(
-    (index) => {
-      onChange(safeVariants.filter((_, variantIndex) => variantIndex !== index));
-    },
-    [onChange, safeVariants]
-  );
-
-  const totalStock = useMemo(
-    () => safeVariants.reduce((sum, variant) => sum + toNumber(variant.stock), 0),
-    [safeVariants]
-  );
-
   return (
     <section className="pm-form-section">
       <div className="pm-section-heading">
         <div>
-          <h3>Biến thể</h3>
-          <p>Tổng tồn kho: {totalStock}</p>
+          <h3>Bien the tu dong</h3>
+          <p>
+            Gia chung: {formatPrice(productPrice || 0)} - Tong ton kho: {totalStock} - {safeVariants.length} bien the
+          </p>
         </div>
-        <button className="pm-button pm-button-secondary" type="button" onClick={addVariant}>
-          Thêm biến thể
-        </button>
       </div>
 
       {errors?.variants ? <div className="pm-error">{errors.variants}</div> : null}
 
+      <div className="pm-grid-two">
+        <OptionToggleGroup title="Mau sac" items={colors} selectedIds={selectedColorIds} onToggle={toggleColor} />
+        <OptionToggleGroup title="Kich thuoc" items={sizes} selectedIds={selectedSizeIds} onToggle={toggleSize} />
+      </div>
+
       <div className="pm-variant-list">
         {safeVariants.map((variant, index) => (
-          <div className="pm-variant-row" key={variant.clientId || variant.id || index}>
+          <div className="pm-variant-row" key={variant.clientId || variant.id || makeVariantKey(variant.colorId, variant.sizeId)}>
+            <div className="pm-variant-summary">
+              <span>{getLookupName(colorMap, variant.colorId)}</span>
+              <span>{getLookupName(sizeMap, variant.sizeId)}</span>
+              <strong>{formatPrice(productPrice || 0)}</strong>
+            </div>
+
             <div className="pm-variant-grid">
-              <label className="pm-field">
-                <span>Màu</span>
-                <select
-                  value={variant.colorId ?? ''}
-                  onChange={(event) => updateVariant(index, { colorId: event.target.value })}
-                  className={errors?.[`variants.${index}.colorId`] ? 'is-invalid' : ''}
-                >
-                  <option value="">Chọn màu</option>
-                  {colors.map((color) => (
-                    <option key={color.id} value={color.id}>
-                      {color.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="pm-field">
-                <span>Size</span>
-                <select
-                  value={variant.sizeId ?? ''}
-                  onChange={(event) => updateVariant(index, { sizeId: event.target.value })}
-                  className={errors?.[`variants.${index}.sizeId`] ? 'is-invalid' : ''}
-                >
-                  <option value="">Chọn size</option>
-                  {sizes.map((size) => (
-                    <option key={size.id} value={size.id}>
-                      {size.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <label className="pm-field">
                 <span>SKU</span>
                 <input
                   value={variant.sku || ''}
                   onChange={(event) => updateVariant(index, { sku: event.target.value })}
                   className={errors?.[`variants.${index}.sku`] ? 'is-invalid' : ''}
-                  placeholder="VD: TBOB-TEE-BLK-M"
                 />
               </label>
               <label className="pm-field">
-                <span>Giá</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="1000"
-                  value={variant.price ?? ''}
-                  onChange={(event) => updateVariant(index, { price: event.target.value })}
-                  className={errors?.[`variants.${index}.price`] ? 'is-invalid' : ''}
-                />
-              </label>
-              <label className="pm-field">
-                <span>Tồn kho</span>
+                <span>Ton kho</span>
                 <input
                   type="number"
                   min="0"
@@ -177,17 +224,8 @@ function VariantManager({ variants, colors, sizes, colorMap, sizeMap, errors, on
                   checked={variant.isAvailable !== false}
                   onChange={(event) => updateVariant(index, { isAvailable: event.target.checked })}
                 />
-                <span>Đang bán</span>
+                <span>Dang ban</span>
               </label>
-            </div>
-
-            <div className="pm-variant-summary">
-              <span>{getLookupName(colorMap, variant.colorId)}</span>
-              <span>{getLookupName(sizeMap, variant.sizeId)}</span>
-              <strong>{formatPrice(variant.price || 0)}</strong>
-              <button className="pm-mini-button pm-danger" type="button" onClick={() => removeVariant(index)}>
-                Xóa biến thể
-              </button>
             </div>
 
             <VariantImageEditor
