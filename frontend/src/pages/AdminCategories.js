@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import '../styles/AdminCategories.css';
-import AdminLayout from '../components/AdminLayout';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 
 export default function AdminCategories() {
   const navigate = useNavigate();
@@ -150,12 +150,11 @@ fetchCategories();
   };
 
   if (loading) {
-    return <div className="loading-page">Đang tải...</div>;
+    return <LoadingSkeleton type="table" />;
   }
 
   return (
-    <AdminLayout title="Quản Lý Danh Mục">
-      <div className="admin-categories-page">
+    <div className="admin-categories-page">
       <div className="admin-header">
         <h1>Quản Lý Danh Mục</h1>
         <button
@@ -250,7 +249,6 @@ fetchCategories();
           )}
         </div>
       )}
-      </div>
-    </AdminLayout>
+    </div>
   );
 }

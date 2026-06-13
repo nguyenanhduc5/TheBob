@@ -1,369 +1,838 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { productsAPI } from '../api/app';
 import '../styles/AdminProducts.css';
-import AdminLayout from '../components/AdminLayout';
+import '../styles/ProductSearch.css';
+import ProductSearch from '../components/ProductSearch';
+import ProductFilters from '../components/ProductFilters';
+import ProductTable from '../components/ProductTable';
+import Pagination from '../components/Pagination';
+import LoadingSkeleton from '../components/LoadingSkeleton';
+
+const INITIAL_FORM_STATE = {
+  name: '',
+  description: '',
+  sku: '',
+  brandId: '',
+  brand: '',
+  categoryId: '',
+  material: '',
+  careInstructions: '',
+  mainImageUrl: '',
+  isFeatured: false,
+  isAvailable: true,
+  imageUrls: [],
+  variants: []
+};
+
+const INITIAL_VARIANT = {
+  id: null,
+  colorId: '',
+  color: '',
+  hexCode: '',
+  sizeId: '',
+  size: '',
+  price: 0,
+  stock: 0,
+  sku: '',
+  isAvailable: true,
+  imageUrls: []
+};
 
 export default function AdminProducts() {
   const navigate = useNavigate();
+  const { id: productId } = useParams();
+  const { pathname } = useLocation();
   const { token, isAdmin } = useAuth();
   const { addNotification } = useNotification();
 
+  // FIX: Store notification message in ref to avoid infinite loop
+  const notificationRef = useRef(null);
+
+  // FIX: Use pathname to distinguish modes reliably
+  const isListView = !pathname.includes('/new') && !pathname.includes('/edit');
+  const isAdding = pathname.includes('/new');
+  const isEditing = pathname.includes('/edit');
+
+  // ==================== LIST VIEW STATES ====================
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [sizes, setSizes] = useState([]);
+  const [colors, setColors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
 
-  // Khởi tạo danh sách biến thể động (theo sơ đồ ProductVariants)
-  const [variants, setVariants] = useState([
-    { size: 'S', color: 'Đen', stock: '', sku: '' }
-  ]);
+  // Search & Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchType, setSearchType] = useState('name');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedBrand, setSelectedBrand] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [stockFilter, setStockFilter] = useState('all');
 
-  const defaultFormData = {
-    name: '',
-    sku: '',
-    description: '',
-    brand: '',
-    material: '',
-    careInstructions: '',
-    mainImageUrl: '',
-    isFeatured: false,
-    categoryId: '',
-    rating: '0',
-    reviewCount: '0',
-    price: '',
-    imageUrls: [],
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // ==================== FORM/EDIT STATES ====================
+  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+  const [formLoading, setFormLoading] = useState(() => isEditing);  // FIX: Initialize based on mode
+  const [formErrors, setFormErrors] = useState({});
+  const [editingVariantIndex, setEditingVariantIndex] = useState(null);
+  const [currentVariant, setCurrentVariant] = useState(INITIAL_VARIANT);
+
+  // ==================== LIST VIEW EFFECTS & FUNCTIONS ====================
+
+  const getProductStatus = (product) => {
+    const totalStock = product.productVariants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0;
+    if (product.isDiscontinued) return 'discontinued';
+    if (totalStock === 0) return 'outOfStock';
+    if (totalStock <= 10) return 'lowStock';
+    return 'available';
   };
 
-  const [formData, setFormData] = useState(defaultFormData);
-
-  const fetchProducts = useCallback(async () => {
+  const fetchListData = useCallback(async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/products`);
-      if (response.ok) {
-        const data = await response.json();
-        setProducts(data);
-      }
+      setLoading(true);
+      const [productsData, categoriesData, brandsData, sizesData, colorsData] = await Promise.all([
+        productsAPI.getProducts(),
+        productsAPI.getCategories(),
+        productsAPI.getBrands(),
+        productsAPI.getSizes(),
+        productsAPI.getColors()
+      ]);
+
+      setProducts(productsData);
+      setCategories(categoriesData || []);
+      setBrands(brandsData || []);
+      setSizes(sizesData || []);
+      setColors(colorsData || []);
     } catch (error) {
-      console.error(error);
+      console.error('Error fetching list data:', error);
       addNotification('Lỗi tải dữ liệu sản phẩm', 'error');
     } finally {
       setLoading(false);
     }
   }, [addNotification]);
 
-  const fetchCategories = useCallback(async () => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/products/categories`);
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  }, []);
-
+  // Initialize - fetch list data only when in list view
   useEffect(() => {
-    if (!isAdmin()) { navigate('/'); return; }
-    fetchProducts();
-    fetchCategories();
-  }, [fetchProducts, fetchCategories, isAdmin, navigate]);
-
-  const handleFormChange = (field) => (e) => {
-    const value = field === 'isFeatured' ? e.target.checked : e.target.value;
-    setFormData({ ...formData, [field]: value });
-  };
-
-  // --- HÀM THAO TÁC MẢNG BIẾN THỂ (VARIANTS) ---
-  const handleAddVariant = () => {
-    setVariants([...variants, { size: '', color: '', stock: '', sku: '' }]);
-  };
-
-  const handleVariantChange = (index, field, value) => {
-    const newVariants = [...variants];
-    newVariants[index][field] = value;
-    setVariants(newVariants);
-  };
-
-  const handleRemoveVariant = (index) => {
-    setVariants(variants.filter((_, i) => i !== index));
-  };
-
-  const handleImageUrlAdd = () => {
-    setFormData({ ...formData, imageUrls: [...formData.imageUrls, ''] });
-  };
-
-  const handleImageUrlChange = (index, value) => {
-    const newImageUrls = [...formData.imageUrls];
-    newImageUrls[index] = value;
-    setFormData({ ...formData, imageUrls: newImageUrls });
-  };
-
-  const handleImageUrlRemove = (index) => {
-    setFormData({ ...formData, imageUrls: formData.imageUrls.filter((_, i) => i !== index) });
-  };
-
-  const resetForm = () => {
-    setFormData(defaultFormData);
-    setVariants([{ size: 'S', color: 'Đen', stock: '', sku: '' }]);
-    setEditingId(null);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Xác thực sơ bộ mảng biến thể
-    for (let i = 0; i < variants.length; i++) {
-      const v = variants[i];
-      if (!v.size || !v.color || v.stock === '') {
-        addNotification(`Vui lòng nhập đầy đủ Size, Màu và Kho tại dòng biến thể thứ ${i + 1}`, 'warning');
-        return;
-      }
-      if (parseInt(v.stock, 10) < 0) {
-        addNotification('Số lượng tồn kho không được âm', 'warning');
-        return;
-      }
-    }
-
-    // Xác thực giá sản phẩm chính
-    if (!formData.price || Number(formData.price) < 0) {
-      addNotification('Vui lòng nhập giá sản phẩm hợp lệ', 'warning');
+    if (!isAdmin()) {
+      navigate('/');
       return;
     }
 
-    const payload = {
-      ...formData,
-      categoryId: formData.categoryId ? parseInt(formData.categoryId, 10) : null,
-      rating: Number(formData.rating) || 0,
-      reviewCount: parseInt(formData.reviewCount, 10) || 0,
-      price: Number(formData.price) || 0,
-      imageUrls: formData.imageUrls.filter(url => url.trim()),
-      variants: variants.map(v => ({
-        size: v.size,
-        color: v.color,
-        sku: v.sku.trim() || `${formData.sku}-${v.size}-${v.color}`,
-        stock: parseInt(v.stock, 10)
-      }))
-    };
+    if (isListView) {
+      fetchListData();
+    }
+  }, [isListView, isAdmin, navigate, fetchListData]);
 
-    try {
-      const url = editingId 
-        ? `${process.env.REACT_APP_API_URL}/products/${editingId}`
-        : `${process.env.REACT_APP_API_URL}/products`;
-
-      const response = await fetch(url, {
-        method: editingId ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok) {
-        addNotification(editingId ? 'Cập nhật thành công' : 'Thêm sản phẩm thành công', 'success');
-        setShowForm(false);
-        resetForm();
-        fetchProducts();
-      } else {
-        addNotification('Lỗi từ hệ thống máy chủ', 'error');
+  // Filter & Search Logic
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        if (searchType === 'name') {
+          if (!product.name?.toLowerCase().includes(query)) return false;
+        } else if (searchType === 'sku') {
+          if (!product.sku?.toLowerCase().includes(query)) return false;
+        }
       }
-    } catch (error) {
-      console.error(error);
-      addNotification('Lỗi kết nối mạng', 'error');
-    }
-  };
 
-  const handleEdit = (product) => {
-    setFormData({
-      name: product.name || '',
-      sku: product.sku || '',
-      description: product.description || '',
-      brand: product.brand || '',
-      material: product.material || '',
-      careInstructions: product.careInstructions || '',
-      mainImageUrl: product.mainImageUrl || '',
-      isFeatured: product.isFeatured || false,
-      categoryId: product.categoryId?.toString() || '',
-      rating: (product.rating || 0).toString(),
-      reviewCount: (product.reviewCount || 0).toString(),
-      price: (product.price || 0).toString(),
-      imageUrls: product.images?.map(img => img.url) || [],
+      if (selectedCategory !== 'all' && product.categoryId?.toString() !== selectedCategory) {
+        return false;
+      }
+
+      if (selectedBrand !== 'all' && product.brand !== selectedBrand) {
+        return false;
+      }
+
+      if (selectedStatus !== 'all') {
+        if (getProductStatus(product) !== selectedStatus) {
+          return false;
+        }
+      }
+
+      if (stockFilter !== 'all') {
+        const totalStock = product.productVariants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0;
+        if (stockFilter === 'lowStock' && totalStock > 10) return false;
+        if (stockFilter === 'outOfStock' && totalStock > 0) return false;
+      }
+
+      return true;
     });
+  }, [products, searchQuery, searchType, selectedCategory, selectedBrand, selectedStatus, stockFilter]);
 
-    if (product.productVariants && product.productVariants.length > 0) {
-      setVariants(product.productVariants.map(v => ({
-        size: v.size,
-        color: v.color,
-        stock: v.stock.toString(),
-        sku: v.sku || ''
-      })));
-    } else {
-      setVariants([{ size: '', color: '', stock: '', sku: '' }]);
+  // Pagination
+  const totalItems = filteredProducts.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedBrand, selectedStatus, stockFilter]);
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setSelectedCategory('all');
+    setSelectedBrand('all');
+    setSelectedStatus('all');
+    setStockFilter('all');
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = 
+    searchQuery || 
+    selectedCategory !== 'all' || 
+    selectedBrand !== 'all' || 
+    selectedStatus !== 'all' || 
+    stockFilter !== 'all';
+
+  const handleAddProduct = () => {
+    navigate('/admin/products/new');
+  };
+
+  const handleEditProduct = (productId) => {
+    navigate(`/admin/products/${productId}/edit`);
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) return;
+    
+    try {
+      await productsAPI.deleteProduct(productId, token);
+      addNotification('Xóa sản phẩm thành công', 'success');
+      fetchListData();
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      addNotification('Lỗi xóa sản phẩm', 'error');
+    }
+  };
+
+  const handleViewProduct = (productId) => {
+    navigate(`/products/${productId}`);
+  };
+
+  // ==================== FORM/EDIT VIEW FUNCTIONS ====================
+
+  // FIX #1: Load product data for edit mode
+  useEffect(() => {
+    if (isEditing && productId) {
+      const loadProduct = async () => {
+        try {
+          setFormLoading(true);
+          const product = await productsAPI.getProduct(productId);
+          
+          // FIX: Map variant data correctly - API uses camelCase property names
+          const mappedVariants = (product.productVariants || []).map((v, idx) => ({
+            id: v.id ?? null,
+            uniqueKey: v.id ? `variant-${v.id}` : `variant-${idx}-${Date.now()}`,
+            colorId: v.colorId ?? '',  // FIX: Use nullish coalescing to preserve 0
+            color: v.color ?? '',
+            hexCode: v.hexCode ?? '',
+            sizeId: v.sizeId ?? '',  // FIX: Use nullish coalescing to preserve 0
+            size: v.size ?? '',
+            price: v.price ?? 0,
+            stock: v.stock ?? 0,
+            sku: v.sku ?? '',
+            isAvailable: v.isAvailable !== undefined ? v.isAvailable : true,
+            imageUrls: [] // Variants don't have separate images in current schema
+          }));
+          
+          setFormData({
+            name: product.name || '',
+            description: product.description || '',
+            sku: product.sku || '',
+            brandId: product.brandId || '',
+            brand: product.brand || '',
+            categoryId: product.categoryId || '',
+            material: product.material || '',
+            careInstructions: product.careInstructions || '',
+            mainImageUrl: product.mainImageUrl || '',
+            isFeatured: product.isFeatured || false,
+            isAvailable: product.isAvailable !== undefined ? product.isAvailable : true,
+            imageUrls: product.images?.map(img => img.url) || [],
+            variants: mappedVariants
+          });
+          
+          // Store notification message instead of calling directly (FIX: Avoid infinite loop)
+          notificationRef.current = { msg: 'Tải dữ liệu sản phẩm thành công', type: 'success' };
+        } catch (error) {
+          console.error('Error loading product:', error);
+          notificationRef.current = { msg: 'Lỗi tải dữ liệu sản phẩm', type: 'error' };
+          navigate('/admin/products');
+        } finally {
+          setFormLoading(false);
+        }
+      };
+      loadProduct();
+    }
+  }, [isEditing, productId, navigate]);
+
+  // FIX #1 Part 2: Show notification after form loads (prevents infinite loop)
+  useEffect(() => {
+    if (notificationRef.current && !formLoading) {
+      const { msg, type } = notificationRef.current;
+      addNotification(msg, type);
+      notificationRef.current = null;
+    }
+  }, [formLoading, addNotification]);
+
+  // Form field change handlers
+  const handleFormFieldChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    if (formErrors[field]) {
+      setFormErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+    }
+  };
+
+  // Variant handlers
+  const handleAddVariant = () => {
+    setEditingVariantIndex(-1);  // FIX: Use -1 to indicate "adding new variant"
+    setCurrentVariant(INITIAL_VARIANT);
+  };
+
+  const handleEditVariant = (index) => {
+    setEditingVariantIndex(index);
+    setCurrentVariant({...formData.variants[index]});
+  };
+
+  const handleSaveVariant = () => {
+    // Validate variant
+    const errors = {};
+    if (!currentVariant.color && !currentVariant.colorId) errors.color = 'Màu sắc là bắt buộc';
+    if (!currentVariant.size && !currentVariant.sizeId) errors.size = 'Kích cỡ là bắt buộc';
+    if (currentVariant.price <= 0) errors.price = 'Giá phải lớn hơn 0';
+    if (currentVariant.stock < 0) errors.stock = 'Tồn kho không thể âm';
+
+    if (Object.keys(errors).length > 0) {
+      addNotification('Vui lòng điền đầy đủ thông tin biến thể', 'error');
+      return;
     }
 
-    setEditingId(product.id);
-    setShowForm(true);
+    // FIX: Handle adding new variant (editingVariantIndex === -1) vs editing existing
+    if (editingVariantIndex === -1) {
+      // Adding new variant with a stable unique key
+      const newVariant = {
+        ...currentVariant,
+        uniqueKey: `variant-new-${Date.now()}`
+      };
+
+      setFormData(prev => ({
+        ...prev,
+        variants: [...prev.variants, newVariant]
+      }));
+    } else if (editingVariantIndex !== null && editingVariantIndex >= 0) {
+      // Editing existing variant
+      const updatedVariants = [...formData.variants];
+      updatedVariants[editingVariantIndex] = currentVariant;
+      setFormData(prev => ({...prev, variants: updatedVariants}));
+    }
+
+    setEditingVariantIndex(null);
+    setCurrentVariant(INITIAL_VARIANT);
+    addNotification('Lưu biến thể thành công', 'success');
   };
 
-  const handleDelete = async (productId) => {
-    if (!window.confirm('Xác nhận xóa sản phẩm cùng toàn bộ biến thể liên quan?')) return;
+  const handleDeleteVariant = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      variants: prev.variants.filter((_, i) => i !== index)
+    }));
+    addNotification('Xóa biến thể thành công', 'success');
+  };
+
+  // Form validation
+  const validateForm = () => {
+    const errors = {};
+    if (!formData.name.trim()) errors.name = 'Tên sản phẩm là bắt buộc';
+    if (!formData.description.trim()) errors.description = 'Mô tả là bắt buộc';
+    if (formData.categoryId === '' || formData.categoryId === null || formData.categoryId === undefined) errors.categoryId = 'Danh mục là bắt buộc';
+    if (formData.variants.length === 0) errors.variants = 'Sản phẩm phải có ít nhất một biến thể';
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Form submission
+  const handleSubmitForm = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      addNotification('Vui lòng điền đầy đủ thông tin bắt buộc', 'error');
+      return;
+    }
+
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/products/${productId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) { addNotification('Xóa thành công', 'success'); fetchProducts(); }
-    } catch (error) { addNotification('Lỗi hệ thống khi xóa', 'error'); }
+      setFormLoading(true);
+
+      const payload = {
+        id: isEditing ? parseInt(productId) : undefined,
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        sku: formData.sku.trim() || '',
+        brandId: (formData.brandId || formData.brandId === 0) && formData.brandId !== '' ? parseInt(formData.brandId) : null,
+        brand: formData.brand.trim() || '',
+        categoryId: (formData.categoryId || formData.categoryId === 0) && formData.categoryId !== '' ? parseInt(formData.categoryId) : null,
+        material: formData.material.trim() || '',
+        careInstructions: formData.careInstructions.trim() || '',
+        mainImageUrl: formData.mainImageUrl.trim() || '',
+        isFeatured: formData.isFeatured,
+        isAvailable: formData.isAvailable,
+        imageUrls: formData.imageUrls.filter(url => url.trim()),
+        variants: formData.variants.map(v => {
+          // FIX: Properly handle variant data to avoid losing IDs or breaking on type errors
+          const variantPayload = {
+            id: (v.id || v.id === 0) ? v.id : undefined,
+            colorId: (v.colorId || v.colorId === 0) && v.colorId !== '' && !isNaN(parseInt(v.colorId)) ? parseInt(v.colorId) : undefined,
+            color: v.color && typeof v.color === 'string' ? v.color.trim() || undefined : v.color,
+            hexCode: v.hexCode && typeof v.hexCode === 'string' ? v.hexCode.trim() : '',
+            sizeId: (v.sizeId || v.sizeId === 0) && v.sizeId !== '' && !isNaN(parseInt(v.sizeId)) ? parseInt(v.sizeId) : undefined,
+            size: v.size && typeof v.size === 'string' ? v.size.trim() || undefined : v.size,
+            price: typeof v.price === 'number' ? v.price : parseFloat(v.price) || 0,
+            stock: typeof v.stock === 'number' ? v.stock : parseInt(v.stock) || 0,
+            sku: v.sku && typeof v.sku === 'string' ? v.sku.trim() : '',
+            isAvailable: v.isAvailable,
+            imageUrls: v.imageUrls ? v.imageUrls.filter(url => url && typeof url === 'string' && url.trim()) : []
+          };
+          return variantPayload;
+        })
+      };
+
+      if (isAdding) {
+        await productsAPI.createProduct(payload, token);
+        addNotification('Tạo sản phẩm thành công', 'success');
+      } else if (isEditing) {
+        await productsAPI.updateProduct(productId, payload, token);
+        addNotification('Cập nhật sản phẩm thành công', 'success');
+      }
+
+      navigate('/admin/products');
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      
+      // Check specifically for the JSON parsing error
+      const isJsonError = error instanceof SyntaxError && error.message.includes('JSON');
+      const errorMessage = isJsonError 
+        ? 'Yêu cầu thành công nhưng máy chủ phản hồi rỗng (JSON error). Vui lòng kiểm tra lại danh sách.' 
+        : (error.message || 'Lỗi lưu sản phẩm');
+        
+      addNotification(errorMessage, 'error');
+    } finally {
+      setFormLoading(false);
+    }
   };
 
-  if (loading) return <div className="loading-page">Đang xử lý thông tin sản phẩm...</div>;
+  // Loading state
+  if (loading) {
+    return <LoadingSkeleton type="content" />;
+  }
 
-  return (
-    <AdminLayout title="Quản Lý Biến Thể Sản Phẩm">
+  // ==================== RENDER ====================
+
+  if (isListView) {
+    return (
       <div className="admin-products-page">
-        <div className="admin-header">
-          <h1>Quản Lý Sản Phẩm (Đa biến thể)</h1>
-          <button onClick={() => { if (showForm) { setShowForm(false); resetForm(); } else { setShowForm(true); } }} className="btn-add-product">
-            {showForm ? '← Danh Sách' : '+ Thêm Sản Phẩm'}
+        {/* HEADER */}
+        <div className="products-header">
+          <div className="header-left">
+            <h1>Sản Phẩm</h1>
+            <span className="product-count">({totalItems})</span>
+          </div>
+          <button className="btn-primary" onClick={handleAddProduct}>
+            + Thêm sản phẩm
           </button>
         </div>
 
-        {showForm ? (
-          <div className="product-form-section">
-            <form onSubmit={handleSubmit} className="product-form">
-              <div className="form-section">
-                <h2>{editingId ? 'Cập Nhật Sản Phẩm' : 'Tạo Sản Phẩm Mới'}</h2>
+        {/* TOOLBAR - SEARCH & FILTERS */}
+        <div className="products-toolbar">
+          <ProductSearch
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searchType={searchType}
+            setSearchType={setSearchType}
+          />
+          <ProductFilters
+            categories={categories}
+            brands={brands}
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
+            selectedBrand={selectedBrand}
+            setSelectedBrand={setSelectedBrand}
+            selectedStatus={selectedStatus}
+            setSelectedStatus={setSelectedStatus}
+            stockFilter={stockFilter}
+            setStockFilter={setStockFilter}
+            hasActiveFilters={hasActiveFilters}
+            onClearFilters={handleClearFilters}
+          />
+        </div>
 
-                <div className="form-row">
-                  <div className="form-group"> <label>Tên Sản Phẩm *</label> <input type="text" value={formData.name} onChange={handleFormChange('name')} required /> </div>
-                  <div className="form-group"> <label>Mã Sản Phẩm (SKU chính) *</label> <input type="text" value={formData.sku} onChange={handleFormChange('sku')} required /> </div>
-                  <div className="form-group"> <label>Giá Sản Phẩm (đ) *</label> <input type="number" value={formData.price} onChange={handleFormChange('price')} required step="0.01" min="0" /> </div>
-                </div>
-
-                {/* KHU VỰC THIẾT LẬP BIẾN THỂ THEO BẢNG PRODUCTVARIANTS */}
-                <div className="form-section-sub" style={{ background: '#f4f6f9', padding: '20px', borderRadius: '8px', marginBottom: '25px' }}>
-                  <h3 style={{ margin: '0 0 15px 0', color: '#1a202c', fontSize: '16px' }}>Cấu Hình Thuộc Tính Biến Thể (Size, Màu, Kho)</h3>
-                  
-                  {variants.map((v, index) => (
-                    <div key={index} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: '12px', borderRadius: '6px', marginBottom: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                      <div style={{ width: '80px' }}>
-                        <label style={{ fontSize: '11px', display: 'block' }}>Size *</label>
-                        <input type="text" value={v.size} onChange={(e) => handleVariantChange(index, 'size', e.target.value)} placeholder="S, M, L..." required style={{ padding: '6px' }} />
-                      </div>
-                      <div style={{ width: '90px' }}>
-                        <label style={{ fontSize: '11px', display: 'block' }}>Màu Sắc *</label>
-                        <input type="text" value={v.color} onChange={(e) => handleVariantChange(index, 'color', e.target.value)} placeholder="Đen, Trắng..." required style={{ padding: '6px' }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: '80px' }}>
-                        <label style={{ fontSize: '11px', display: 'block' }}>Số Kho *</label>
-                        <input type="number" value={v.stock} onChange={(e) => handleVariantChange(index, 'stock', e.target.value)} placeholder="Tồn kho" required style={{ padding: '6px' }} />
-                      </div>
-                      <div style={{ flex: 2, minWidth: '120px' }}>
-                        <label style={{ fontSize: '11px', display: 'block' }}>SKU Biến Thể (Tự chọn)</label>
-                        <input type="text" value={v.sku} onChange={(e) => handleVariantChange(index, 'sku', e.target.value)} placeholder="Bỏ trống tự sinh" style={{ padding: '6px' }} />
-                      </div>
-                      {variants.length > 1 && (
-                        <button type="button" onClick={() => handleRemoveVariant(index)} style={{ background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', marginTop: '15px' }}>✕</button>
-                      )}
-                    </div>
-                  ))}
-                  
-                  <button type="button" onClick={handleAddVariant} style={{ background: '#3182ce', color: '#fff', border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontWeight: '500', fontSize: '13px' }}>
-                    + Thêm Dòng Biến Thể Mới
-                  </button>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Thương Hiệu</label> <input type="text" value={formData.brand} onChange={handleFormChange('brand')} />
-                  </div>
-                  <div className="form-group">
-                    <label>Danh Mục</label>
-                    <select value={formData.categoryId} onChange={handleFormChange('categoryId')}>
-                      <option value="">Chọn danh mục</option>
-                      {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group full-width"> <label>Mô Tả</label> <textarea value={formData.description} onChange={handleFormChange('description')} rows={3} /> </div>
-                <div className="form-row">
-                  <div className="form-group"> <label>Chất Liệu</label> <input type="text" value={formData.material} onChange={handleFormChange('material')} /> </div>
-                  <div className="form-group"> <label>Bảo Quản</label> <input type="text" value={formData.careInstructions} onChange={handleFormChange('careInstructions')} /> </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group"> <label>Ảnh Chính</label> <input type="url" value={formData.mainImageUrl} onChange={handleFormChange('mainImageUrl')} /> </div>
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px' }}>
-                      <input type="checkbox" checked={formData.isFeatured} onChange={handleFormChange('isFeatured')} /> Đặt làm sản phẩm nổi bật
-                    </label>
-                  </div>
-                </div>
-
-                <div className="form-section-sub">
-                  <h3>Ảnh Phụ</h3>
-                  {formData.imageUrls.map((url, index) => (
-                    <div key={index} className="image-url-input">
-                      <input type="url" value={url} onChange={(e) => handleImageUrlChange(index, e.target.value)} />
-                      <button type="button" onClick={() => handleImageUrlRemove(index)} className="btn-remove-image">✕</button>
-                    </div>
-                  ))}
-                  <button type="button" onClick={handleImageUrlAdd} className="btn-add-image">+ Thêm Ảnh</button>
-                </div>
-              </div>
-
-              <div className="form-actions">
-                <button type="button" onClick={() => { setShowForm(false); resetForm(); }} className="btn-cancel">Hủy</button>
-                <button type="submit" className="btn-save">Lưu Toàn Bộ</button>
-              </div>
-            </form>
-          </div>
+        {/* PRODUCTS TABLE */}
+        {paginatedProducts.length > 0 ? (
+          <ProductTable
+            products={paginatedProducts}
+            getProductStatus={getProductStatus}
+            onEdit={handleEditProduct}
+            onDelete={handleDeleteProduct}
+            onView={handleViewProduct}
+          />
         ) : (
-          <div className="products-table-section">
-            <div className="products-table">
-              <div className="table-header">
-                <span className="col-name">Tên Sản Phẩm</span>
-                <span className="col-sku">SKU</span>
-                <span className="col-category">Danh Mục</span>
-                <span className="col-price">Giá (đ)</span>
-                <span className="col-variants-detail">Thông tin các Biến thể (Màu - Size - Kho)</span>
-                <span className="col-actions">Thao Tác</span>
-              </div>
-
-              {products.map((product) => (
-                <div key={product.id} className="table-row">
-                  <span className="col-name" style={{ fontWeight: '600' }}>{product.name}</span>
-                  <span className="col-sku">{product.sku}</span>
-                  <span className="col-category">{product.category?.name || '-'}</span>
-                  <span className="col-price" style={{ fontWeight: '600', color: '#2d3748' }}>{product.price?.toLocaleString('vi-VN')}đ</span>
-                  <span className="col-variants-detail" style={{ fontSize: '12px', color: '#4a5568' }}>
-                    {product.productVariants && product.productVariants.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {product.productVariants.map((v, i) => (
-                          <div key={i} style={{ background: '#edf2f7', padding: '2px 6px', borderRadius: '4px' }}>
-                            🎨 {v.color} | 📐 Size {v.size} | 📦 Tồn: {v.stock}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span style={{ color: '#e53e3e' }}>Chưa thiết lập biến thể</span>
-                    )}
-                  </span>
-                  <span className="col-actions">
-                    <button onClick={() => handleEdit(product)} className="btn-edit">Sửa</button>
-                    <button onClick={() => handleDelete(product.id)} className="btn-delete">Xóa</button>
-                  </span>
-                </div>
-              ))}
-            </div>
+          <div className="empty-state">
+            <div className="empty-icon">📦</div>
+            <h3>Không tìm thấy sản phẩm</h3>
+            <p>Hãy điều chỉnh tiêu chí tìm kiếm hoặc thêm sản phẩm mới</p>
           </div>
         )}
+
+        {/* PAGINATION */}
+        {totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            itemsPerPage={itemsPerPage}
+            setItemsPerPage={setItemsPerPage}
+            setCurrentPage={setCurrentPage}
+            totalItems={totalItems}
+          />
+        )}
       </div>
-    </AdminLayout>
+    );
+  }
+
+  // FORM VIEW (ADD/EDIT)
+  return (
+    <div className="admin-products-page">
+      <div className="product-form-container">
+        <div className="form-header">
+          <h2>{isEditing ? `Chỉnh sửa sản phẩm #${productId}` : 'Thêm sản phẩm mới'}</h2>
+          <button className="btn-secondary" onClick={() => navigate('/admin/products')}>
+            ← Quay lại danh sách
+          </button>
+        </div>
+
+        {formLoading ? (
+          <LoadingSkeleton type="content" />
+        ) : (
+          <form className="admin-form" onSubmit={handleSubmitForm}>
+            {/* BASIC INFORMATION */}
+            <div className="form-section">
+              <h3>Thông Tin Cơ Bản</h3>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Tên sản phẩm *</label>
+                  <input
+                    type="text"
+                    placeholder="Nhập tên sản phẩm..."
+                    value={formData.name}
+                    onChange={(e) => handleFormFieldChange('name', e.target.value)}
+                    className={formErrors.name ? 'error' : ''}
+                  />
+                  {formErrors.name && <span className="error-text">{formErrors.name}</span>}
+                </div>
+                <div className="form-group">
+                  <label>SKU</label>
+                  <input
+                    type="text"
+                    placeholder="Mã sản phẩm..."
+                    value={formData.sku}
+                    onChange={(e) => handleFormFieldChange('sku', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Mô tả sản phẩm *</label>
+                <textarea
+                  placeholder="Nhập mô tả chi tiết sản phẩm..."
+                  value={formData.description}
+                  onChange={(e) => handleFormFieldChange('description', e.target.value)}
+                  className={formErrors.description ? 'error' : ''}
+                  rows="4"
+                />
+                {formErrors.description && <span className="error-text">{formErrors.description}</span>}
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Danh mục *</label>
+                  <select
+                    value={formData.categoryId}
+                    onChange={(e) => handleFormFieldChange('categoryId', e.target.value)}
+                    className={formErrors.categoryId ? 'error' : ''}
+                  >
+                    <option value="">-- Chọn danh mục --</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  {formErrors.categoryId && <span className="error-text">{formErrors.categoryId}</span>}
+                </div>
+                <div className="form-group">
+                  <label>Thương hiệu</label>
+                  <input
+                    type="text"
+                    placeholder="Tên thương hiệu..."
+                    value={formData.brand}
+                    onChange={(e) => handleFormFieldChange('brand', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Chất liệu</label>
+                  <input
+                    type="text"
+                    placeholder="Chất liệu sản phẩm..."
+                    value={formData.material}
+                    onChange={(e) => handleFormFieldChange('material', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Hướng dẫn bảo quản</label>
+                  <input
+                    type="text"
+                    placeholder="Cách bảo quản..."
+                    value={formData.careInstructions}
+                    onChange={(e) => handleFormFieldChange('careInstructions', e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* IMAGES */}
+            <div className="form-section">
+              <h3>Hình Ảnh</h3>
+              
+              <div className="form-group">
+                <label>URL Ảnh Chính</label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/main-image.jpg"
+                  value={formData.mainImageUrl}
+                  onChange={(e) => handleFormFieldChange('mainImageUrl', e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Các URL Ảnh Khác (Một URL mỗi dòng)</label>
+                <textarea
+                  placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"
+                  value={formData.imageUrls.join('\n')}
+                  onChange={(e) => handleFormFieldChange('imageUrls', e.target.value.split('\n'))}
+                  rows="4"
+                />
+              </div>
+            </div>
+
+            {/* SETTINGS */}
+            <div className="form-section">
+              <h3>Cài Đặt</h3>
+              
+              <div className="form-row checkbox-row">
+                <div className="form-group checkbox">
+                  <input
+                    type="checkbox"
+                    id="isFeatured"
+                    checked={formData.isFeatured}
+                    onChange={(e) => handleFormFieldChange('isFeatured', e.target.checked)}
+                  />
+                  <label htmlFor="isFeatured">Sản phẩm nổi bật</label>
+                </div>
+                <div className="form-group checkbox">
+                  <input
+                    type="checkbox"
+                    id="isAvailable"
+                    checked={formData.isAvailable}
+                    onChange={(e) => handleFormFieldChange('isAvailable', e.target.checked)}
+                  />
+                  <label htmlFor="isAvailable">Còn hàng</label>
+                </div>
+              </div>
+            </div>
+
+            {/* VARIANTS */}
+            <div className="form-section">
+              <div className="section-header">
+                <h3>Biến Thể Sản Phẩm *</h3>
+                {editingVariantIndex === null && (
+                  <button
+                    type="button"
+                    className="btn-secondary small"
+                    onClick={handleAddVariant}
+                  >
+                    + Thêm biến thể
+                  </button>
+                )}
+              </div>
+
+              {formErrors.variants && (
+                <div className="error-alert">{formErrors.variants}</div>
+              )}
+
+              {/* Variant Editor */}
+              {editingVariantIndex !== null ? (
+                <div className="variant-editor">
+                  <h4>{editingVariantIndex === -1 ? 'Thêm biến thể mới' : 'Chỉnh sửa biến thể'}</h4>
+                  
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Màu sắc *</label>
+                      <input
+                        type="text"
+                        placeholder="Tên màu..."
+                        value={currentVariant.color}
+                        onChange={(e) => setCurrentVariant({...currentVariant, color: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Mã Hex</label>
+                      <input
+                        type="text"
+                        placeholder="#000000"
+                        value={currentVariant.hexCode}
+                        onChange={(e) => setCurrentVariant({...currentVariant, hexCode: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Kích cỡ *</label>
+                      <input
+                        type="text"
+                        placeholder="Kích cỡ..."
+                        value={currentVariant.size}
+                        onChange={(e) => setCurrentVariant({...currentVariant, size: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Giá *</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={currentVariant.price}
+                        onChange={(e) => setCurrentVariant({...currentVariant, price: parseFloat(e.target.value) || 0})}
+                        step="0.01"
+                        min="0"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Tồn kho *</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={currentVariant.stock}
+                        onChange={(e) => setCurrentVariant({...currentVariant, stock: parseInt(e.target.value) || 0})}
+                        min="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-actions variant-actions">
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => {
+                        setEditingVariantIndex(null);
+                        setCurrentVariant(INITIAL_VARIANT);
+                      }}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleSaveVariant}
+                    >
+                      Lưu biến thể
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Variant List */}
+              {formData.variants.length > 0 && (
+                <div className="variants-list">
+                  <table className="variants-table">
+                    <thead>
+                      <tr>
+                        <th>Màu</th>
+                        <th>Kích cỡ</th>
+                        <th>Giá</th>
+                        <th>Tồn kho</th>
+                        <th>Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {formData.variants.map((variant, idx) => (
+                        <tr key={variant.uniqueKey || `${variant.color}-${variant.size}-${idx}`}>
+                          <td>{variant.color}</td>
+                          <td>{variant.size}</td>
+                          <td>{variant.price.toLocaleString('vi-VN')}đ</td>
+                          <td>{variant.stock}</td>
+                          <td>
+                            <div className="variant-actions">
+                              <button
+                                type="button"
+                                className="btn-icon btn-edit"
+                                onClick={() => handleEditVariant(idx)}
+                                title="Sửa"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-icon btn-delete"
+                                onClick={() => handleDeleteVariant(idx)}
+                                title="Xóa"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* FORM ACTIONS */}
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => navigate('/admin/products')}
+                disabled={formLoading}
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={formLoading}
+              >
+                {formLoading ? 'Đang lưu...' : (isEditing ? 'Cập nhật sản phẩm' : 'Tạo sản phẩm')}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }

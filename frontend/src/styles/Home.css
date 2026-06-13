@@ -1,12 +1,12 @@
 /* Hero Section */
 .hero-section {
   position: relative;
-  min-height: 76vh;
+  min-height: 500px; /* Changed from 76vh to a fixed pixel value for better scroll behavior */
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, rgba(17, 17, 17, 0.05), rgba(17, 17, 17, 0.03)), #fff;
-  overflow: hidden;
+  overflow: clip; /* Clip internal decorations without affecting container flow */
   padding: 40px 20px;
 }
 

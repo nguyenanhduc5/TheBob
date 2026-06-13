@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import '../styles/AdminUsers.css';
-import AdminLayout from '../components/AdminLayout';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -95,11 +95,10 @@ export default function AdminUsers() {
     }
   };
 
-  if (loading) return <div className="loading-page">Đang tải...</div>;
+  if (loading) return <LoadingSkeleton type="table" />;
 
   return (
-    <AdminLayout title="Quản Lý Người Dùng">
-      <div className="admin-users-page">
+    <div className="admin-users-page">
         <div className="admin-header">
           <h1>Quản Lý Người Dùng</h1>
         </div>
@@ -142,7 +141,6 @@ export default function AdminUsers() {
             ))}
           </div>
         )}
-      </div>
-    </AdminLayout>
+    </div>
   );
 }

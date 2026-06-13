@@ -143,7 +143,8 @@ button,
 }
 
 .main-content {
-  min-height: calc(100vh - 200px);
+  min-height: calc(100vh - 80px); /* Điều chỉnh dựa trên chiều cao Header */
+  overflow: visible; /* Đảm bảo không bị hidden */
   padding: 24px 20px 32px;
 }
 

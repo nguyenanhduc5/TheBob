@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import '../styles/AdminOrders.css';
-import AdminLayout from '../components/AdminLayout';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 
 export default function AdminOrders() {
   const navigate = useNavigate();
@@ -102,12 +102,11 @@ export default function AdminOrders() {
   };
 
   if (loading) {
-    return <div className="loading-page">Đang tải...</div>;
+    return <LoadingSkeleton type="table" />;
   }
 
   return (
-    <AdminLayout title="Quản Lý Đơn Hàng">
-      <div className="admin-orders-page">
+    <div className="admin-orders-page">
       <div className="admin-header">
         <h1>Quản Lý Đơn Hàng</h1>
       </div>
@@ -195,7 +194,6 @@ export default function AdminOrders() {
           ))}
         </div>
       )}
-      </div>
-    </AdminLayout>
+    </div>
   );
 }

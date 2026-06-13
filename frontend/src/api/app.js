@@ -49,11 +49,44 @@ export const productsAPI = {
     return response.json();
   },
 
-  async createProduct(product) {
+  async getCategories() {
+    const response = await fetch(`${API_BASE_URL}/products/categories`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch categories');
+    }
+    return response.json();
+  },
+
+  async getBrands() {
+    const response = await fetch(`${API_BASE_URL}/products/brands`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch brands');
+    }
+    return response.json();
+  },
+
+  async getSizes() {
+    const response = await fetch(`${API_BASE_URL}/products/sizes`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch sizes');
+    }
+    return response.json();
+  },
+
+  async getColors() {
+    const response = await fetch(`${API_BASE_URL}/products/colors`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch colors');
+    }
+    return response.json();
+  },
+
+  async createProduct(product, token) {
     const response = await fetch(`${API_BASE_URL}/products`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(product),
     });
@@ -63,23 +96,27 @@ export const productsAPI = {
     return response.json();
   },
 
-  async updateProduct(id, product) {
+  async updateProduct(id, product, token) {
     const response = await fetch(`${API_BASE_URL}/products/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(product),
     });
     if (!response.ok) {
       throw new Error('Failed to update product');
     }
-    return response;
+    return response.json();
   },
 
-  async deleteProduct(id) {
+  async deleteProduct(id, token) {
     const response = await fetch(`${API_BASE_URL}/products/${id}`, {
       method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
     });
     if (!response.ok) {
       throw new Error('Failed to delete product');

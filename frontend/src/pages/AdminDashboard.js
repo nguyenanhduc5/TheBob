@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import '../styles/AdminDashboard.css';
-import AdminLayout from '../components/AdminLayout';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -51,12 +51,11 @@ export default function AdminDashboard() {
   }, [fetchStats, isAdmin, navigate]);
 
   if (loading) {
-    return <div className="loading-page">Đang tải...</div>;
+    return <LoadingSkeleton type="card" />;
   }
 
   return (
-    <AdminLayout title="Bảng Điều Khiển">
-      <div className="admin-dashboard-page">
+    <div className="admin-dashboard-page">
         <div className="dashboard-header">
           <h1>Bảng Điều Khiển Quản Trị</h1>
           <p>Quản lý cửa hàng THEBOB của bạn</p>
@@ -147,7 +146,6 @@ export default function AdminDashboard() {
             </button>
           </div>
         </div>
-      </div>
-    </AdminLayout>
+    </div>
   );
 }

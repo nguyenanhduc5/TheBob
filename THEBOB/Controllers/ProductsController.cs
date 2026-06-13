@@ -174,7 +174,6 @@ namespace THEBOB.Controllers
 
                     existing.SizeId = await ResolveSizeId(variantRequest.SizeId, variantRequest.Size);
                     existing.ColorId = await ResolveColorId(variantRequest.ColorId, variantRequest.Color, variantRequest.HexCode);
-                    existing.Price = variantRequest.Price ?? request.Price;
                     existing.Stock = variantRequest.Stock;
                     existing.Sku = BuildSku(request.Sku, variantRequest);
                     existing.IsAvailable = variantRequest.IsAvailable ?? variantRequest.Stock > 0;
@@ -271,7 +270,6 @@ namespace THEBOB.Controllers
                 Product = product,
                 SizeId = await ResolveSizeId(variantRequest.SizeId, variantRequest.Size),
                 ColorId = await ResolveColorId(variantRequest.ColorId, variantRequest.Color, variantRequest.HexCode),
-                Price = variantRequest.Price ?? fallbackPrice,
                 Stock = variantRequest.Stock,
                 Sku = BuildSku(productSku, variantRequest),
                 IsAvailable = variantRequest.IsAvailable ?? variantRequest.Stock > 0,

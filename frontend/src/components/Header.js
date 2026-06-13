@@ -1,14 +1,21 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import '../styles/Header.css';
 
 export default function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout, isAdmin } = useAuth();
   const { cartItems } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Hide header on admin pages
+  const hideHeaderPages = ['/login', '/register', '/admin', '/admin/products', '/admin/categories', '/admin/orders', '/admin/users', '/admin/profile', '/admin/settings'];
+  if (hideHeaderPages.some(page => location.pathname.startsWith(page))) {
+    return null;
+  }
 
   const handleUserIconClick = () => {
     if (user) {

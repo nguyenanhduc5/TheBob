@@ -1,0 +1,331 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
+import { productsAPI } from '../api/app';
+import '../styles/AdminProducts.css';
+import '../styles/ProductSearch.css';
+import ProductSearch from '../components/ProductSearch';
+import ProductFilters from '../components/ProductFilters';
+import ProductTable from '../components/ProductTable';
+import Pagination from '../components/Pagination';
+import LoadingSkeleton from '../components/LoadingSkeleton';
+
+const INITIAL_FORM_STATE = {
+  name: '',
+  description: '',
+  sku: '',
+  brandId: '',
+  brand: '',
+  categoryId: '',
+  material: '',
+  careInstructions: '',
+  mainImageUrl: '',
+  isFeatured: false,
+  isAvailable: true,
+  imageUrls: [],
+  variants: []
+};
+
+const INITIAL_VARIANT = {
+  id: null,
+  colorId: '',
+  color: '',
+  hexCode: '',
+  sizeId: '',
+  size: '',
+  price: 0,
+  stock: 0,
+  sku: '',
+  isAvailable: true,
+  imageUrls: []
+};
+
+export default function AdminProducts() {
+  const navigate = useNavigate();
+  const { id: productId } = useParams();
+  const { pathname } = useLocation();
+  const { token, isAdmin } = useAuth();
+  const { addNotification } = useNotification();
+
+  // Determine if we are in List, Add, or Edit mode
+  // FIX: Use pathname to distinguish modes, not productId
+  const isListView = !pathname.includes('/new') && !pathname.includes('/edit');
+  const isAdding = pathname.includes('/new');
+  const isEditing = pathname.includes('/edit');
+
+  // List View States
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [sizes, setSizes] = useState([]);
+  const [colors, setColors] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Search & Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchType, setSearchType] = useState('name');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedBrand, setSelectedBrand] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [stockFilter, setStockFilter] = useState('all');
+
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Form States (Add/Edit Mode)
+  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+  const [formLoading, setFormLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
+  const [editingVariantIndex, setEditingVariantIndex] = useState(null);
+  const [currentVariant, setCurrentVariant] = useState(INITIAL_VARIANT);
+
+  // Calculate product status
+  const getProductStatus = (product) => {
+    const totalStock = product.productVariants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0;
+    
+    if (product.isDiscontinued) return 'discontinued';
+    if (totalStock === 0) return 'outOfStock';
+    if (totalStock <= 10) return 'lowStock';
+    return 'available';
+  };
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/products`);
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(data);
+        
+        // Extract unique brands
+        const uniqueBrands = [...new Set(data.map(p => p.brand).filter(Boolean))];
+        setBrands(uniqueBrands);
+      }
+    } catch (error) {
+      console.error(error);
+      addNotification('Lỗi tải dữ liệu sản phẩm', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [addNotification]);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/products/categories`);
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin()) { navigate('/'); return; }
+    fetchProducts();
+    fetchCategories();
+  }, [fetchProducts, fetchCategories, isAdmin, navigate]);
+
+  // Filter & Search Logic
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        if (searchType === 'name') {
+          if (!product.name?.toLowerCase().includes(query)) return false;
+        } else if (searchType === 'sku') {
+          if (!product.sku?.toLowerCase().includes(query)) return false;
+        }
+      }
+
+      // Category filter
+      if (selectedCategory !== 'all' && product.categoryId?.toString() !== selectedCategory) {
+        return false;
+      }
+
+      // Brand filter
+      if (selectedBrand !== 'all' && product.brand !== selectedBrand) {
+        return false;
+      }
+
+      // Status filter
+      if (selectedStatus !== 'all') {
+        if (getProductStatus(product) !== selectedStatus) {
+          return false;
+        }
+      }
+
+      // Stock filter
+      if (stockFilter !== 'all') {
+        const totalStock = product.productVariants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0;
+        if (stockFilter === 'lowStock' && totalStock > 10) return false;
+        if (stockFilter === 'outOfStock' && totalStock > 0) return false;
+      }
+
+      return true;
+    });
+  }, [products, searchQuery, searchType, selectedCategory, selectedBrand, selectedStatus, stockFilter]);
+
+  // Pagination
+  const totalItems = filteredProducts.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedBrand, selectedStatus, stockFilter]);
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setSelectedCategory('all');
+    setSelectedBrand('all');
+    setSelectedStatus('all');
+    setStockFilter('all');
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = 
+    searchQuery || 
+    selectedCategory !== 'all' || 
+    selectedBrand !== 'all' || 
+    selectedStatus !== 'all' || 
+    stockFilter !== 'all';
+
+  const handleAddProduct = () => {
+    navigate('/admin/products/new');
+  };
+
+  const handleEditProduct = (productId) => {
+    navigate(`/admin/products/${productId}/edit`);
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) return;
+    
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/products/${productId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        addNotification('Xóa sản phẩm thành công', 'success');
+        fetchProducts();
+      } else {
+        addNotification('Lỗi xóa sản phẩm', 'error');
+      }
+    } catch (error) {
+      console.error(error);
+      addNotification('Lỗi kết nối', 'error');
+    }
+  };
+
+  const handleViewProduct = (productId) => {
+    navigate(`/admin/products/${productId}`);
+  };
+
+  if (loading) {
+    return <LoadingSkeleton type="content" />;
+  }
+
+  return (
+    <div className="admin-products-page">
+        {isListView ? (
+          <>
+        {/* HEADER */}
+        <div className="products-header">
+          <div className="header-left">
+            <h1>Sản Phẩm</h1>
+            <span className="product-count">({totalItems})</span>
+          </div>
+          <button className="btn-primary" onClick={handleAddProduct}>
+            + Thêm sản phẩm
+          </button>
+        </div>
+
+        {/* TOOLBAR - SEARCH & FILTERS */}
+        <div className="products-toolbar">
+          <ProductSearch
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searchType={searchType}
+            setSearchType={setSearchType}
+          />
+          <ProductFilters
+            categories={categories}
+            brands={brands}
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
+            selectedBrand={selectedBrand}
+            setSelectedBrand={setSelectedBrand}
+            selectedStatus={selectedStatus}
+            setSelectedStatus={setSelectedStatus}
+            stockFilter={stockFilter}
+            setStockFilter={setStockFilter}
+            hasActiveFilters={hasActiveFilters}
+            onClearFilters={handleClearFilters}
+          />
+        </div>
+
+        {/* PRODUCTS TABLE */}
+        {paginatedProducts.length > 0 ? (
+          <ProductTable
+            products={paginatedProducts}
+            getProductStatus={getProductStatus}
+            onEdit={handleEditProduct}
+            onDelete={handleDeleteProduct}
+            onView={handleViewProduct}
+          />
+        ) : (
+          <div className="empty-state">
+            <div className="empty-icon">📦</div>
+            <h3>Không tìm thấy sản phẩm</h3>
+            <p>Hãy điều chỉnh tiêu chí tìm kiếm hoặc thêm sản phẩm mới</p>
+          </div>
+        )}
+
+        {/* PAGINATION */}
+        {totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            itemsPerPage={itemsPerPage}
+            setItemsPerPage={setItemsPerPage}
+            setCurrentPage={setCurrentPage}
+            totalItems={totalItems}
+          />
+        )}
+          </>
+        ) : (
+          /* PRODUCT FORM (ADD/EDIT) */
+          <div className="product-form-container">
+            <div className="form-header">
+              <h2>{isEditing ? `Chỉnh sửa sản phẩm #${productId}` : 'Thêm sản phẩm mới'}</h2>
+              <button className="btn-secondary" onClick={() => navigate('/admin/products')}>
+                Quay lại danh sách
+              </button>
+            </div>
+            
+            <form className="admin-form" onSubmit={(e) => { e.preventDefault(); /* Add save logic here */ }}>
+              <div className="form-group">
+                <label>Tên sản phẩm</label>
+                <input type="text" placeholder="Nhập tên sản phẩm..." />
+              </div>
+              {/* Add more form fields here (SKU, Price, Category, etc.) */}
+              
+              <div className="form-actions">
+                <button type="button" className="btn-secondary" onClick={() => navigate('/admin/products')}>Hủy</button>
+                <button type="submit" className="btn-primary">Lưu sản phẩm</button>
+              </div>
+            </form>
+          </div>
+        )}
+    </div>
+  );
+}
