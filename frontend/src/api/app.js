@@ -1,126 +1,170 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL; // Uses environment variable from .env
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5110/api';
+const TOKEN_KEY = 'thebob-token';
+const USER_KEY = 'thebob-current-user';
+
+class ApiError extends Error {
+  constructor(message, status, payload) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+const isAbsoluteUrl = (url) => /^https?:\/\//i.test(url);
+
+const buildUrl = (path) => {
+  if (isAbsoluteUrl(path)) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+};
+
+const readToken = () => localStorage.getItem(TOKEN_KEY);
+
+const redirectToLogin = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+
+  if (!window.location.pathname.startsWith('/login')) {
+    const returnUrl = `${window.location.pathname}${window.location.search}`;
+    window.location.assign(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+  }
+};
+
+const getMessageFromPayload = (payload, fallback) => {
+  if (!payload) return fallback;
+  if (typeof payload === 'string') return payload;
+  if (typeof payload.message === 'string') return payload.message;
+  if (typeof payload.error === 'string') return payload.error;
+  if (payload.errors && typeof payload.errors === 'object') {
+    return Object.values(payload.errors).flat().filter(Boolean).join(' ') || fallback;
+  }
+  if (typeof payload.title === 'string') return payload.title;
+  return fallback;
+};
+
+const parseResponse = async (response) => {
+  if (response.status === 204) return null;
+
+  const text = await response.text();
+  if (!text) return null;
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) return text;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+};
+
+export const apiClient = async (path, options = {}) => {
+  const { auth = false, headers = {}, body, ...rest } = options;
+  const requestHeaders = {
+    Accept: 'application/json',
+    ...headers,
+  };
+
+  let requestBody = body;
+  if (body !== undefined && !(body instanceof FormData)) {
+    requestHeaders['Content-Type'] = 'application/json';
+    requestBody = JSON.stringify(body);
+  }
+
+  const token = readToken();
+  if (auth && token) {
+    requestHeaders.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(buildUrl(path), {
+    ...rest,
+    headers: requestHeaders,
+    body: requestBody,
+  });
+
+  const payload = await parseResponse(response);
+
+  if (response.status === 401) {
+    redirectToLogin();
+    throw new ApiError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 401, payload);
+  }
+
+  if (!response.ok) {
+    throw new ApiError(
+      getMessageFromPayload(payload, 'Không thể xử lý yêu cầu.'),
+      response.status,
+      payload
+    );
+  }
+
+  return payload;
+};
+
+const safeArray = (value) => (Array.isArray(value) ? value : []);
 
 export const authAPI = {
-  async register(userData) {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+  register(userData) {
+    return apiClient('/auth/register', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
+      body: userData,
     });
-    if (!response.ok) {
-      throw new Error('Registration failed');
-    }
-    return response.json();
   },
 
-  async login(credentials) {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  login(credentials) {
+    return apiClient('/auth/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
+      body: credentials,
     });
-    if (!response.ok) {
-      throw new Error('Login failed');
-    }
-    return response.json();
   },
-
-  // Add more auth methods as needed, e.g., logout, getProfile
 };
 
 export const productsAPI = {
   async getProducts() {
-    const response = await fetch(`${API_BASE_URL}/products`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch products');
-    }
-    return response.json();
+    return safeArray(await apiClient('/products'));
   },
 
-  async getProduct(id) {
-    const response = await fetch(`${API_BASE_URL}/products/${id}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch product');
-    }
-    return response.json();
+  getProduct(id) {
+    return apiClient(`/products/${id}`);
   },
 
   async getCategories() {
-    const response = await fetch(`${API_BASE_URL}/products/categories`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch categories');
-    }
-    return response.json();
+    return safeArray(await apiClient('/products/categories'));
   },
 
   async getBrands() {
-    const response = await fetch(`${API_BASE_URL}/products/brands`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch brands');
-    }
-    return response.json();
+    return safeArray(await apiClient('/products/brands'));
   },
 
   async getSizes() {
-    const response = await fetch(`${API_BASE_URL}/products/sizes`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch sizes');
-    }
-    return response.json();
+    return safeArray(await apiClient('/products/sizes'));
   },
 
   async getColors() {
-    const response = await fetch(`${API_BASE_URL}/products/colors`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch colors');
-    }
-    return response.json();
+    return safeArray(await apiClient('/products/colors'));
   },
 
-  async createProduct(product, token) {
-    const response = await fetch(`${API_BASE_URL}/products`, {
+  createProduct(product) {
+    return apiClient('/products', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(product),
+      auth: true,
+      body: product,
     });
-    if (!response.ok) {
-      throw new Error('Failed to create product');
-    }
-    return response.json();
   },
 
-  async updateProduct(id, product, token) {
-    const response = await fetch(`${API_BASE_URL}/products/${id}`, {
+  updateProduct(id, product) {
+    return apiClient(`/products/${id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(product),
+      auth: true,
+      body: product,
     });
-    if (!response.ok) {
-      throw new Error('Failed to update product');
-    }
-    return response.json();
   },
 
-  async deleteProduct(id, token) {
-    const response = await fetch(`${API_BASE_URL}/products/${id}`, {
+  deleteProduct(id) {
+    return apiClient(`/products/${id}`, {
       method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+      auth: true,
     });
-    if (!response.ok) {
-      throw new Error('Failed to delete product');
-    }
-    return response;
   },
 };
+
+export { ApiError };

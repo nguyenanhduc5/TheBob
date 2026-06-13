@@ -75,18 +75,21 @@ namespace THEBOB.Controllers
             if (request.Variants == null || !request.Variants.Any())
                 return BadRequest(new { message = "Product must have at least one variant." });
 
+            var validationError = ValidateProductRequest(request);
+            if (validationError != null)
+                return BadRequest(new { message = validationError });
+
             var product = new Product
             {
                 Name = request.Name.Trim(),
                 Description = request.Description?.Trim() ?? string.Empty,
-                BrandId = await ResolveBrandId(request.BrandId, request.Brand),
+                BrandId = request.BrandId,
                 Material = request.Material?.Trim() ?? string.Empty,
                 CareInstructions = request.CareInstructions?.Trim() ?? string.Empty,
                 MainImageUrl = request.MainImageUrl?.Trim() ?? string.Empty,
                 IsFeatured = request.IsFeatured,
+                IsAvailable = request.IsAvailable,
                 CategoryId = request.CategoryId,
-                Rating = request.Rating,
-                ReviewCount = request.ReviewCount,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -101,8 +104,7 @@ namespace THEBOB.Controllers
 
             foreach (var variantRequest in request.Variants)
             {
-                var variant = await CreateVariant(product, request.Sku, variantRequest, request.Price);
-                product.ProductVariants.Add(variant);
+                product.ProductVariants.Add(CreateVariant(product, variantRequest));
             }
 
             _context.Products.Add(product);
@@ -119,9 +121,14 @@ namespace THEBOB.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            var validationError = ValidateProductRequest(request);
+            if (validationError != null)
+                return BadRequest(new { message = validationError });
+
             var product = await _context.Products
                 .Include(p => p.Images)
                 .Include(p => p.ProductVariants)
+                    .ThenInclude(v => v.Images)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (product == null)
@@ -129,14 +136,13 @@ namespace THEBOB.Controllers
 
             product.Name = request.Name.Trim();
             product.Description = request.Description?.Trim() ?? string.Empty;
-            product.BrandId = await ResolveBrandId(request.BrandId, request.Brand);
+            product.BrandId = request.BrandId;
             product.Material = request.Material?.Trim() ?? string.Empty;
             product.CareInstructions = request.CareInstructions?.Trim() ?? string.Empty;
             product.MainImageUrl = request.MainImageUrl?.Trim() ?? string.Empty;
             product.IsFeatured = request.IsFeatured;
+            product.IsAvailable = request.IsAvailable;
             product.CategoryId = request.CategoryId;
-            product.Rating = request.Rating;
-            product.ReviewCount = request.ReviewCount;
             product.UpdatedAt = DateTime.UtcNow;
 
             if (request.ImageUrls != null)
@@ -168,18 +174,20 @@ namespace THEBOB.Controllers
 
                     if (existing == null)
                     {
-                        product.ProductVariants.Add(await CreateVariant(product, request.Sku, variantRequest, request.Price));
+                        product.ProductVariants.Add(CreateVariant(product, variantRequest));
                         continue;
                     }
 
-                    existing.SizeId = await ResolveSizeId(variantRequest.SizeId, variantRequest.Size);
-                    existing.ColorId = await ResolveColorId(variantRequest.ColorId, variantRequest.Color, variantRequest.HexCode);
+                    existing.SizeId = variantRequest.SizeId!.Value;
+                    existing.ColorId = variantRequest.ColorId!.Value;
+                    existing.Price = variantRequest.Price;
                     existing.Stock = variantRequest.Stock;
-                    existing.Sku = BuildSku(request.Sku, variantRequest);
+                    existing.Sku = variantRequest.Sku!.Trim();
                     existing.IsAvailable = variantRequest.IsAvailable ?? variantRequest.Stock > 0;
                     existing.IsDeleted = false;
                     existing.DeletedAt = null;
                     existing.UpdatedAt = DateTime.UtcNow;
+                    ReplaceVariantImages(existing, variantRequest.ImageUrls);
                 }
             }
 
@@ -260,90 +268,79 @@ namespace THEBOB.Controllers
                     .ThenInclude(v => v.Size)
                 .Include(p => p.ProductVariants)
                     .ThenInclude(v => v.Color)
+                .Include(p => p.ProductVariants)
+                    .ThenInclude(v => v.Images)
                 .AsSplitQuery();
         }
 
-        private async Task<ProductVariant> CreateVariant(Product product, string? productSku, VariantItemDto variantRequest, decimal fallbackPrice)
+        private static ProductVariant CreateVariant(Product product, VariantItemDto variantRequest)
         {
-            return new ProductVariant
+            var variant = new ProductVariant
             {
                 Product = product,
-                SizeId = await ResolveSizeId(variantRequest.SizeId, variantRequest.Size),
-                ColorId = await ResolveColorId(variantRequest.ColorId, variantRequest.Color, variantRequest.HexCode),
+                SizeId = variantRequest.SizeId!.Value,
+                ColorId = variantRequest.ColorId!.Value,
+                Price = variantRequest.Price,
                 Stock = variantRequest.Stock,
-                Sku = BuildSku(productSku, variantRequest),
+                Sku = variantRequest.Sku!.Trim(),
                 IsAvailable = variantRequest.IsAvailable ?? variantRequest.Stock > 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
+
+            ReplaceVariantImages(variant, variantRequest.ImageUrls);
+            return variant;
         }
 
-        private async Task<int?> ResolveBrandId(int? brandId, string? brandName)
+        private static void ReplaceVariantImages(ProductVariant variant, List<string>? imageUrls)
         {
-            if (brandId.HasValue)
-                return brandId.Value;
+            variant.Images.Clear();
+            if (imageUrls == null) return;
 
-            if (string.IsNullOrWhiteSpace(brandName))
-                return null;
-
-            var normalized = brandName.Trim();
-            var existing = await _context.Brands.FirstOrDefaultAsync(b => b.Name == normalized);
-            if (existing != null)
-                return existing.Id;
-
-            var brand = new Brand { Name = normalized };
-            _context.Brands.Add(brand);
-            await _context.SaveChangesAsync();
-            return brand.Id;
+            foreach (var image in imageUrls.Where(url => !string.IsNullOrWhiteSpace(url)).Select((url, index) => new { url, index }))
+            {
+                variant.Images.Add(new ProductVariantImage
+                {
+                    Url = image.url.Trim(),
+                    SortOrder = image.index,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
         }
 
-        private async Task<int> ResolveSizeId(int? sizeId, string? sizeName)
+        private static string? ValidateProductRequest(ProductCreateRequest request)
         {
-            if (sizeId.HasValue)
-                return sizeId.Value;
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return "Product name is required.";
 
-            if (string.IsNullOrWhiteSpace(sizeName))
-                throw new InvalidOperationException("Variant size is required.");
+            if (!request.BrandId.HasValue)
+                return "BrandId is required.";
 
-            var normalized = sizeName.Trim();
-            var existing = await _context.Sizes.FirstOrDefaultAsync(s => s.Name == normalized);
-            if (existing != null)
-                return existing.Id;
+            if (!request.CategoryId.HasValue)
+                return "CategoryId is required.";
 
-            var size = new Size { Name = normalized };
-            _context.Sizes.Add(size);
-            await _context.SaveChangesAsync();
-            return size.Id;
-        }
+            if (request.Variants == null || request.Variants.Count == 0)
+                return "Product must have at least one variant.";
 
-        private async Task<int> ResolveColorId(int? colorId, string? colorName, string? hexCode)
-        {
-            if (colorId.HasValue)
-                return colorId.Value;
+            foreach (var variant in request.Variants)
+            {
+                if (!variant.ColorId.HasValue)
+                    return "Variant ColorId is required.";
 
-            if (string.IsNullOrWhiteSpace(colorName))
-                throw new InvalidOperationException("Variant color is required.");
+                if (!variant.SizeId.HasValue)
+                    return "Variant SizeId is required.";
 
-            var normalized = colorName.Trim();
-            var existing = await _context.Colors.FirstOrDefaultAsync(c => c.Name == normalized);
-            if (existing != null)
-                return existing.Id;
+                if (string.IsNullOrWhiteSpace(variant.Sku))
+                    return "Variant SKU is required.";
 
-            var color = new Color { Name = normalized, HexCode = hexCode?.Trim() ?? string.Empty };
-            _context.Colors.Add(color);
-            await _context.SaveChangesAsync();
-            return color.Id;
-        }
+                if (variant.Price <= 0)
+                    return "Variant price must be greater than 0.";
 
-        private static string BuildSku(string? productSku, VariantItemDto variantRequest)
-        {
-            if (!string.IsNullOrWhiteSpace(variantRequest.Sku))
-                return variantRequest.Sku.Trim();
+                if (variant.Stock < 0)
+                    return "Variant stock cannot be negative.";
+            }
 
-            var size = variantRequest.SizeId?.ToString() ?? variantRequest.Size ?? "SIZE";
-            var color = variantRequest.ColorId?.ToString() ?? variantRequest.Color ?? "COLOR";
-            var baseSku = string.IsNullOrWhiteSpace(productSku) ? "SKU" : productSku.Trim();
-            return $"{baseSku}-{size}-{color}".ToUpperInvariant();
+            return null;
         }
 
         private static object ToProductDto(Product p)
@@ -362,11 +359,28 @@ namespace THEBOB.Controllers
                 material = p.Material,
                 careInstructions = p.CareInstructions,
                 mainImageUrl = p.MainImageUrl,
+                minPrice,
+                maxPrice = activeVariants.Count == 0 ? 0 : activeVariants.Max(v => v.Price),
                 price = minPrice,
+                totalStock = activeVariants.Sum(v => v.Stock),
                 stock = activeVariants.Sum(v => v.Stock),
                 rating = p.Rating,
                 reviewCount = p.ReviewCount,
                 images = p.Images.OrderBy(i => i.SortOrder).Select(i => new { i.Id, url = i.Url, i.SortOrder }),
+                variants = activeVariants.Select(v => new
+                {
+                    v.Id,
+                    v.SizeId,
+                    size = v.Size?.Name ?? string.Empty,
+                    v.ColorId,
+                    color = v.Color?.Name ?? string.Empty,
+                    hexCode = v.Color?.HexCode ?? string.Empty,
+                    v.Price,
+                    v.Sku,
+                    v.Stock,
+                    v.IsAvailable,
+                    images = v.Images.OrderBy(i => i.SortOrder).Select(i => new { i.Id, url = i.Url, i.SortOrder })
+                }),
                 productVariants = activeVariants.Select(v => new
                 {
                     v.Id,
@@ -378,15 +392,20 @@ namespace THEBOB.Controllers
                     v.Price,
                     v.Sku,
                     v.Stock,
-                    v.IsAvailable
+                    v.IsAvailable,
+                    images = v.Images.OrderBy(i => i.SortOrder).Select(i => new { i.Id, url = i.Url, i.SortOrder })
                 }),
                 sizes = activeVariants
                     .Where(v => v.Size != null)
                     .Select(v => new { id = v.SizeId, sizeValue = v.Size!.Name })
                     .Distinct(),
                 isFeatured = p.IsFeatured,
+                isAvailable = p.IsAvailable,
                 categoryId = p.CategoryId,
-                category = p.Category?.Name ?? string.Empty
+                category = p.Category?.Name ?? string.Empty,
+                categoryName = p.Category?.Name ?? string.Empty,
+                brandName = p.Brand?.Name ?? string.Empty,
+                variantCount = activeVariants.Count
             };
         }
     }
@@ -394,18 +413,14 @@ namespace THEBOB.Controllers
     public class ProductCreateRequest
     {
         public string Name { get; set; } = string.Empty;
-        public string? Sku { get; set; }
         public string? Description { get; set; }
         public int? BrandId { get; set; }
-        public string? Brand { get; set; }
         public string? Material { get; set; }
         public string? CareInstructions { get; set; }
         public string? MainImageUrl { get; set; }
         public bool IsFeatured { get; set; }
+        public bool IsAvailable { get; set; } = true;
         public int? CategoryId { get; set; }
-        public double Rating { get; set; }
-        public int ReviewCount { get; set; }
-        public decimal Price { get; set; }
         public List<string>? ImageUrls { get; set; }
         public List<VariantItemDto>? Variants { get; set; }
     }
@@ -414,14 +429,12 @@ namespace THEBOB.Controllers
     {
         public int? Id { get; set; }
         public int? SizeId { get; set; }
-        public string? Size { get; set; }
         public int? ColorId { get; set; }
-        public string? Color { get; set; }
-        public string? HexCode { get; set; }
-        public decimal? Price { get; set; }
+        public decimal Price { get; set; }
         public string? Sku { get; set; }
         public int Stock { get; set; }
         public bool? IsAvailable { get; set; }
+        public List<string>? ImageUrls { get; set; }
     }
 
     public class ProductUpdateRequest : ProductCreateRequest { }

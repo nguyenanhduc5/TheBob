@@ -1,105 +1,136 @@
-import React from 'react';
-import StatusBadge from './StatusBadge';
+import React, { memo, useMemo } from 'react';
 
-export default function ProductTable({
-  products,
-  getProductStatus,
-  onEdit,
-  onDelete,
-  onView,
-}) {
-  const getTotalStock = (product) => {
-    return product.productVariants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0;
-  };
+const currencyFormatter = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
+  maximumFractionDigits: 0,
+});
 
-  const getVariantCount = (product) => {
-    return product.productVariants?.length || 0;
-  };
+const safeText = (value, fallback = '-') => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'object') return fallback;
+  const text = String(value).trim();
+  return text || fallback;
+};
+
+const getVariants = (product) => {
+  if (Array.isArray(product?.variants)) return product.variants;
+  if (Array.isArray(product?.productVariants)) return product.productVariants;
+  return [];
+};
+
+const toNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+};
+
+export const formatPrice = (value) => currencyFormatter.format(toNumber(value));
+
+export const formatPriceRange = (variants) => {
+  const prices = (Array.isArray(variants) ? variants : [])
+    .map((variant) => toNumber(variant?.price))
+    .filter((price) => price > 0);
+
+  if (prices.length === 0) return '-';
+
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return min === max ? formatPrice(min) : `${formatPrice(min)} - ${formatPrice(max)}`;
+};
+
+const getTotalStock = (product) =>
+  getVariants(product).reduce((sum, variant) => sum + toNumber(variant?.stock), 0);
+
+const statusLabel = {
+  available: 'Đang bán',
+  lowStock: 'Sắp hết',
+  outOfStock: 'Hết hàng',
+  inactive: 'Tạm ẩn',
+};
+
+function ProductTable({ products, getProductStatus, onEdit, onDelete, onView }) {
+  const rows = useMemo(
+    () =>
+      (Array.isArray(products) ? products : []).map((product) => {
+        const variants = getVariants(product);
+        const status = getProductStatus(product);
+
+        return {
+          id: product.id,
+          image: safeText(product.mainImageUrl, ''),
+          name: safeText(product.name),
+          brandName: safeText(product.brandName ?? product.brand),
+          categoryName: safeText(product.categoryName ?? product.category),
+          priceRange: formatPriceRange(variants),
+          totalStock: getTotalStock(product),
+          variantCount: variants.length,
+          status,
+        };
+      }),
+    [getProductStatus, products]
+  );
 
   return (
-    <div className="products-table-wrapper">
-      <table className="products-table">
+    <div className="pm-table-wrap">
+      <table className="pm-table">
         <thead>
           <tr>
-            <th className="col-image">Ảnh</th>
-            <th className="col-product">Sản Phẩm</th>
-            <th className="col-sku">SKU</th>
-            <th className="col-category">Danh Mục</th>
-            <th className="col-price">Giá</th>
-            <th className="col-stock">Tồn Kho</th>
-            <th className="col-variants">Biến Thể</th>
-            <th className="col-status">Trạng Thái</th>
-            <th className="col-actions">Thao Tác</th>
+            <th>Ảnh</th>
+            <th>Tên sản phẩm</th>
+            <th>Thương hiệu</th>
+            <th>Danh mục</th>
+            <th>Giá thấp nhất</th>
+            <th>Tổng tồn kho</th>
+            <th>Biến thể</th>
+            <th>Trạng thái</th>
+            <th>Xem</th>
+            <th>Sửa</th>
+            <th>Xóa</th>
           </tr>
         </thead>
         <tbody>
-          {products.map((product) => (
-            <tr key={product.id} className="table-row">
-              <td className="col-image">
-                <div className="product-image">
-                  {product.mainImageUrl ? (
-                    <img src={product.mainImageUrl} alt={product.name} />
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>
+                <div className="pm-thumb">
+                  {row.image ? (
+                    <img src={row.image} alt={row.name} loading="lazy" />
                   ) : (
-                    <div className="image-placeholder">📷</div>
+                    <span>No image</span>
                   )}
                 </div>
               </td>
-              <td className="col-product">
-                <div className="product-info">
-                  <h4>{product.name}</h4>
-                  {product.brand && <span className="product-brand">{product.brand}</span>}
-                </div>
+              <td>
+                <strong>{row.name}</strong>
               </td>
-              <td className="col-sku">
-                <code>{product.sku}</code>
-              </td>
-              <td className="col-category">
-                {product.category?.name || '-'}
-              </td>
-              <td className="col-price">
-                <strong>{product.price?.toLocaleString('vi-VN')}đ</strong>
-              </td>
-              <td className="col-stock">
-                <span className={`stock-badge ${getTotalStock(product) === 0 ? 'empty' : getTotalStock(product) <= 10 ? 'low' : ''}`}>
-                  {getTotalStock(product)}
+              <td>{row.brandName}</td>
+              <td>{row.categoryName}</td>
+              <td className="pm-price">{row.priceRange}</td>
+              <td>
+                <span className={`pm-stock ${row.totalStock === 0 ? 'is-empty' : row.totalStock <= 10 ? 'is-low' : ''}`}>
+                  {row.totalStock}
                 </span>
               </td>
-              <td className="col-variants">
-                <span className="variant-count">{getVariantCount(product)} biến thể</span>
+              <td>{row.variantCount}</td>
+              <td>
+                <span className={`pm-status pm-status-${row.status}`}>
+                  {statusLabel[row.status] || 'Không rõ'}
+                </span>
               </td>
-              <td className="col-status">
-                <StatusBadge status={getProductStatus(product)} />
+              <td>
+                <button className="pm-icon-button" type="button" onClick={() => onView(row.id)} title="Xem sản phẩm">
+                  View
+                </button>
               </td>
-              <td className="col-actions">
-                <div className="action-buttons">
-                  <button
-                    className="btn-icon btn-view"
-                    onClick={() => onView(product.id)}
-                    title="Xem"
-                  >
-                    👁️
-                  </button>
-                  <button
-                    className="btn-icon btn-edit"
-                    onClick={() => onEdit(product.id)}
-                    title="Sửa"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    className="btn-icon btn-stock"
-                    title="Quản lý kho"
-                  >
-                    📦
-                  </button>
-                  <button
-                    className="btn-icon btn-delete"
-                    onClick={() => onDelete(product.id)}
-                    title="Xóa"
-                  >
-                    🗑️
-                  </button>
-                </div>
+              <td>
+                <button className="pm-icon-button" type="button" onClick={() => onEdit(row.id)} title="Sửa sản phẩm">
+                  Edit
+                </button>
+              </td>
+              <td>
+                <button className="pm-icon-button pm-danger" type="button" onClick={() => onDelete(row.id)} title="Xóa sản phẩm">
+                  Delete
+                </button>
               </td>
             </tr>
           ))}
@@ -108,3 +139,5 @@ export default function ProductTable({
     </div>
   );
 }
+
+export default memo(ProductTable);
