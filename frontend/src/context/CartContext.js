@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 
@@ -11,38 +12,56 @@ export const useCart = () => {
 };
 
 export const CartProvider = ({ children }) => {
-  const [cartItems, setCartItems] = useState([]);
+  const { user } = useAuth();
+  const [cartData, setCartData] = useState({ userId: null, items: [] });
 
+  // When user changes, load their cart from local storage. If they logged out (user is null), reset cart to empty array.
   useEffect(() => {
-    const savedCart = localStorage.getItem('thebob-cart');
-    if (savedCart) {
-      setCartItems(JSON.parse(savedCart));
+    if (!user) {
+      setCartData({ userId: 'guest', items: [] });
+    } else {
+      const userId = user.id || user.email;
+      const key = `thebob-cart-${userId}`;
+      const savedCart = localStorage.getItem(key);
+      const items = savedCart ? JSON.parse(savedCart) : [];
+      setCartData({ userId, items });
     }
-  }, []);
+  }, [user]);
 
+  // Save cart to local storage when cartData changes, but only if it matches current user
   useEffect(() => {
-    localStorage.setItem('thebob-cart', JSON.stringify(cartItems));
-  }, [cartItems]);
+    const currentUserId = user ? (user.id || user.email) : 'guest';
+    if (cartData.userId === currentUserId) {
+      const key = user ? `thebob-cart-${user.id || user.email}` : 'thebob-cart';
+      localStorage.setItem(key, JSON.stringify(cartData.items));
+    }
+  }, [cartData, user]);
 
   const getItemKey = (item) => item.variantId ?? item.id;
 
   const addToCart = (product, quantity = 1) => {
-    setCartItems(prev => {
+    setCartData(prev => {
       const productKey = getItemKey(product);
-      const existing = prev.find(item => getItemKey(item) === productKey);
+      const existing = prev.items.find(item => getItemKey(item) === productKey);
+      let newItems;
       if (existing) {
-        return prev.map(item =>
+        newItems = prev.items.map(item =>
           getItemKey(item) === productKey
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
+      } else {
+        newItems = [...prev.items, { ...product, quantity }];
       }
-      return [...prev, { ...product, quantity }];
+      return { ...prev, items: newItems };
     });
   };
 
   const removeFromCart = (itemKey) => {
-    setCartItems(prev => prev.filter(item => getItemKey(item) !== itemKey));
+    setCartData(prev => ({
+      ...prev,
+      items: prev.items.filter(item => getItemKey(item) !== itemKey)
+    }));
   };
 
   const updateQuantity = (itemKey, quantity) => {
@@ -50,27 +69,28 @@ export const CartProvider = ({ children }) => {
       removeFromCart(itemKey);
       return;
     }
-    setCartItems(prev =>
-      prev.map(item =>
+    setCartData(prev => ({
+      ...prev,
+      items: prev.items.map(item =>
         getItemKey(item) === itemKey ? { ...item, quantity } : item
       )
-    );
+    }));
   };
 
   const clearCart = () => {
-    setCartItems([]);
+    setCartData(prev => ({ ...prev, items: [] }));
   };
 
   const getTotalItems = () => {
-    return cartItems.reduce((total, item) => total + item.quantity, 0);
+    return cartData.items.reduce((total, item) => total + item.quantity, 0);
   };
 
   const getTotalPrice = () => {
-    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cartData.items.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
   const value = {
-    cartItems,
+    cartItems: cartData.items,
     addToCart,
     removeFromCart,
     updateQuantity,

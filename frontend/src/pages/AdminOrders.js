@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { ordersAPI } from '../api/app';
 import '../styles/AdminOrders.css';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
@@ -12,41 +13,30 @@ export default function AdminOrders() {
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchOrders = useCallback(async () => {
-    setLoading(true);
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/orders/admin/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      setLoading(true);
+      let data = await ordersAPI.getAllOrders();
+      
+      // Sắp xếp đơn hàng mới nhất lên đầu
+      data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-      if (response.ok) {
-        let data = await response.json();
-        
-        // Filter by status if needed
-        if (filter !== 'all') {
-          data = data.filter(order => order.status === filter);
-        }
-        
-        setOrders(data);
-      } else {
-        let message = 'Lỗi khi tải đơn hàng';
-        try {
-          const errorData = await response.json();
-          message = errorData?.message || message;
-        } catch {}
-        addNotification(message, 'error');
+      if (filter !== 'all') {
+        data = data.filter(order => order.status === filter);
       }
+      
+      setOrders(data);
     } catch (error) {
       console.error('Failed to fetch orders:', error);
       addNotification('Lỗi khi tải đơn hàng', 'error');
     } finally {
       setLoading(false);
     }
-  }, [token, filter, addNotification]);
+  }, [filter, addNotification]);
 
   useEffect(() => {
     if (!isAdmin()) {
@@ -54,33 +44,21 @@ export default function AdminOrders() {
       return;
     }
     fetchOrders();
-  }, [fetchOrders, isAdmin, navigate]);
+  }, [fetchOrders, isAdmin, navigate, refreshKey]);
 
   const handleStatusChange = async (orderId, newStatus) => {
+    if (!window.confirm(`Xác nhận thay đổi trạng thái đơn hàng sang: ${newStatus}?`)) return;
+    
+    setUpdatingId(orderId);
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/orders/${orderId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (response.ok) {
-        addNotification('Cập nhật trạng thái thành công', 'success');
-        fetchOrders();
-      } else {
-        let message = 'Lỗi khi cập nhật trạng thái';
-        try {
-          const errorData = await response.json();
-          message = errorData?.message || message;
-        } catch {}
-        addNotification(message, 'error');
-      }
+      await ordersAPI.updateOrderStatus(orderId, newStatus);
+      addNotification('Cập nhật trạng thái thành công', 'success');
+      // Cập nhật local state để tránh load lại toàn bộ danh sách nếu không cần thiết
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     } catch (error) {
-      console.error('Status update error:', error);
-      addNotification('Lỗi khi cập nhật trạng thái', 'error');
+      addNotification(error.message || 'Lỗi khi cập nhật trạng thái', 'error');
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -108,7 +86,13 @@ export default function AdminOrders() {
   return (
     <div className="admin-orders-page">
       <div className="admin-header">
-        <h1>Quản Lý Đơn Hàng</h1>
+        <div>
+          <h1>Quản Lý Đơn Hàng</h1>
+          <p>Xem và cập nhật trạng thái các đơn hàng trong hệ thống</p>
+        </div>
+        <button className="btn-refresh" onClick={() => setRefreshKey(prev => prev + 1)}>
+          🔄 Làm mới dữ liệu
+        </button>
       </div>
 
       <div className="orders-filters">
@@ -171,6 +155,8 @@ export default function AdminOrders() {
               </span>
               <span className="col-status">
                 <select
+                  aria-label="Cập nhật trạng thái đơn hàng"
+                  title="Chọn trạng thái mới cho đơn hàng"
                   value={order.status}
                   onChange={(e) => handleStatusChange(order.id, e.target.value)}
                   className={`status-select ${getStatusBadgeClass(order.status)}`}

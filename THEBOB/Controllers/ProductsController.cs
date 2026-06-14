@@ -65,6 +65,36 @@ namespace THEBOB.Controllers
             return Ok(await _context.Colors.OrderBy(c => c.Name).ToListAsync());
         }
 
+        [HttpPost("colors")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<Color>> CreateColor([FromBody] Color color)
+        {
+            if (color == null || string.IsNullOrWhiteSpace(color.Name))
+                return BadRequest(new { success = false, message = "Tên màu là bắt buộc" });
+
+            var exists = await _context.Colors.AnyAsync(c => c.Name.ToLower() == color.Name.ToLower());
+            if (exists) return BadRequest(new { success = false, message = "Màu này đã tồn tại" });
+
+            _context.Colors.Add(color);
+            await _context.SaveChangesAsync();
+            return Ok(color);
+        }
+
+        [HttpPost("sizes")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<Size>> CreateSize([FromBody] Size size)
+        {
+            if (size == null || string.IsNullOrWhiteSpace(size.Name))
+                return BadRequest(new { success = false, message = "Tên kích thước là bắt buộc" });
+
+            var exists = await _context.Sizes.AnyAsync(s => s.Name.ToLower() == size.Name.ToLower());
+            if (exists) return BadRequest(new { success = false, message = "Kích thước này đã tồn tại" });
+
+            _context.Sizes.Add(size);
+            await _context.SaveChangesAsync();
+            return Ok(size);
+        }
+
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<object>> CreateProduct([FromBody] ProductCreateRequest request)
@@ -78,6 +108,20 @@ namespace THEBOB.Controllers
             var validationError = ValidateProductRequest(request);
             if (validationError != null)
                 return BadRequest(new { message = validationError });
+
+            var requestSkus = request.Variants.Select(v => v.Sku!.Trim()).ToList();
+            if (requestSkus.Count != requestSkus.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+            {
+                return BadRequest(new { message = "Các mã SKU của các biến thể không được trùng nhau." });
+            }
+
+            var skus = request.Variants.Select(v => v.Sku!.Trim().ToLower()).ToList();
+            var existingVariant = await _context.ProductVariants
+                .FirstOrDefaultAsync(v => skus.Contains(v.Sku.ToLower()));
+            if (existingVariant != null)
+            {
+                return BadRequest(new { message = $"Mã SKU '{existingVariant.Sku}' đã tồn tại ở một sản phẩm khác." });
+            }
 
             var product = new Product
             {
@@ -125,6 +169,23 @@ namespace THEBOB.Controllers
             if (validationError != null)
                 return BadRequest(new { message = validationError });
 
+            if (request.Variants != null)
+            {
+                var requestSkus = request.Variants.Select(v => v.Sku!.Trim()).ToList();
+                if (requestSkus.Count != requestSkus.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+                {
+                    return BadRequest(new { message = "Các mã SKU của các biến thể không được trùng nhau." });
+                }
+
+                var skus = request.Variants.Select(v => v.Sku!.Trim().ToLower()).ToList();
+                var existingVariant = await _context.ProductVariants
+                    .FirstOrDefaultAsync(v => skus.Contains(v.Sku.ToLower()) && v.ProductId != id);
+                if (existingVariant != null)
+                {
+                    return BadRequest(new { message = $"Mã SKU '{existingVariant.Sku}' đã tồn tại ở một sản phẩm khác." });
+                }
+            }
+
             var product = await _context.Products
                 .Include(p => p.Images)
                 .Include(p => p.ProductVariants)
@@ -148,10 +209,11 @@ namespace THEBOB.Controllers
             if (request.ImageUrls != null)
             {
                 _context.ProductImages.RemoveRange(product.Images);
-                product.Images = request.ImageUrls
-                    .Where(url => !string.IsNullOrWhiteSpace(url))
-                    .Select((url, index) => new ProductImage { Url = url.Trim(), SortOrder = index })
-                    .ToList();
+                product.Images.Clear();
+                foreach (var item in request.ImageUrls.Where(url => !string.IsNullOrWhiteSpace(url)).Select((url, index) => new { url, index }))
+                {
+                    product.Images.Add(new ProductImage { Url = item.url.Trim(), SortOrder = item.index });
+                }
             }
 
             if (request.Variants != null)

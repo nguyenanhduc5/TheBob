@@ -41,6 +41,20 @@ export default function OrderDetail() {
     fetchOrder();
   }, [fetchOrder]);
 
+  useEffect(() => {
+    const handleOrderStatusUpdate = (event) => {
+      if (Number(event.detail.orderId) === Number(orderId)) {
+        console.log('OrderDetail page received status update for this order:', event.detail);
+        fetchOrder();
+      }
+    };
+
+    window.addEventListener('order-status-updated', handleOrderStatusUpdate);
+    return () => {
+      window.removeEventListener('order-status-updated', handleOrderStatusUpdate);
+    };
+  }, [fetchOrder, orderId]);
+
   if (loading) {
     return <div className="loading-page">Đang tải thông tin đơn hàng...</div>;
   }

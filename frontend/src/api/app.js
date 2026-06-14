@@ -58,7 +58,7 @@ const parseResponse = async (response) => {
   }
 };
 
-export const apiClient = async (path, options = {}) => {
+const apiClient = async (path, options = {}) => {
   const { auth = false, headers = {}, body, ...rest } = options;
   const requestHeaders = {
     Accept: 'application/json',
@@ -102,7 +102,7 @@ export const apiClient = async (path, options = {}) => {
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 
-export const authAPI = {
+const authAPI = {
   register(userData) {
     return apiClient('/auth/register', {
       method: 'POST',
@@ -118,7 +118,7 @@ export const authAPI = {
   },
 };
 
-export const productsAPI = {
+const productsAPI = {
   async getProducts() {
     return safeArray(await apiClient('/products'));
   },
@@ -141,6 +141,22 @@ export const productsAPI = {
 
   async getColors() {
     return safeArray(await apiClient('/products/colors'));
+  },
+
+  createColor(color) {
+    return apiClient('/products/colors', {
+      method: 'POST',
+      auth: true,
+      body: color,
+    });
+  },
+
+  createSize(size) {
+    return apiClient('/products/sizes', {
+      method: 'POST',
+      auth: true,
+      body: size,
+    });
   },
 
   createProduct(product) {
@@ -167,4 +183,35 @@ export const productsAPI = {
   },
 };
 
-export { ApiError };
+const ordersAPI = {
+  async getAllOrders() {
+    return safeArray(await apiClient('/orders/admin/all', { auth: true }));
+  },
+
+  getOrder(id) {
+    return apiClient(`/orders/${id}`, { auth: true });
+  },
+
+  updateOrderStatus(id, status) {
+    return apiClient(`/orders/${id}`, {
+      method: 'PUT',
+      auth: true,
+      body: { status },
+    });
+  },
+};
+
+// Đảm bảo URL luôn tuyệt đối để tránh lỗi 404 khi đi qua Proxy của React
+// SignalR Hub thường được map ở root (không có /api) để tránh xung đột với controller
+const ORDER_HUB_URL = API_BASE_URL.includes('/api')
+  ? `${API_BASE_URL.replace(/\/api\/?$/, '')}/hubs/order`
+  : `http://localhost:5110/hubs/order`;
+
+export { 
+  ApiError, 
+  apiClient, 
+  authAPI, 
+  productsAPI, 
+  ordersAPI,
+  ORDER_HUB_URL
+};

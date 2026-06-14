@@ -15,7 +15,7 @@ namespace THEBOB.Data.Configurations
 
             builder.Property(p => p.Name).HasMaxLength(200).IsRequired();
             builder.Property(p => p.Description).HasMaxLength(1000);
-            builder.Property(p => p.MainImageUrl).HasMaxLength(500);
+            builder.Property(p => p.MainImageUrl).HasMaxLength(2000);
             builder.Property(p => p.Material).HasMaxLength(100);
             builder.Property(p => p.CareInstructions).HasMaxLength(100);
             builder.Property(p => p.IsAvailable).HasDefaultValue(true);
@@ -82,7 +82,7 @@ namespace THEBOB.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<ProductVariantImage> builder)
         {
-            builder.Property(i => i.Url).HasMaxLength(500).IsRequired();
+            builder.Property(i => i.Url).HasMaxLength(2000).IsRequired();
             builder.HasIndex(i => new { i.VariantId, i.SortOrder });
 
             builder.HasOne(i => i.Variant)
@@ -131,7 +131,7 @@ namespace THEBOB.Data.Configurations
         {
             builder.HasIndex(b => b.Name).IsUnique();
             builder.Property(b => b.Name).HasMaxLength(100).IsRequired();
-            builder.Property(b => b.LogoUrl).HasMaxLength(500);
+            builder.Property(b => b.LogoUrl).HasMaxLength(2000);
         }
     }
 }

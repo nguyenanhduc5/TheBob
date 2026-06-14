@@ -113,6 +113,10 @@ export default function AdminProducts() {
   const colorMap = useMemo(() => buildLookupMap(lookups.colors), [lookups.colors]);
   const sizeMap = useMemo(() => buildLookupMap(lookups.sizes), [lookups.sizes]);
 
+  useEffect(() => {
+    setFormLoading(false);
+  }, [pathname]);
+
   const fetchLookups = useCallback(async () => {
     const [brands, categories, colors, sizes] = await Promise.all([
       productsAPI.getBrands(),
@@ -170,7 +174,7 @@ export default function AdminProducts() {
           navigate('/admin/products');
         }
       } finally {
-        if (mounted) setFormLoading(false);
+        setFormLoading(false);
       }
     };
 
@@ -276,6 +280,7 @@ export default function AdminProducts() {
           lookupMaps={{ brandMap, categoryMap, colorMap, sizeMap }}
           onCancel={() => navigate('/admin/products')}
           onSubmit={handleSubmit}
+          fetchLookups={fetchLookups}
         />
       </div>
     );

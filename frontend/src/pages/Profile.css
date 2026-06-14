@@ -197,3 +197,122 @@
     gap: 1rem;
   }
 }
+
+/* Orders History Table */
+.orders-history-table {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.orders-history-header {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1.5fr 1.5fr 1fr;
+  padding: 14px 20px;
+  background-color: var(--bg);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.orders-history-row {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1.5fr 1.5fr 1fr;
+  padding: 16px 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.orders-history-row:last-child {
+  border-bottom: none;
+}
+
+.orders-history-row:hover {
+  background-color: #fafafa;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.status-badge.pending {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.status-badge.processing {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+.status-badge.shipped {
+  background-color: #e0f2fe;
+  color: #0284c7;
+}
+
+.status-badge.delivered {
+  background-color: #d1fae5;
+  color: #059669;
+}
+
+.status-badge.cancelled {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.btn-view-detail {
+  padding: 6px 12px;
+  background-color: #333;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: background-color 0.3s;
+}
+
+.btn-view-detail:hover {
+  background-color: #555;
+}
+
+@media (max-width: 768px) {
+  .orders-history-header {
+    display: none;
+  }
+  
+  .orders-history-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 16px;
+  }
+  
+  .orders-history-row span {
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  .orders-history-row span::before {
+    content: attr(class);
+    font-weight: 600;
+    color: #999;
+    font-size: 0.8rem;
+    text-transform: capitalize;
+  }
+  
+  .orders-history-row span.col-id::before { content: "Mã đơn"; }
+  .orders-history-row span.col-date::before { content: "Ngày đặt"; }
+  .orders-history-row span.col-total::before { content: "Tổng tiền"; }
+  .orders-history-row span.col-status::before { content: "Trạng thái"; }
+  .orders-history-row span.col-action::before { content: "Hành động"; }
+}

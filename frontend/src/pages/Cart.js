@@ -34,7 +34,27 @@ export default function Cart() {
     setAppliedCoupon('');
   };
 
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [itemToRemove, setItemToRemove] = useState(null);
+
   const getItemKey = (item) => item.variantId ?? item.id;
+
+  const handleIncreaseQty = (item) => {
+    if (item.quantity + 1 > item.stock) {
+      addNotification(`Sản phẩm này chỉ còn tối đa ${item.stock} mục trong kho`, 'warning');
+      return;
+    }
+    updateQuantity(getItemKey(item), item.quantity + 1);
+  };
+
+  const handleDecreaseQty = (item) => {
+    if (item.quantity <= 1) {
+      setItemToRemove(getItemKey(item));
+      setShowConfirmModal(true);
+    } else {
+      updateQuantity(getItemKey(item), item.quantity - 1);
+    }
+  };
 
   const handleRemoveItem = (itemKey) => {
     removeFromCart(itemKey);
@@ -101,15 +121,14 @@ export default function Cart() {
               </div>
               <div className="col-quantity">
                 <button
-                  onClick={() => updateQuantity(getItemKey(item), item.quantity - 1)}
-                  disabled={item.quantity <= 1}
+                  onClick={() => handleDecreaseQty(item)}
                   className="qty-btn"
                 >
                   −
                 </button>
                 <input type="number" value={item.quantity} readOnly />
                 <button
-                  onClick={() => updateQuantity(getItemKey(item), item.quantity + 1)}
+                  onClick={() => handleIncreaseQty(item)}
                   className="qty-btn"
                 >
                   +
@@ -194,6 +213,37 @@ export default function Cart() {
           </button>
         </div>
       </div>
+
+      {showConfirmModal && (
+        <div className="confirm-modal-overlay">
+          <div className="confirm-modal">
+            <h3>Xác nhận xóa</h3>
+            <p>Bạn có chắc chắn muốn xóa sản phẩm này khỏi giỏ hàng?</p>
+            <div className="confirm-modal-actions">
+              <button 
+                className="confirm-modal-btn btn-cancel" 
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setItemToRemove(null);
+                }}
+              >
+                Hủy
+              </button>
+              <button 
+                className="confirm-modal-btn btn-confirm" 
+                onClick={() => {
+                  removeFromCart(itemToRemove);
+                  addNotification('Đã xóa sản phẩm khỏi giỏ hàng', 'info');
+                  setShowConfirmModal(false);
+                  setItemToRemove(null);
+                }}
+              >
+                Đồng ý
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

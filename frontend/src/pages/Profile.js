@@ -1,18 +1,31 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { apiClient } from '../api/app';
 import AdminLayout from '../components/AdminLayout';
 import './Profile.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL;
-
 export default function Profile() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, token, updateUser, logout, isAdmin } = useAuth();
   const { addNotification } = useNotification();
-  const [activeMenu, setActiveMenu] = useState('account');
+  const initialMenu = searchParams.get('menu') || 'account';
+  const [activeMenu, setActiveMenu] = useState(initialMenu);
   const [loading, setLoading] = useState(false);
+
+  // User orders state
+  const [userOrders, setUserOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
+  // Sync menu state if query parameter changes
+  useEffect(() => {
+    const menu = searchParams.get('menu');
+    if (menu) {
+      setActiveMenu(menu);
+    }
+  }, [searchParams]);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -28,27 +41,17 @@ export default function Profile() {
       setLoading(true);
 
       try {
-        console.log("PROFILE TOKEN:", token);
-        const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-          
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          const profile = result.data;
-          if (profile) {
-            setFormData({
-              name: profile.name || '',
-              email: profile.email || '',
-              birthDate: user?.birthDate || '',
-              phone: profile.phone || '',
-              address: profile.address || '',
-            });
-            updateUser(profile);
-          }
+        const result = await apiClient('/auth/profile', { auth: true });
+        const profile = result?.data;
+        if (profile) {
+          setFormData({
+            name: profile.name || '',
+            email: profile.email || '',
+            birthDate: user?.birthDate || '',
+            phone: profile.phone || '',
+            address: profile.address || '',
+          });
+          updateUser(profile);
         }
       } catch (error) {
         console.error('Fetch profile error:', error);
@@ -59,6 +62,47 @@ export default function Profile() {
 
     loadProfile();
   }, [token, updateUser, user?.birthDate]);
+
+  const fetchUserOrders = useCallback(async () => {
+    if (!token) return;
+    setOrdersLoading(true);
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5110/api'}/orders`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUserOrders(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user orders:', error);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [token]);
+
+  // Fetch orders when active menu changes to orders
+  useEffect(() => {
+    if (activeMenu === 'orders') {
+      fetchUserOrders();
+    }
+  }, [activeMenu, fetchUserOrders]);
+
+  // Listen to real-time status updates from SignalR (Header.js event)
+  useEffect(() => {
+    const handleOrderStatusUpdate = (event) => {
+      console.log('Profile page received real-time order update event:', event.detail);
+      fetchUserOrders();
+    };
+
+    window.addEventListener('order-status-updated', handleOrderStatusUpdate);
+    return () => {
+      window.removeEventListener('order-status-updated', handleOrderStatusUpdate);
+    };
+  }, [fetchUserOrders]);
 
   const handleInputChange = (field) => (e) => {
     setFormData({
@@ -78,32 +122,24 @@ export default function Profile() {
     setSuccessMessage('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      const result = await apiClient('/auth/profile', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        auth: true,
+        body: {
           email: formData.email,
           name: formData.name,
           phone: formData.phone,
           address: formData.address,
-        }),
+        },
       });
 
-      const result = await response.json();
-      if (!response.ok) {
-        addNotification(result.message || 'Không thể cập nhật thông tin', 'error');
-      } else {
-        const updatedProfile = result.data;
-        updateUser(updatedProfile);
-        setSuccessMessage('Cập nhật thông tin thành công!');
-        addNotification('Cập nhật thông tin thành công!', 'success');
-      }
+      const updatedProfile = result?.data;
+      updateUser(updatedProfile);
+      setSuccessMessage('Cập nhật thông tin thành công!');
+      addNotification('Cập nhật thông tin thành công!', 'success');
     } catch (error) {
       console.error('Update profile error:', error);
-      addNotification('Lỗi kết nối server. Vui lòng thử lại.', 'error');
+      addNotification(error.message || 'Lỗi kết nối server. Vui lòng thử lại.', 'error');
     } finally {
       setLoading(false);
     }
@@ -344,7 +380,49 @@ export default function Profile() {
           {activeMenu === 'orders' && (
             <div className="account-section">
               <h2>ĐƠN HÀNG CỦA TÔI</h2>
-              <p>Bạn chưa có đơn hàng nào.</p>
+              {ordersLoading ? (
+                <p>Đang tải danh sách đơn hàng...</p>
+              ) : userOrders.length === 0 ? (
+                <p>Bạn chưa có đơn hàng nào.</p>
+              ) : (
+                <div className="orders-history-table">
+                  <div className="orders-history-header">
+                    <span className="col-id">Mã đơn</span>
+                    <span className="col-date">Ngày đặt</span>
+                    <span className="col-total">Tổng tiền</span>
+                    <span className="col-status">Trạng thái</span>
+                    <span className="col-action">Hành động</span>
+                  </div>
+                  {userOrders.map((order) => (
+                    <div key={order.id} className="orders-history-row">
+                      <span className="col-id">#{order.id}</span>
+                      <span className="col-date">
+                        {new Date(order.createdAt).toLocaleDateString('vi-VN')}
+                      </span>
+                      <span className="col-total">
+                        {order.totalAmount.toLocaleString('vi-VN')} VNĐ
+                      </span>
+                      <span className="col-status">
+                        <span className={`status-badge ${order.status.toLowerCase()}`}>
+                          {order.status === 'Pending' ? 'Chờ xử lý' :
+                           order.status === 'Processing' ? 'Đang xử lý' :
+                           order.status === 'Shipped' ? 'Đang giao' :
+                           order.status === 'Delivered' ? 'Đã giao' :
+                           order.status === 'Cancelled' ? 'Đã hủy' : order.status}
+                        </span>
+                      </span>
+                      <span className="col-action">
+                        <button 
+                          className="btn-view-detail"
+                          onClick={() => navigate(`/orders/${order.id}`)}
+                        >
+                          Chi tiết
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

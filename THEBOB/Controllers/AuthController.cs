@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using THEBOB.Data;
 using THEBOB.Models;
 using THEBOB.Services;
@@ -132,14 +133,14 @@ namespace THEBOB.Controllers
         [HttpGet("profile")]
         public ActionResult<object> GetProfile()
         {
-            var userIdClaim = User.FindFirst("sub")?.Value;
-            if (!int.TryParse(userIdClaim, out var userId))
+            var userId = GetCurrentUserId();
+            if (userId == null)
                 return Unauthorized(new { success = false, message = "Invalid token" });
 
             var user = _context.Users
                 .Include(u => u.RoleEntity)
                 .Include(u => u.Addresses)
-                .FirstOrDefault(u => u.Id == userId);
+                .FirstOrDefault(u => u.Id == userId.Value);
             if (user == null)
                 return NotFound(new { success = false, message = "User not found" });
 
@@ -164,14 +165,14 @@ namespace THEBOB.Controllers
         [HttpPut("profile")]
         public async Task<ActionResult<object>> UpdateProfile([FromBody] UpdateProfileRequest request)
         {
-            var userIdClaim = User.FindFirst("sub")?.Value;
-            if (!int.TryParse(userIdClaim, out var userId))
+            var userId = GetCurrentUserId();
+            if (userId == null)
                 return Unauthorized(new { success = false, message = "Invalid token" });
 
             var user = _context.Users
                 .Include(u => u.RoleEntity)
                 .Include(u => u.Addresses)
-                .FirstOrDefault(u => u.Id == userId);
+                .FirstOrDefault(u => u.Id == userId.Value);
             if (user == null)
                 return NotFound(new { success = false, message = "User not found" });
 
@@ -210,6 +211,17 @@ namespace THEBOB.Controllers
                     role = user.RoleEntity?.RoleName ?? user.Role.ToString()
                 }
             });
+        }
+
+        private int? GetCurrentUserId()
+        {
+            var sub = User.FindFirst("sub")?.Value;
+            if (int.TryParse(sub, out var id)) return id;
+
+            var nameId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(nameId, out id)) return id;
+
+            return null;
         }
     }
 

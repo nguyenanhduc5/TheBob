@@ -17,7 +17,7 @@ namespace THEBOB.Models
         public Product Product { get; set; } = null!;
 
         [Required]
-        [MaxLength(500)]
+        [MaxLength(2000)]
         public string Url { get; set; } = string.Empty;
 
         public int SortOrder { get; set; } = 0;

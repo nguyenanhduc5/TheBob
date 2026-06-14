@@ -1,9 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import '../styles/Checkout.css';
+
+const decodeJwt = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window
+        .atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const payload = JSON.parse(jsonPayload);
+    return {
+      name: payload.name || payload.unique_name || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] || '',
+      email: payload.email || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] || '',
+      phone: payload.phone || payload.phoneNumber || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/mobilephone'] || '',
+      address: payload.address || payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/streetaddress'] || '',
+    };
+  } catch (e) {
+    return null;
+  }
+};
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -20,11 +43,48 @@ export default function Checkout() {
   });
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const calculateTotal = () => {
-    const subtotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-    const shipping = subtotal > 500000 ? 0 : 30000;
-    return subtotal + shipping;
-  };
+  useEffect(() => {
+    const autoFillProfile = async () => {
+      const savedToken = token || localStorage.getItem('thebob-token');
+      if (!savedToken) return;
+
+      // 1. Try decoding JWT first for quick fill
+      const decoded = decodeJwt(savedToken);
+      if (decoded) {
+        setFormData(prev => ({
+          ...prev,
+          fullName: prev.fullName || decoded.name || '',
+          email: prev.email || decoded.email || '',
+          phone: prev.phone || decoded.phone || '',
+          address: prev.address || decoded.address || '',
+        }));
+      }
+
+      // 2. Fetch full profile details from database
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5110/api'}/auth/profile`, {
+          headers: {
+            'Authorization': `Bearer ${savedToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        if (response.ok) {
+          const profile = await response.json();
+          setFormData(prev => ({
+            ...prev,
+            fullName: profile.name || profile.fullName || prev.fullName,
+            email: profile.email || prev.email,
+            phone: profile.phone || prev.phone,
+            address: profile.address || prev.address,
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile in Checkout:', error);
+      }
+    };
+
+    autoFillProfile();
+  }, [token]);
 
   const handleInputChange = (field) => (e) => {
     setFormData({

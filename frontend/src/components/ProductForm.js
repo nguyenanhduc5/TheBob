@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import ProductImagesManager from './ProductImagesManager';
 import VariantManager from './VariantManager';
+import { productsAPI } from '../api/app';
+import { useNotification } from '../context/NotificationContext';
 
 const createClientId = () => `variant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -40,7 +42,12 @@ const toNumber = (value) => {
   return Number.isFinite(number) ? number : 0;
 };
 
-const cleanImages = (images) =>
+const isValidLookup = (item) => {
+  const name = typeof item?.name === 'string' ? item.name.trim() : '';
+  return Boolean(item?.id && name && name.toUpperCase() !== 'UNKNOWN');
+};
+
+const cleanImages = (images = []) =>
   (Array.isArray(images) ? images : [])
     .map((image, index) => ({
       url: typeof image?.url === 'string' ? image.url.trim() : '',
@@ -75,19 +82,50 @@ const normalizeFormProduct = (product) => {
   };
 };
 
-function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps, onCancel, onSubmit }) {
+function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps, onCancel, onSubmit, fetchLookups }) {
   const [formData, setFormData] = useState(() => normalizeFormProduct(initialProduct));
   const [errors, setErrors] = useState({});
+  const { addNotification } = useNotification();
 
   const brands = useMemo(() => (Array.isArray(lookups?.brands) ? lookups.brands : []), [lookups]);
   const categories = useMemo(() => (Array.isArray(lookups?.categories) ? lookups.categories : []), [lookups]);
-  const colors = useMemo(() => (Array.isArray(lookups?.colors) ? lookups.colors : []), [lookups]);
-  const sizes = useMemo(() => (Array.isArray(lookups?.sizes) ? lookups.sizes : []), [lookups]);
+  const colors = useMemo(() => (Array.isArray(lookups?.colors) ? lookups.colors.filter(isValidLookup) : []), [lookups]);
+  const sizes = useMemo(() => (Array.isArray(lookups?.sizes) ? lookups.sizes.filter(isValidLookup) : []), [lookups]);
 
   const updateField = useCallback((field, value) => {
     setFormData((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
   }, []);
+
+  const handleAddColor = useCallback(async (payload) => {
+    try {
+      if (typeof productsAPI.createColor !== 'function') {
+        throw new Error("Hàm createColor chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+      }
+      const newColor = await productsAPI.createColor(payload);
+      if (newColor) {
+        if (fetchLookups) await fetchLookups();
+        return newColor;
+      }
+    } catch (e) {
+      addNotification(e.message, "error");
+    }
+  }, [fetchLookups, addNotification]);
+
+  const handleAddSize = useCallback(async (payload) => {
+    try {
+      if (typeof productsAPI.createSize !== 'function') {
+        throw new Error("Hàm createSize chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+      }
+      const newSize = await productsAPI.createSize(payload);
+      if (newSize) {
+        if (fetchLookups) await fetchLookups();
+        return newSize;
+      }
+    } catch (e) {
+      addNotification(e.message, "error");
+    }
+  }, [fetchLookups, addNotification]);
 
   const validate = useCallback(() => {
     const nextErrors = {};
@@ -96,7 +134,8 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
     if (!formData.description.trim()) nextErrors.description = 'Mo ta la bat buoc.';
     if (!toIntOrNull(formData.brandId)) nextErrors.brandId = 'Vui long chon thuong hieu.';
     if (!toIntOrNull(formData.categoryId)) nextErrors.categoryId = 'Vui long chon danh muc.';
-    if (toNumber(formData.price) <= 0) nextErrors.price = 'Gia san pham phai lon hon 0.';
+
+    if (toNumber(formData.price) <= 0) nextErrors.price = 'Giá sản phẩm phải lớn hơn 0.';
 
     if (!Array.isArray(formData.variants) || formData.variants.length === 0) {
       nextErrors.variants = 'Hay chon it nhat mot mau va mot size de tao bien the.';
@@ -110,11 +149,15 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
     });
 
     setErrors(nextErrors);
+    
+    if (Object.keys(nextErrors).length > 0) {
+      addNotification('Vui lòng kiểm tra lại các trường thông tin và biến thể.', 'warning');
+    }
+    
     return Object.keys(nextErrors).length === 0;
-  }, [formData]);
+  }, [formData, addNotification]);
 
   const buildPayload = useCallback(() => {
-    const productPrice = toNumber(formData.price);
 
     return {
       name: formData.name.trim(),
@@ -126,13 +169,14 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
       careInstructions: formData.careInstructions.trim(),
       isFeatured: formData.isFeatured === true,
       isAvailable: formData.isAvailable !== false,
+      price: toNumber(formData.price),
       imageUrls: cleanImages(formData.images).map((image) => image.url),
       variants: formData.variants.map((variant) => ({
         id: variant.id || undefined,
         colorId: toIntOrNull(variant.colorId),
         sizeId: toIntOrNull(variant.sizeId),
         sku: String(variant.sku || '').trim(),
-        price: productPrice,
+        price: toNumber(formData.price), // Giá biến thể lấy từ giá sản phẩm chính
         stock: toNumber(variant.stock),
         isAvailable: variant.isAvailable !== false,
         imageUrls: cleanImages(variant.images).map((image) => image.url),
@@ -297,6 +341,8 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
         errors={errors}
         productPrice={formData.price}
         onChange={(variants) => updateField('variants', variants)}
+        onAddColor={handleAddColor}
+        onAddSize={handleAddSize}
       />
 
       <div className="pm-form-footer">

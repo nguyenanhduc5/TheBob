@@ -1,13 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useCart } from '../context/CartContext';
 import { useNotification } from '../context/NotificationContext';
 import '../styles/Products.css';
 
 export default function Products() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { addToCart } = useCart();
   const { addNotification } = useNotification();
 
   const [products, setProducts] = useState([]);
@@ -22,12 +20,7 @@ export default function Products() {
   });
   const [sortBy, setSortBy] = useState('newest');
 
-  useEffect(() => {
-    fetchCategories();
-    fetchProducts();
-  }, [filters, sortBy]); // Đã bổ sung sortBy vào dependency để kích hoạt sắp xếp khi thay đổi
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/products/categories`);
       if (response.ok) {
@@ -37,9 +30,9 @@ export default function Products() {
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     }
-  };
+  }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -70,15 +63,15 @@ export default function Products() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, sortBy, addNotification]);
+
+  useEffect(() => {
+    fetchCategories();
+    fetchProducts();
+  }, [fetchCategories, fetchProducts]);
 
   const handleFilterChange = (field, value) => {
     setFilters({ ...filters, [field]: value });
-  };
-
-  const handleAddToCart = (product) => {
-    addToCart(product);
-    addNotification(`${product.name} đã được thêm vào giỏ hàng!`, 'success');
   };
 
   const handleProductClick = (productId) => {
@@ -221,10 +214,10 @@ export default function Products() {
                       VNĐ
                     </div>
                     <button
-                      onClick={() => handleAddToCart(product)}
+                      onClick={() => handleProductClick(product.id)}
                       className="btn-add-to-cart"
                     >
-                      Thêm vào giỏ
+                      Xem chi tiết
                     </button>
                   </div>
                 </div>
