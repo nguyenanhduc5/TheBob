@@ -12,5 +12,7 @@ namespace THEBOB.Models
         public string Name { get; set; } = string.Empty;
 
         public ICollection<ProductVariant> ProductVariants { get; set; } = new List<ProductVariant>();
+        public int SortOrder { get; set; }
+    
     }
 }

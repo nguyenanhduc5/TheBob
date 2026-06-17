@@ -41,6 +41,9 @@ const AdminLayoutWrapper = () => {
         <Link to="/admin/orders" className={getNavLinkClass('/admin/orders')}>
           Đơn Hàng
         </Link>
+        <Link to="/admin/coupons" className={getNavLinkClass('/admin/coupons')}>
+          Mã Giảm Giá
+        </Link>
         <Link to="/admin/users" className={getNavLinkClass('/admin/users')}>
           Người Dùng
         </Link>

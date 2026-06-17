@@ -36,11 +36,9 @@ export default function OrderDetail() {
       setLoading(false);
     }
   }, [addNotification, navigate, orderId, token]);
-
   useEffect(() => {
     fetchOrder();
   }, [fetchOrder]);
-
   useEffect(() => {
     const handleOrderStatusUpdate = (event) => {
       if (Number(event.detail.orderId) === Number(orderId)) {
@@ -48,7 +46,6 @@ export default function OrderDetail() {
         fetchOrder();
       }
     };
-
     window.addEventListener('order-status-updated', handleOrderStatusUpdate);
     return () => {
       window.removeEventListener('order-status-updated', handleOrderStatusUpdate);

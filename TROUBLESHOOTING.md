@@ -93,7 +93,7 @@ int? categoryId = (int?)request.CategoryId;
 - Verify AdminRoute component checks role correctly
 - Check isAdmin() function in AuthContext
 
-#### 6. Blank Screen on Admin Sub-pages (Add/Edit)
+   #### 6. Blank Screen on Admin Sub-pages (Add/Edit)
 **Error:** `Shows blank page when navigating to /admin/products/new`
 **Solution:**
 - Ensure the sub-route is explicitly defined in `App.js` within the `/admin/*` block.

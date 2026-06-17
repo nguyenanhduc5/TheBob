@@ -41,6 +41,7 @@ export default function AdminLayout({ title, children }) {
           <Link to="/admin/products" className={getNavLinkClass('/admin/products')}>Sản Phẩm</Link>
           <Link to="/admin/categories" className={getNavLinkClass('/admin/categories')}>Danh Mục</Link>
           <Link to="/admin/orders" className={getNavLinkClass('/admin/orders')}>Đơn Hàng</Link>
+          <Link to="/admin/coupons" className={getNavLinkClass('/admin/coupons')}>Mã Giảm Giá</Link>
           <Link to="/admin/users" className={getNavLinkClass('/admin/users')}>Người Dùng</Link>
           <Link to="/admin/profile" className={getNavLinkClass('/admin/profile')}>Tài Khoản</Link>
           <Link to="/admin/settings" className={getNavLinkClass('/admin/settings')}>Cài Đặt</Link>

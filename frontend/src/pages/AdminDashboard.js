@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { apiClient } from '../api/app';
 import '../styles/AdminDashboard.css';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
@@ -20,17 +21,14 @@ export default function AdminDashboard() {
 
   const fetchStats = useCallback(async () => {
     try {
-      // Fetch products count
-      const productsRes = await fetch(`${process.env.REACT_APP_API_URL}/products`);
-      const products = productsRes.ok ? await productsRes.json() : [];
-
-      // Fetch categories count
-      const categoriesRes = await fetch(`${process.env.REACT_APP_API_URL}/category`);
-      const categories = categoriesRes.ok ? await categoriesRes.json() : [];
+      const [products, categories] = await Promise.all([
+        apiClient('/products'),
+        apiClient('/category'),
+      ]);
 
       setStats({
-        totalProducts: products.length,
-        totalCategories: categories.length,
+        totalProducts: Array.isArray(products) ? products.length : 0,
+        totalCategories: Array.isArray(categories) ? categories.length : 0,
         totalOrders: 0, // Will be updated when orders API is ready
         totalRevenue: 0, // Will be updated when orders API is ready
       });

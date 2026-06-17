@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { apiClient } from '../api/app';
 import '../styles/AdminCategories.css';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
 export default function AdminCategories() {
   const navigate = useNavigate();
-  const { token, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const { addNotification } = useNotification();
 
   const [categories, setCategories] = useState([]);
@@ -21,14 +22,12 @@ export default function AdminCategories() {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/category`);
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data);
-      }
+      setLoading(true);
+      const data = await apiClient('/category');
+      setCategories(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
-      addNotification('Lỗi khi tải danh mục', 'error');
+      addNotification(error.message || 'Khong the tai danh muc', 'error');
     } finally {
       setLoading(false);
     }
@@ -42,103 +41,11 @@ export default function AdminCategories() {
     fetchCategories();
   }, [fetchCategories, isAdmin, navigate]);
 
-  const handleFormChange = (field) => (e) => {
-    setFormData({
-      ...formData,
-      [field]: e.target.value,
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!formData.name.trim()) {
-      addNotification('Vui lòng nhập tên danh mục', 'warning');
-      return;
-    }
-
-    try {
-      const url = editingId
-        ? `${process.env.REACT_APP_API_URL}/category/${editingId}`
-        : `${process.env.REACT_APP_API_URL}/category`;
-
-      const method = editingId ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(editingId ? { ...formData, id: editingId } : formData),
-      });
-
-     const result = await response.json();
-
-if (!response.ok) {
-  addNotification(
-    result.message || 'Không thể lưu danh mục',
-    'warning'
-  );
-  return;
-}
-
-addNotification(
-  result.message ||
-  (editingId
-    ? 'Cập nhật danh mục thành công'
-    : 'Thêm danh mục thành công'),
-  'success'
-);
-
-setShowForm(false);
-resetForm();
-fetchCategories();
-    } catch (error) {
-      console.error('Submit error:', error);
-      addNotification('Lỗi khi lưu danh mục', 'error');
-    }
-  };
-
-  const handleEdit = (category) => {
-    setFormData({
-      name: category.name,
-      description: category.description || '',
-    });
-    setEditingId(category.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (categoryId) => {
-    if (!window.confirm('Bạn chắc chắn muốn xóa danh mục này?')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/category/${categoryId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        addNotification('Xóa danh mục thành công', 'success');
-        fetchCategories();
-      } else {
-        let message = 'Lỗi khi xóa danh mục';
-        try {
-          const errorData = await response.json();
-          message = errorData?.message || message;
-        } catch {
-          message = `${message} (${response.status})`;
-        }
-        addNotification(message, 'error');
-      }
-    } catch (error) {
-      console.error('Delete error:', error);
-      addNotification('Lỗi khi xóa danh mục', 'error');
-    }
+  const handleFormChange = (field) => (event) => {
+    setFormData((current) => ({
+      ...current,
+      [field]: event.target.value,
+    }));
   };
 
   const resetForm = () => {
@@ -149,6 +56,57 @@ fetchCategories();
     setEditingId(null);
   };
 
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!formData.name.trim()) {
+      addNotification('Vui long nhap ten danh muc', 'warning');
+      return;
+    }
+
+    try {
+      await apiClient(editingId ? `/category/${editingId}` : '/category', {
+        method: editingId ? 'PUT' : 'POST',
+        auth: true,
+        body: editingId ? { ...formData, id: editingId } : formData,
+      });
+
+      addNotification(editingId ? 'Cap nhat danh muc thanh cong' : 'Them danh muc thanh cong', 'success');
+      setShowForm(false);
+      resetForm();
+      fetchCategories();
+    } catch (error) {
+      console.error('Submit error:', error);
+      addNotification(error.message || 'Khong the luu danh muc', 'error');
+    }
+  };
+
+  const handleEdit = (category) => {
+    setFormData({
+      name: category.name || '',
+      description: category.description || '',
+    });
+    setEditingId(category.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (categoryId) => {
+    if (!window.confirm('Ban chac chan muon xoa danh muc nay?')) return;
+
+    try {
+      await apiClient(`/category/${categoryId}`, {
+        method: 'DELETE',
+        auth: true,
+      });
+
+      addNotification('Xoa danh muc thanh cong', 'success');
+      fetchCategories();
+    } catch (error) {
+      console.error('Delete error:', error);
+      addNotification(error.message || 'Khong the xoa danh muc', 'error');
+    }
+  };
+
   if (loading) {
     return <LoadingSkeleton type="table" />;
   }
@@ -156,7 +114,7 @@ fetchCategories();
   return (
     <div className="admin-categories-page">
       <div className="admin-header">
-        <h1>Quản Lý Danh Mục</h1>
+        <h1>Quan Ly Danh Muc</h1>
         <button
           onClick={() => {
             if (showForm) {
@@ -168,32 +126,32 @@ fetchCategories();
           }}
           className="btn-add-category"
         >
-          {showForm ? '← Quay Lại' : '+ Thêm Danh Mục'}
+          {showForm ? 'Quay Lai' : '+ Them Danh Muc'}
         </button>
       </div>
 
       {showForm ? (
         <div className="category-form-section">
           <form onSubmit={handleSubmit} className="category-form">
-            <h2>{editingId ? 'Chỉnh Sửa Danh Mục' : 'Thêm Danh Mục Mới'}</h2>
+            <h2>{editingId ? 'Chinh Sua Danh Muc' : 'Them Danh Muc Moi'}</h2>
 
             <div className="form-group">
-              <label>Tên Danh Mục *</label>
+              <label>Ten Danh Muc *</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={handleFormChange('name')}
-                placeholder="Tên danh mục"
+                placeholder="Ten danh muc"
                 required
               />
             </div>
 
             <div className="form-group">
-              <label>Mô Tả</label>
+              <label>Mo Ta</label>
               <textarea
                 value={formData.description}
                 onChange={handleFormChange('description')}
-                placeholder="Mô tả danh mục"
+                placeholder="Mo ta danh muc"
                 rows={4}
               />
             </div>
@@ -207,10 +165,10 @@ fetchCategories();
                 }}
                 className="btn-cancel"
               >
-                Hủy
+                Huy
               </button>
               <button type="submit" className="btn-save">
-                {editingId ? 'Cập Nhật' : 'Thêm'} Danh Mục
+                {editingId ? 'Cap Nhat' : 'Them'} Danh Muc
               </button>
             </div>
           </form>
@@ -218,29 +176,21 @@ fetchCategories();
       ) : (
         <div className="categories-list-section">
           {categories.length === 0 ? (
-            <div className="no-categories">Không có danh mục nào</div>
+            <div className="no-categories">Khong co danh muc nao</div>
           ) : (
             <div className="categories-grid">
               {categories.map((category) => (
                 <div key={category.id} className="category-card">
                   <div className="category-content">
                     <h3>{category.name}</h3>
-                    {category.description && (
-                      <p>{category.description}</p>
-                    )}
+                    {category.description && <p>{category.description}</p>}
                   </div>
                   <div className="category-actions">
-                    <button
-                      onClick={() => handleEdit(category)}
-                      className="btn-edit"
-                    >
-                      Sửa
+                    <button onClick={() => handleEdit(category)} className="btn-edit">
+                      Sua
                     </button>
-                    <button
-                      onClick={() => handleDelete(category.id)}
-                      className="btn-delete"
-                    >
-                      Xóa
+                    <button onClick={() => handleDelete(category.id)} className="btn-delete">
+                      Xoa
                     </button>
                   </div>
                 </div>

@@ -116,6 +116,18 @@ const authAPI = {
       body: credentials,
     });
   },
+
+  getProfile() {
+    return apiClient('/auth/profile', { auth: true });
+  },
+
+  updateProfile(profileData) {
+    return apiClient('/auth/profile', {
+      method: 'PUT',
+      auth: true,
+      body: profileData,
+    });
+  },
 };
 
 const productsAPI = {
@@ -201,6 +213,29 @@ const ordersAPI = {
   },
 };
 
+const couponsAPI = {
+  async getAll() {
+    return safeArray(await apiClient('/coupons', { auth: true }));
+  },
+  // API để khách hàng kiểm tra mã trong giỏ hàng
+  getByCode(code) {
+    return apiClient(`/coupons/code/${code}`);
+  },
+  create(couponData) {
+    return apiClient('/coupons', {
+      method: 'POST',
+      auth: true,
+      body: couponData,
+    });
+  },
+  delete(id) {
+    return apiClient(`/coupons/${id}`, {
+      method: 'DELETE',
+      auth: true,
+    });
+  },
+};
+
 // Đảm bảo URL luôn tuyệt đối để tránh lỗi 404 khi đi qua Proxy của React
 // SignalR Hub thường được map ở root (không có /api) để tránh xung đột với controller
 const ORDER_HUB_URL = API_BASE_URL.includes('/api')
@@ -213,5 +248,6 @@ export {
   authAPI, 
   productsAPI, 
   ordersAPI,
-  ORDER_HUB_URL
+  ORDER_HUB_URL,
+  couponsAPI
 };

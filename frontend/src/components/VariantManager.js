@@ -1,5 +1,4 @@
 import React, { memo, useCallback, useMemo, useState, useEffect } from 'react';
-import { formatPrice } from './ProductTable';
 
 const createClientId = () => `variant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 

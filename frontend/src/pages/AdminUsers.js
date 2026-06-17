@@ -2,12 +2,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { apiClient } from '../api/app';
 import '../styles/AdminUsers.css';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
+const getUsersArray = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+};
+
 export default function AdminUsers() {
   const navigate = useNavigate();
-  const { token, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const { addNotification } = useNotification();
 
   const [users, setUsers] = useState([]);
@@ -16,26 +23,15 @@ export default function AdminUsers() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        let errorMessage = 'Failed to load users';
-        try {
-          const errorData = await res.json();
-          errorMessage = errorData?.message || errorMessage;
-        } catch {}
-        throw new Error(errorMessage);
-      }
-      const json = await res.json();
-      setUsers(json.data || []);
-    } catch (err) {
-      console.error(err);
-      addNotification('Lỗi khi tải danh sách người dùng', 'error');
+      const payload = await apiClient('/users', { auth: true });
+      setUsers(getUsersArray(payload));
+    } catch (error) {
+      console.error(error);
+      addNotification(error.message || 'Khong the tai danh sach nguoi dung', 'error');
     } finally {
       setLoading(false);
     }
-  }, [token, addNotification]);
+  }, [addNotification]);
 
   useEffect(() => {
     if (!isAdmin()) {
@@ -47,51 +43,31 @@ export default function AdminUsers() {
 
   const changeRole = async (userId, role) => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${userId}/role`, {
+      await apiClient(`/users/${userId}/role`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ role })
+        auth: true,
+        body: { role },
       });
-      let data = null;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error('Failed to update role');
-      }
-      if (!res.ok) throw new Error(data?.message || 'Failed');
-      addNotification('Cập nhật vai trò thành công', 'success');
+      addNotification('Cap nhat vai tro thanh cong', 'success');
       fetchUsers();
-    } catch (err) {
-      console.error(err);
-      addNotification(err.message || 'Lỗi khi cập nhật vai trò', 'error');
+    } catch (error) {
+      console.error(error);
+      addNotification(error.message || 'Khong the cap nhat vai tro', 'error');
     }
   };
 
   const setActive = async (userId, isActive) => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${userId}/activate`, {
+      await apiClient(`/users/${userId}/activate`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ isActive })
+        auth: true,
+        body: { isActive },
       });
-      let data = null;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error('Failed to update status');
-      }
-      if (!res.ok) throw new Error(data?.message || 'Failed');
-      addNotification('Cập nhật trạng thái thành công', 'success');
+      addNotification('Cap nhat trang thai thanh cong', 'success');
       fetchUsers();
-    } catch (err) {
-      console.error(err);
-      addNotification(err.message || 'Lỗi khi cập nhật trạng thái', 'error');
+    } catch (error) {
+      console.error(error);
+      addNotification(error.message || 'Khong the cap nhat trang thai', 'error');
     }
   };
 
@@ -99,48 +75,49 @@ export default function AdminUsers() {
 
   return (
     <div className="admin-users-page">
-        <div className="admin-header">
-          <h1>Quản Lý Người Dùng</h1>
-        </div>
+      <div className="admin-header">
+        <h1>Quan Ly Nguoi Dung</h1>
+      </div>
 
-        {users.length === 0 ? (
-          <div className="no-users">Không có người dùng</div>
-        ) : (
-          <div className="users-table">
-            <div className="table-header">
-              <span className="col-id">ID</span>
-              <span className="col-username">Tên Đăng Nhập</span>
-              <span className="col-email">Email</span>
-              <span className="col-role">Vai Trò</span>
-              <span className="col-active">Hoạt Động</span>
-              <span className="col-actions">Thao Tác</span>
-            </div>
-
-            {users.map((u) => (
-              <div key={u.id} className="table-row">
-                <span className="col-id">#{u.id}</span>
-                <span className="col-username">{u.username}</span>
-                <span className="col-email">{u.email}</span>
-                <span className="col-role">{u.role}</span>
-                <span className="col-active">{u.isActive ? 'Hoạt' : 'Khoá'}</span>
-                <span className="col-actions">
-                  {u.role !== 'Admin' ? (
-                    <button className="btn-promote" onClick={() => changeRole(u.id, 'Admin')}>Thăng Admin</button>
-                  ) : (
-                    <button className="btn-demote" onClick={() => changeRole(u.id, 'User')}>Hạ User</button>
-                  )}
-
-                  <button
-                    className="btn-toggle-active"
-                    onClick={() => setActive(u.id, !u.isActive)}
-                  >
-                    {u.isActive ? 'Khoá' : 'Kích Hoạt'}
-                  </button>
-                </span>
-              </div>
-            ))}
+      {users.length === 0 ? (
+        <div className="no-users">Khong co nguoi dung</div>
+      ) : (
+        <div className="users-table">
+          <div className="table-header">
+            <span className="col-id">ID</span>
+            <span className="col-username">Ten Dang Nhap</span>
+            <span className="col-email">Email</span>
+            <span className="col-role">Vai Tro</span>
+            <span className="col-active">Hoat Dong</span>
+            <span className="col-actions">Thao Tac</span>
           </div>
-        )}
+
+          {users.map((user) => (
+            <div key={user.id} className="table-row">
+              <span className="col-id">#{user.id}</span>
+              <span className="col-username">{user.username || user.name || '-'}</span>
+              <span className="col-email">{user.email || '-'}</span>
+              <span className="col-role">{user.role || 'User'}</span>
+              <span className="col-active">{user.isActive ? 'Hoat' : 'Khoa'}</span>
+              <span className="col-actions">
+                {user.role !== 'Admin' ? (
+                  <button className="btn-promote" onClick={() => changeRole(user.id, 'Admin')}>
+                    Thang Admin
+                  </button>
+                ) : (
+                  <button className="btn-demote" onClick={() => changeRole(user.id, 'User')}>
+                    Ha User
+                  </button>
+                )}
+
+                <button className="btn-toggle-active" onClick={() => setActive(user.id, !user.isActive)}>
+                  {user.isActive ? 'Khoa' : 'Kich Hoat'}
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

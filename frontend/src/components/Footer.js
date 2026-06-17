@@ -5,6 +5,23 @@ export default function Footer() {
     <footer className="site-footer">
       <div className="footer-container">
         <div className="footer-section">
+          <h4>CONTACT</h4>
+          <p>Email: contact@thebob.com</p>
+          <p>Phone: +84 977 699 624</p>
+          <p>Address: 828 Su Van Hanh, Ho Chi Minh City, Vietnam</p>
+            <div className="footer-map">
+    <iframe
+      title="THEBOB Location"
+      src="https://www.google.com/maps?q=828+Su+Van+Hanh+Ho+Chi+Minh+City+Vietnam&output=embed"
+      width="100%"
+      height="180"
+      style={{ border: 0 }}
+      allowFullScreen=""
+      loading="lazy"
+    ></iframe>
+  </div>
+        </div>
+        <div className="footer-section">
           <h4>ABOUT US</h4>
           <p>THEBOB - Premium minimal fashion for everyday life.</p>
         </div>
@@ -16,11 +33,7 @@ export default function Footer() {
             <li><a href="#privacy">PRIVACY POLICY</a></li>
           </ul>
         </div>
-        <div className="footer-section">
-          <h4>CONTACT</h4>
-          <p>Email: contact@thebob.com</p>
-          <p>Phone: +84 977 699 624</p>
-        </div>
+        
         <div className="footer-section">
           <h4>FOLLOW US</h4>
           <div className="social-links">

@@ -41,44 +41,43 @@ const wideBanner = {
 export default function Home() {
   return (
     <>
-      <section className="hero-section">
+      <section className="zara-hero">
         <div className="hero-media" style={{ backgroundImage: `url(${heroImage})` }} />
         <div className="hero-copy">
-          <span className="hero-label">NEW COLLECTION</span>
-          <h1>Phong cách mới cho ngày bình thường.</h1>
-          <p>Chất liệu premium, form dáng thoải mái và thiết kế tối giản, phù hợp với mọi hoạt động trong ngày.</p>
-          <button className="btn btn-primary">Khám phá ngay</button>
+          <span className="zara-label">NEW COLLECTION</span>
+          <h1 className="zara-title-xl">PHONG CÁCH MỚI CHO NGÀY BÌNH THƯỜNG</h1>
+          <p>CHẤT LIỆU PREMIUM, THIẾT KẾ TỐI GIẢN.</p>
+          <button className="zara-btn-light">KHÁM PHÁ NGAY</button>
         </div>
       </section>
 
-      <section className="banner-grid">
+      <section className="zara-banner-grid">
         {bannerItems.map((banner) => (
           <article key={banner.title} className="banner-card" style={{ backgroundImage: `url(${banner.image})` }}>
             <div className="banner-copy">
-              <h2>{banner.title}</h2>
-              <p>{banner.description}</p>
+              <h2 className="zara-title-md">{banner.title.toUpperCase()}</h2>
+              <p className="zara-desc-sm">{banner.description.toUpperCase()}</p>
             </div>
           </article>
         ))}
       </section>
 
-      <section className="split-banner-row">
+      <section className="zara-split-grid">
         {extraBanners.map((banner) => (
           <article key={banner.title} className="split-card" style={{ backgroundImage: `url(${banner.image})` }}>
             <div className="split-copy">
-              <h3>{banner.title}</h3>
-              <p>{banner.description}</p>
+              <h3 className="zara-title-sm">{banner.title.toUpperCase()}</h3>
+              <p className="zara-desc-xs">{banner.description.toUpperCase()}</p>
             </div>
           </article>
         ))}
       </section>
 
-      <section className="wide-banner" style={{ backgroundImage: `url(${wideBanner.image})` }}>
+      <section className="zara-wide-banner" style={{ backgroundImage: `url(${wideBanner.image})` }}>
         <div className="wide-content">
-          <span>NEW DROP</span>
-          <h2>{wideBanner.title}</h2>
-          <p>{wideBanner.description}</p>
-          <button className="btn btn-primary">Xem ngay</button>
+          <span className="zara-label">NEW DROP</span>
+          <h2 className="zara-title-lg">{wideBanner.title.toUpperCase()}</h2>
+          <button className="zara-btn-dark">XEM NGAY</button>
         </div>
       </section>
     </>

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { apiClient } from '../api/app';
+import { authAPI } from '../api/app';
 import AdminLayout from '../components/AdminLayout';
 import './Profile.css';
 
@@ -29,7 +29,6 @@ export default function Profile() {
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    birthDate: user?.birthDate || '',
     phone: user?.phone || '',
     address: user?.address || '',
   });
@@ -41,13 +40,12 @@ export default function Profile() {
       setLoading(true);
 
       try {
-        const result = await apiClient('/auth/profile', { auth: true });
+        const result = await authAPI.getProfile();
         const profile = result?.data;
         if (profile) {
           setFormData({
             name: profile.name || '',
             email: profile.email || '',
-            birthDate: user?.birthDate || '',
             phone: profile.phone || '',
             address: profile.address || '',
           });
@@ -61,7 +59,7 @@ export default function Profile() {
     };
 
     loadProfile();
-  }, [token, updateUser, user?.birthDate]);
+  }, [token, updateUser]);
 
   const fetchUserOrders = useCallback(async () => {
     if (!token) return;
@@ -122,15 +120,11 @@ export default function Profile() {
     setSuccessMessage('');
 
     try {
-      const result = await apiClient('/auth/profile', {
-        method: 'PUT',
-        auth: true,
-        body: {
-          email: formData.email,
-          name: formData.name,
-          phone: formData.phone,
-          address: formData.address,
-        },
+      const result = await authAPI.updateProfile({
+        email: formData.email,
+        name: formData.name,
+        phone: formData.phone,
+        address: formData.address,
       });
 
       const updatedProfile = result?.data;
@@ -185,14 +179,6 @@ export default function Profile() {
                         value={formData.name}
                         onChange={handleInputChange('name')}
                         placeholder="Nguyễn Anh Đức"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Ngày Sinh</label>
-                      <input
-                        type="date"
-                        value={formData.birthDate}
-                        onChange={handleInputChange('birthDate')}
                       />
                     </div>
                   </div>
@@ -334,14 +320,6 @@ export default function Profile() {
                       value={formData.name}
                       onChange={handleInputChange('name')}
                       placeholder="Nguyễn Anh Đức"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>*Ngày sinh</label>
-                    <input
-                      type="date"
-                      value={formData.birthDate}
-                      onChange={handleInputChange('birthDate')}
                     />
                   </div>
                 </div>

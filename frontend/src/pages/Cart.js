@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useNotification } from '../context/NotificationContext';
+import { couponsAPI } from '../api/app';
 import '../styles/Cart.css';
 
 export default function Cart() {
@@ -9,27 +10,54 @@ export default function Cart() {
   const { cartItems, removeFromCart, updateQuantity, clearCart } = useCart();
   const { addNotification } = useNotification();
   const [appliedCoupon, setAppliedCoupon] = useState('');
-  const [discountPercent, setDiscountPercent] = useState(0);
+  const [activeCoupon, setActiveCoupon] = useState(null);
 
   const calculateSubtotal = () => {
     return cartItems.reduce((total, item) => total + ((item.price ?? 0) * (item.quantity ?? 1)), 0);
   };
 
   const subtotal = calculateSubtotal();
-  const discount = (subtotal * discountPercent) / 100;
+
+  const calculateDiscount = () => {
+    if (!activeCoupon) return 0;
+    
+    if (activeCoupon.productId) {
+      // Chỉ giảm giá cho sản phẩm cụ thể có trong giỏ hàng
+      const targetItems = cartItems.filter(item => 
+        String(item.productId) === String(activeCoupon.productId) || 
+        String(item.id) === String(activeCoupon.productId)
+      );
+      const targetSubtotal = targetItems.reduce((t, i) => t + ((i.price ?? 0) * (i.quantity ?? 1)), 0);
+      return (targetSubtotal * activeCoupon.discountPercent) / 100;
+    }
+    
+    return (subtotal * activeCoupon.discountPercent) / 100;
+  };
+
+  const discount = calculateDiscount();
   const shipping = subtotal > 500000 ? 0 : 30000;
   const total = subtotal - discount + shipping;
 
-  const handleApplyCoupon = () => {
-    // Simple demo coupon logic
-    if (appliedCoupon.toUpperCase() === 'SAVE10') {
-      setDiscountPercent(10);
-      addNotification('Mã giảm giá hợp lệ! Giảm 10%', 'success');
-    } else if (appliedCoupon.toUpperCase() === 'SAVE20') {
-      setDiscountPercent(20);
-      addNotification('Mã giảm giá hợp lệ! Giảm 20%', 'success');
-    } else {
-      addNotification('Mã giảm giá không hợp lệ', 'error');
+  const handleApplyCoupon = async () => {
+    if (!appliedCoupon.trim()) return;
+    
+    try {
+      const coupon = await couponsAPI.getByCode(appliedCoupon.trim().toUpperCase());
+      
+      if (coupon && coupon.discountPercent) {
+        // Kiểm tra ngày hết hạn
+        if (coupon.expiryDate && new Date(coupon.expiryDate) < new Date()) {
+          addNotification('Mã giảm giá này đã hết hạn', 'warning');
+          return;
+        }
+        
+        setActiveCoupon(coupon);
+        addNotification(`Áp dụng mã ${coupon.code} thành công! Giảm ${coupon.discountPercent}%`, 'success');
+      } else {
+        addNotification('Mã giảm giá không tồn tại', 'error');
+      }
+    } catch (error) {
+      addNotification('Mã giảm giá không hợp lệ hoặc đã hết lượt dùng', 'error');
     }
     setAppliedCoupon('');
   };
@@ -171,9 +199,9 @@ export default function Cart() {
             <span>{(subtotal ?? 0).toLocaleString('vi-VN')} VNĐ</span>
           </div>
 
-          {discount > 0 && (
+          {activeCoupon && discount > 0 && (
             <div className="summary-row discount">
-              <span>Giảm giá ({discountPercent}%):</span>
+              <span>Giảm giá ({activeCoupon.discountPercent}%):</span>
               <span>-{(discount ?? 0).toLocaleString('vi-VN')} VNĐ</span>
             </div>
           )}
