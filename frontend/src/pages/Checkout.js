@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { authAPI, cartAPI, ordersAPI } from '../api/app';
 import '../styles/Checkout.css';
 
 const decodeJwt = (token) => {
@@ -62,14 +63,9 @@ export default function Checkout() {
 
       // 2. Fetch full profile details from database
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5110/api'}/auth/profile`, {
-          headers: {
-            'Authorization': `Bearer ${savedToken}`,
-            'Accept': 'application/json',
-          },
-        });
-        if (response.ok) {
-          const profile = await response.json();
+        const result = await authAPI.getProfile();
+        const profile = result?.data || result;
+        if (profile) {
           setFormData(prev => ({
             ...prev,
             fullName: profile.name || profile.fullName || prev.fullName,
@@ -111,47 +107,25 @@ export default function Checkout() {
         return;
       }
 
-      await fetch(`${process.env.REACT_APP_API_URL}/cart`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      await cartAPI.clearCart();
 
       for (const item of cartItems) {
-        const cartResponse = await fetch(`${process.env.REACT_APP_API_URL}/cart/add`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            variantId: item.variantId,
-            quantity: item.quantity,
-          }),
-        });
-
-        if (!cartResponse.ok) {
-          throw new Error('Cart sync failed');
-        }
+        await cartAPI.addItem(item.variantId, item.quantity);
       }
 
       const orderData = {
-        shippingAddress: formData.address,
+        shippingAddress: [
+          formData.fullName,
+          formData.phone,
+          formData.email,
+          formData.address,
+        ].filter(Boolean).join(' - '),
         paymentMethod: formData.paymentMethod,
       };
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(orderData),
-      });
+      const order = await ordersAPI.createOrder(orderData);
 
-      if (response.ok) {
-        const order = await response.json();
+      if (order) {
         addNotification('Đặt hàng thành công! Cảm ơn bạn đã mua sắm.', 'success');
         clearCart();
         
@@ -159,9 +133,6 @@ export default function Checkout() {
         setTimeout(() => {
           navigate(`/orders/${order.id}`);
         }, 1000);
-      } else {
-        const errorData = await response.json();
-        addNotification(errorData.message || 'Lỗi khi đặt hàng', 'error');
       }
     } catch (error) {
       console.error('Order submission error:', error);

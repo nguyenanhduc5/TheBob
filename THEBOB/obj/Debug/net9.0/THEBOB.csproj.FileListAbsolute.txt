@@ -1,3 +1,10 @@
+C:\THEBOB\build-check\THEBOB\appsettings.Development.json
+C:\THEBOB\build-check\THEBOB\appsettings.json
+C:\THEBOB\build-check\THEBOB\THEBOB.staticwebassets.endpoints.json
+C:\THEBOB\build-check\THEBOB\THEBOB.deps.json
+C:\THEBOB\build-check\THEBOB\THEBOB.runtimeconfig.json
+C:\THEBOB\build-check\THEBOB\THEBOB.dll
+C:\THEBOB\build-check\THEBOB\THEBOB.pdb
 C:\THEBOB\THEBOB\bin\Debug\net9.0\appsettings.Development.json
 C:\THEBOB\THEBOB\bin\Debug\net9.0\appsettings.json
 C:\THEBOB\THEBOB\bin\Debug\net9.0\THEBOB.staticwebassets.endpoints.json

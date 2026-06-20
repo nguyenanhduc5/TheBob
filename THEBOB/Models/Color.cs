@@ -15,8 +15,5 @@ namespace THEBOB.Models
         public string HexCode { get; set; } = string.Empty;
 
         public ICollection<ProductVariant> ProductVariants { get; set; } = new List<ProductVariant>();
-        public bool IsActive { get; set; } = true;
-    
     }
-
 }

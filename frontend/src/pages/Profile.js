@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { authAPI } from '../api/app';
+import { authAPI, ordersAPI } from '../api/app';
 import AdminLayout from '../components/AdminLayout';
 import './Profile.css';
 
@@ -65,16 +65,8 @@ export default function Profile() {
     if (!token) return;
     setOrdersLoading(true);
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5110/api'}/orders`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUserOrders(data);
-      }
+      const data = await ordersAPI.getUserOrders();
+      setUserOrders(data);
     } catch (error) {
       console.error('Failed to fetch user orders:', error);
     } finally {
@@ -363,24 +355,14 @@ export default function Profile() {
               ) : userOrders.length === 0 ? (
                 <p>Bạn chưa có đơn hàng nào.</p>
               ) : (
-                <div className="orders-history-table">
-                  <div className="orders-history-header">
-                    <span className="col-id">Mã đơn</span>
-                    <span className="col-date">Ngày đặt</span>
-                    <span className="col-total">Tổng tiền</span>
-                    <span className="col-status">Trạng thái</span>
-                    <span className="col-action">Hành động</span>
-                  </div>
+                <div className="orders-history-list">
                   {userOrders.map((order) => (
-                    <div key={order.id} className="orders-history-row">
-                      <span className="col-id">#{order.id}</span>
-                      <span className="col-date">
-                        {new Date(order.createdAt).toLocaleDateString('vi-VN')}
-                      </span>
-                      <span className="col-total">
-                        {order.totalAmount.toLocaleString('vi-VN')} VNĐ
-                      </span>
-                      <span className="col-status">
+                    <div key={order.id} className="order-history-card">
+                      <div className="order-history-header">
+                        <div className="order-header-info">
+                          <span className="order-id">Mã đơn: <strong>#{order.id}</strong></span>
+                          <span className="order-date"> | Ngày đặt: {new Date(order.createdAt).toLocaleDateString('vi-VN')}</span>
+                        </div>
                         <span className={`status-badge ${order.status.toLowerCase()}`}>
                           {order.status === 'Pending' ? 'Chờ xử lý' :
                            order.status === 'Processing' ? 'Đang xử lý' :
@@ -388,15 +370,58 @@ export default function Profile() {
                            order.status === 'Delivered' ? 'Đã giao' :
                            order.status === 'Cancelled' ? 'Đã hủy' : order.status}
                         </span>
-                      </span>
-                      <span className="col-action">
+                      </div>
+
+                      <div className="order-history-items-container">
+                        <table className="order-history-items-table">
+                          <thead>
+                            <tr>
+                              <th>Sản phẩm</th>
+                              <th style={{ textAlign: 'center' }}>Size</th>
+                              <th style={{ textAlign: 'center' }}>Màu</th>
+                              <th style={{ textAlign: 'right' }}>Đơn giá</th>
+                              <th style={{ textAlign: 'center' }}>Số lượng</th>
+                              <th style={{ textAlign: 'right' }}>Thành tiền</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {order.items && order.items.map((item) => (
+                              <tr key={item.id}>
+                                <td className="order-item-prod-cell">
+                                  {item.imageUrl && (
+                                    <img 
+                                      src={item.imageUrl} 
+                                      alt={item.productName} 
+                                      className="order-item-thumb" 
+                                    />
+                                  )}
+                                  <span className="order-item-name">{item.productName}</span>
+                                </td>
+                                <td style={{ textAlign: 'center' }} className="order-item-meta-cell">{item.size || '-'}</td>
+                                <td style={{ textAlign: 'center' }} className="order-item-meta-cell">{item.color || '-'}</td>
+                                <td style={{ textAlign: 'right' }}>{item.price.toLocaleString('vi-VN')} VNĐ</td>
+                                <td style={{ textAlign: 'center' }}>{item.quantity}</td>
+                                <td style={{ textAlign: 'right', fontWeight: '600' }}>
+                                  {(item.price * item.quantity).toLocaleString('vi-VN')} VNĐ
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="order-history-footer">
+                        <div className="order-footer-summary">
+                          <span>Phí giao hàng: {order.shippingAmount === 0 ? 'Miễn phí' : `${order.shippingAmount.toLocaleString('vi-VN')} VNĐ`}</span>
+                          <span className="order-footer-total">Tổng tiền: <strong>{order.totalAmount.toLocaleString('vi-VN')} VNĐ</strong></span>
+                        </div>
                         <button 
                           className="btn-view-detail"
                           onClick={() => navigate(`/orders/${order.id}`)}
                         >
-                          Chi tiết
+                          Chi tiết đơn hàng
                         </button>
-                      </span>
+                      </div>
                     </div>
                   ))}
                 </div>

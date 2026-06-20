@@ -8,7 +8,7 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 
 export default function AdminOrders() {
   const navigate = useNavigate();
-  const { token, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const { addNotification } = useNotification();
 
   const [orders, setOrders] = useState([]);
@@ -20,14 +20,10 @@ export default function AdminOrders() {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      let data = await ordersAPI.getAllOrders();
+      const data = await ordersAPI.getAllOrders();
       
       // Sắp xếp đơn hàng mới nhất lên đầu
       data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-      if (filter !== 'all') {
-        data = data.filter(order => order.status === filter);
-      }
       
       setOrders(data);
     } catch (error) {
@@ -36,7 +32,7 @@ export default function AdminOrders() {
     } finally {
       setLoading(false);
     }
-  }, [filter, addNotification]);
+  }, [addNotification]);
 
   useEffect(() => {
     if (!isAdmin()) {
@@ -53,7 +49,7 @@ export default function AdminOrders() {
     try {
       await ordersAPI.updateOrderStatus(orderId, newStatus);
       addNotification('Cập nhật trạng thái thành công', 'success');
-      // Cập nhật local state để tránh load lại toàn bộ danh sách nếu không cần thiết
+      // Cập nhật local state ngay lập tức để giao diện mượt mà không reload trang
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     } catch (error) {
       addNotification(error.message || 'Lỗi khi cập nhật trạng thái', 'error');
@@ -79,6 +75,15 @@ export default function AdminOrders() {
     }
   };
 
+  const getCount = (status) => {
+    if (status === 'all') return orders.length;
+    return orders.filter(o => o.status === status).length;
+  };
+
+  const filteredOrders = filter === 'all' 
+    ? orders 
+    : orders.filter(o => o.status === filter);
+
   if (loading) {
     return <LoadingSkeleton type="table" />;
   }
@@ -100,35 +105,41 @@ export default function AdminOrders() {
           className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
           onClick={() => setFilter('all')}
         >
-          Tất Cả ({orders.length})
+          Tất Cả ({getCount('all')})
         </button>
         <button
           className={`filter-btn ${filter === 'Pending' ? 'active' : ''}`}
           onClick={() => setFilter('Pending')}
         >
-          Chờ Xử Lý
+          Chờ Xử Lý ({getCount('Pending')})
         </button>
         <button
           className={`filter-btn ${filter === 'Processing' ? 'active' : ''}`}
           onClick={() => setFilter('Processing')}
         >
-          Đang Xử Lý
+          Đang Xử Lý ({getCount('Processing')})
         </button>
         <button
           className={`filter-btn ${filter === 'Shipped' ? 'active' : ''}`}
           onClick={() => setFilter('Shipped')}
         >
-          Đang Giao
+          Đang Giao ({getCount('Shipped')})
         </button>
         <button
           className={`filter-btn ${filter === 'Delivered' ? 'active' : ''}`}
           onClick={() => setFilter('Delivered')}
         >
-          Đã Giao
+          Đã Giao ({getCount('Delivered')})
+        </button>
+        <button
+          className={`filter-btn ${filter === 'Cancelled' ? 'active' : ''}`}
+          onClick={() => setFilter('Cancelled')}
+        >
+          Đã Hủy ({getCount('Cancelled')})
         </button>
       </div>
 
-      {orders.length === 0 ? (
+      {filteredOrders.length === 0 ? (
         <div className="no-orders">Không có đơn hàng nào</div>
       ) : (
         <div className="orders-table">
@@ -141,7 +152,7 @@ export default function AdminOrders() {
             <span className="col-actions">Thao Tác</span>
           </div>
 
-          {orders.map((order) => (
+          {filteredOrders.map((order) => (
             <div key={order.id} className="table-row">
               <span className="col-id">#{order.id}</span>
               <span className="col-customer">
@@ -158,6 +169,7 @@ export default function AdminOrders() {
                   aria-label="Cập nhật trạng thái đơn hàng"
                   title="Chọn trạng thái mới cho đơn hàng"
                   value={order.status}
+                  disabled={updatingId === order.id}
                   onChange={(e) => handleStatusChange(order.id, e.target.value)}
                   className={`status-select ${getStatusBadgeClass(order.status)}`}
                 >

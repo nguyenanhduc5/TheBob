@@ -15,7 +15,7 @@ namespace THEBOB.Models
 
         [Required]
         [MaxLength(50)]
-        public string Gateway { get; set; } = string.Empty;
+        public string Gateway { get; set; } = string.Empty; // cod, qr
 
         [MaxLength(100)]
         public string TransactionCode { get; set; } = string.Empty;
@@ -26,10 +26,17 @@ namespace THEBOB.Models
 
         [Required]
         [MaxLength(50)]
-        public string Status { get; set; } = "Pending";
+        public string Status { get; set; } = "Pending"; // Pending, Paid, Failed, Expired
+
+        public DateTime? PaidAt { get; set; }
+
+        [MaxLength(500)]
+        public string? FailureReason { get; set; }
 
         public string RawResponse { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
 }

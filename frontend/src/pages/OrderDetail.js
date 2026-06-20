@@ -2,43 +2,37 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { ordersAPI } from '../api/app';
 import '../styles/OrderDetail.css';
 
 export default function OrderDetail() {
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { isAdmin } = useAuth();
   const { addNotification } = useNotification();
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/orders/${orderId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setOrder(data);
-      } else {
-        addNotification('Không tìm thấy đơn hàng', 'error');
-        navigate('/user/profile');
-      }
+      const data = await ordersAPI.getOrder(orderId);
+      setOrder(data);
     } catch (error) {
       console.error('Failed to fetch order:', error);
-      addNotification('Lỗi khi tải đơn hàng', 'error');
+      addNotification(error.message || 'Lỗi khi tải đơn hàng', 'error');
+      navigate(isAdmin() ? '/admin/orders' : '/user/profile?menu=orders');
     } finally {
       setLoading(false);
     }
-  }, [addNotification, navigate, orderId, token]);
+  }, [addNotification, isAdmin, navigate, orderId]);
+
   useEffect(() => {
     fetchOrder();
   }, [fetchOrder]);
+
   useEffect(() => {
     const handleOrderStatusUpdate = (event) => {
       if (Number(event.detail.orderId) === Number(orderId)) {
@@ -51,6 +45,21 @@ export default function OrderDetail() {
       window.removeEventListener('order-status-updated', handleOrderStatusUpdate);
     };
   }, [fetchOrder, orderId]);
+
+  const handleCancelOrder = async () => {
+    if (!window.confirm('Xác nhận hủy đơn hàng này?')) return;
+
+    setCancelling(true);
+    try {
+      const updatedOrder = await ordersAPI.cancelOrder(orderId);
+      setOrder(updatedOrder);
+      addNotification('Đã hủy đơn hàng', 'success');
+    } catch (error) {
+      addNotification(error.message || 'Không thể hủy đơn hàng', 'error');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   if (loading) {
     return <div className="loading-page">Đang tải thông tin đơn hàng...</div>;
@@ -95,19 +104,18 @@ export default function OrderDetail() {
     <div className="order-detail-page">
       <div className="order-header">
         <h1>Chi Tiết Đơn Hàng</h1>
-        <button onClick={() => navigate('/user/profile')} className="btn-back">
+        <button onClick={() => navigate(isAdmin() ? '/admin/orders' : '/user/profile?menu=orders')} className="btn-back">
           ← Quay lại
         </button>
       </div>
 
       <div className="order-container">
-        {/* Order Info */}
         <div className="order-info-section">
           <div className="info-card">
             <h2>Thông Tin Đơn Hàng</h2>
             <div className="info-row">
               <span className="label">Mã đơn hàng:</span>
-              <span className="value">{order.id}</span>
+              <span className="value">{order.orderNumber || order.id}</span>
             </div>
             <div className="info-row">
               <span className="label">Ngày đặt hàng:</span>
@@ -142,7 +150,6 @@ export default function OrderDetail() {
           </div>
         </div>
 
-        {/* Order Items */}
         <div className="order-items-section">
           <div className="items-card">
             <h2>Sản Phẩm Đã Đặt</h2>
@@ -202,9 +209,9 @@ export default function OrderDetail() {
             Đánh Giá Sản Phẩm
           </button>
         )}
-        {(order.status === 'Pending' || order.status === 'Processing') && (
-          <button className="btn-cancel">
-            Hủy Đơn Hàng
+        {!isAdmin() && (order.status === 'Pending' || order.status === 'Processing') && (
+          <button className="btn-cancel" onClick={handleCancelOrder} disabled={cancelling}>
+            {cancelling ? 'Đang hủy...' : 'Hủy Đơn Hàng'}
           </button>
         )}
       </div>

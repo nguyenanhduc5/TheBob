@@ -12,6 +12,10 @@ export const useNotification = () => {
 
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(() => {
+    const saved = localStorage.getItem('thebob-unread-count');
+    return saved ? parseInt(saved, 10) : 0;
+  });
 
   const addNotification = (message, type = 'info', duration = 5000) => {
     const id = Date.now();
@@ -36,11 +40,27 @@ export const NotificationProvider = ({ children }) => {
     setNotifications([]);
   };
 
+  const incrementUnread = () => {
+    setUnreadCount(prev => {
+      const next = prev + 1;
+      localStorage.setItem('thebob-unread-count', next);
+      return next;
+    });
+  };
+
+  const resetUnread = () => {
+    setUnreadCount(0);
+    localStorage.setItem('thebob-unread-count', 0);
+  };
+
   const value = {
     notifications,
     addNotification,
     removeNotification,
     clearAllNotifications,
+    unreadCount,
+    incrementUnread,
+    resetUnread,
   };
 
   return (

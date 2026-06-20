@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useNotification } from '../context/NotificationContext';
+import { ORDER_HUB_URL } from '../api/app';
 import * as signalR from '@microsoft/signalr';
 import '../styles/Header.css';
 
@@ -11,26 +12,24 @@ export default function Header() {
   const location = useLocation();
   const { user, token, isAdmin } = useAuth();
   const { cartItems } = useCart();
-  const { addNotification } = useNotification();
+  const { addNotification, unreadCount, incrementUnread, resetUnread } = useNotification();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   
-  // Use ref to keep a stable reference to addNotification for the SignalR callback
-  // This prevents the SignalR effect from restarting when the notification function changes
+  // Use refs to keep stable references to notification helpers for the SignalR callback
   const addNotificationRef = useRef(addNotification);
+  const incrementUnreadRef = useRef(incrementUnread);
+  
   useEffect(() => {
     addNotificationRef.current = addNotification;
-  }, [addNotification]);
+    incrementUnreadRef.current = incrementUnread;
+  }, [addNotification, incrementUnread]);
 
   useEffect(() => {
     let connection = null;
 
     if (token) {
-      const baseUrl = process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:5110';
-      const hubUrl = `${baseUrl}/hubs/order`;
-
       connection = new signalR.HubConnectionBuilder()
-        .withUrl(hubUrl, {
+        .withUrl(ORDER_HUB_URL, {
           accessTokenFactory: () => token
         })
         .withAutomaticReconnect()
@@ -43,8 +42,6 @@ export default function Header() {
           }
         })
         .catch(err => {
-          // Bỏ qua lỗi AbortError (thường do React Strict Mode mount/unmount nhanh)
-          // Hoặc khi connection bị dừng chủ động trước khi kịp start xong
           if (err.name !== 'AbortError') {
             console.error('SignalR connection failed: ', err);
           }
@@ -63,7 +60,7 @@ export default function Header() {
         const statusVietnamese = statusMap[statusText] || statusText;
 
         addNotificationRef.current(`Đơn hàng #${orderId} của bạn đã chuyển sang trạng thái: [${statusVietnamese}]`, 'info');
-        setUnreadCount(prev => prev + 1);
+        incrementUnreadRef.current();
 
         // Dispatch browser custom event so Profile.js can reload immediately
         const event = new CustomEvent('order-status-updated', { detail: { orderId, statusText } });
@@ -142,7 +139,7 @@ export default function Header() {
           <button
             className="icon-button notification-icon"
             onClick={() => {
-              setUnreadCount(0);
+              resetUnread();
               handleNavigate('/user/profile?menu=orders');
             }}
             aria-label="Notifications"
