@@ -37,8 +37,8 @@ export default function Footer() {
         <div className="footer-section">
           <h4>FOLLOW US</h4>
           <div className="social-links">
-           <a href="https://www.instagram.com/12_bob_/" target="_blank">Instagram</a>
-            <a href="https://www.facebook.com/anh.duc.843605?locale=vi_VN" target="_blank">Facebook</a>
+           <a href="https://www.instagram.com/12_bob_/" target="_blank" rel="noreferrer noopener">Instagram</a>
+            <a href="https://www.facebook.com/anh.duc.843605?locale=vi_VN" target="_blank" rel="noreferrer noopener">Facebook</a>
           </div>
         </div>
       </div>

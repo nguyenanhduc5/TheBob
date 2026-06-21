@@ -140,6 +140,18 @@ export default function Header() {
             {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
           <button
+            className="icon-button notification-icon"
+            onClick={() => {
+              resetUnread();
+              handleNavigate('/user/profile?menu=orders');
+            }}
+            aria-label="Notifications"
+            style={{ position: 'relative' }}
+          >
+            🔔
+            {unreadCount > 0 && <span className="cart-badge" style={{ backgroundColor: '#e53e3e' }}>{unreadCount}</span>}
+          </button>
+          <button
             className="icon-button user-icon"
             onClick={handleUserIconClick}
             aria-label="Account"
