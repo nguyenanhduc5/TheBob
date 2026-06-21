@@ -1,22 +1,22 @@
 import '../styles/Home.css';
-import img1 from '../image/flower.jpg';
+
 
 const heroImage = 'https://pos.nvncdn.com/0406df-94299/bn/20260616_MKS0LDOj.jpg?v=1781597314';
 const bannerItems = [
-  {
+ {
     title: 'WHY THEBOB',
     description: 'Minimal basics, premium texture, effortless wear.',
-    image: 'https://gemini.google.com/eb9f0f02-f307-4abd-a430-444a4fefbd61',
-  },
+    image: 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/TEE%20BLUE.jpg',
+},
   {
     title: 'PREMIUM ESSENTIALS',
     description: 'New arrivals designed for daily comfort.',
-    image: 'https://pos.nvncdn.com/0406df-94299/art/20250207_C9iXu9hp.jpeg?v=1738899615',
+    image: 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/black.jpg',
   },
   {
     title: 'LIMITED OUTLET',
     description: 'Selected pieces with a modern, urban edge.',
-    image: 'https://pos.nvncdn.com/0406df-94299/art/20240729_9WK15bbB.jpeg?v=1722245453',
+    image: 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/cool.jpg',
   },
 ];
 
@@ -24,19 +24,19 @@ const extraBanners = [
   {
     title: 'BEST SELLERS',
     description: 'Top picks từ bộ sưu tập THEBOB, luôn cháy hàng.',
-    image: 'https://pos.nvncdn.com/0406df-94299/ps/20260128_SbSswZ26Q9.jpeg?v=1769572605',
+    image: 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/flower.jpg',
   },
   {
     title: 'NEW SEASON',
     description: 'Những món đồ mới nhất cho phong cách tối giản.',
-    image: 'https://pos.nvncdn.com/0406df-94299/art/SSMA-LEGACY-DROP.jpg?v=1781240952',
+    image: 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/japan.jpg',
   },
 ];
 
 const wideBanner = {
   title: 'DISCOVER THEBOB',
   description: 'The modern wardrobe for everyday life, crafted with premium fabrics and thoughtful design.',
-  image: 'https://pos.nvncdn.com/0406df-94299/ps/SUMMER26-SPIRIT-T-SHIRT-PINK-1.jpg?v=1780916477',
+  image: 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/japan.jpg',
 };
 
 export default function Home() {
