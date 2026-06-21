@@ -1,14 +1,6 @@
-/* --- SỬA LỖI TRÊN DƯỚI BẰNG RESET LAYOUT TUYỆT ĐỐI --- */
-html, body, #root {
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  min-height: 100vh !important;
-  overflow-x: hidden;
-  background-color: #ffffff;
-  display: block !important; /* Phá bỏ flex-box của cấu trúc cha nếu có */
-}
+/* ============================================= */
+/*   THEBOB - FULL MÀN HÌNH + RESPONSIVE        */
+/* ============================================= */
 
 * {
   box-sizing: border-box;
@@ -16,23 +8,31 @@ html, body, #root {
   padding: 0;
 }
 
-/* CONTAINER CHÍNH THEBOB */
-.bob-container {
+html, body, #root {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: #ffffff;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: #ffffff;
-  color: #000000;
-  
-  width: 100vw !important;
+}
+
+/* CONTAINER CHÍNH - FULL BLEED */
+.bob-container {
+  width: 100vw;
+  max-width: 100vw;
   position: relative;
   left: 50%;
   right: 50%;
-  margin-left: -50vw !important;
-  margin-right: -50vw !important;
-  
-  display: block; /* Chuyển thành khối dọc tự nhiên, không dùng flex ở container tổng */
+  margin-left: -50vw;
+  margin-right: -50vw;
+  background: #ffffff;
+  overflow: hidden;
 }
 
-/* --- LỚP PHỦ MỜ NỀN --- */
+/* OVERLAY */
 .bob-hero::before,
 .bob-banner-card::before,
 .bob-split-card::before,
@@ -40,180 +40,186 @@ html, body, #root {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.13);
   z-index: 1;
+  pointer-events: none;
 }
 
-/* --- 1. HERO SECTION (ÉP SÁT LÊN TRÊN, PHỦ KÍN 100%) --- */
+/* ====================== HERO - FULL MÀN ====================== */
 .bob-hero {
   position: relative;
-  /* Sử dụng min-height để ảnh luôn kéo giãn đầy đủ và ăn sát vào Navbar */
-  min-height: 100vh; 
+  min-height: 100vh;
+  height: 100vh;           /* Ép full chiều cao màn hình */
   width: 100%;
   background-size: cover;
   background-position: center;
   display: flex;
   align-items: flex-end;
-  padding: 0 0 8% 5%;
-  margin-top: 0 !important; /* Triệt tiêu mọi khoảng trống phía trên */
+  padding: 0 5% 18% 5%;
+  margin: 0;
 }
 
-.bob-hero-copy {
-  position: relative;
-  z-index: 2;
-  color: #ffffff;
-  max-width: 600px;
-}
-
-.bob-label {
-  font-size: 0.75rem;
-  letter-spacing: 0.3em;
-  font-weight: 400;
-  display: block;
-  margin-bottom: 12px;
-}
-
-.bob-title-xl {
-  font-size: 2.5rem;
-  font-weight: 300; 
-  letter-spacing: 0.05em;
-  line-height: 1.2;
-  margin-bottom: 15px;
-}
-
-.bob-desc {
-  font-size: 0.9rem;
-  letter-spacing: 0.15em;
-  font-weight: 300;
-  margin-bottom: 30px;
-}
-
-/* --- NÚT BẤM PHẲNG --- */
-.bob-btn-light, .bob-btn-dark {
-  background: transparent;
-  border: 1px solid #ffffff;
-  color: #ffffff;
-  padding: 12px 35px;
-  font-size: 0.8rem;
-  letter-spacing: 0.2em;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
-  border-radius: 0 !important;
-}
-
-.bob-btn-light:hover {
-  background: #ffffff;
-  color: #000000;
-}
-
-.bob-btn-dark {
-  border-color: #000000;
-  color: #000000;
-}
-
-.bob-btn-dark:hover {
-  background: #000000;
-  color: #ffffff;
-}
-
-/* --- 2. GRID 3 CỘT (LIỀN MẠCH, NỐI TIẾP KHÔNG HỞ TRÊN DƯỚI) --- */
-.bob-banner-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important; /* Đảm bảo không hở với ảnh Hero ở trên */
-  width: 100%;
-}
-
-.bob-banner-card {
-  position: relative;
-  height: 80vh;
-  background-size: cover;
-  background-position: center;
-  display: flex;
-  align-items: flex-end;
-  padding: 40px;
-}
-
-.bob-banner-copy, .bob-split-copy, .bob-wide-content {
-  position: relative;
-  z-index: 2;
-  color: #ffffff;
-}
-
-.bob-title-md, .bob-title-sm, .bob-title-lg {
-  font-size: 1.1rem;
-  font-weight: 400;
-  letter-spacing: 0.15em;
-  margin-bottom: 5px;
-}
-
-.bob-desc-sm, .bob-desc-xs {
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  opacity: 0.8;
-  font-weight: 300;
-}
-
-/* --- 3. SPLIT GRID 2 CỘT --- */
+/* ====================== GRID & CARDS - FULL MÀN ====================== */
+.bob-banner-grid,
 .bob-split-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
+  gap: 0;
   width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
+.bob-banner-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.bob-split-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.bob-banner-card,
 .bob-split-card {
   position: relative;
-  height: 85vh;
+  height: 100vh;           /* Full màn hình */
+  min-height: 100vh;
   background-size: cover;
   background-position: center;
   display: flex;
   align-items: flex-end;
-  padding: 50px;
+  padding: 40px 30px;
 }
 
-/* --- 4. WIDE BANNER (HẾT HỞ KHOẢNG TRẮNG DƯỚI CÙNG) --- */
 .bob-wide-banner {
   position: relative;
   height: 100vh;
+  min-height: 100vh;
   background-size: cover;
   background-position: center;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
+  padding: 0 20px;
   width: 100%;
-  margin: 0 !important;
-  padding: 0 !important;
 }
 
-.bob-wide-banner .bob-wide-content {
-  color: #ffffff; 
+/* TEXT STYLES */
+.bob-hero-copy,
+.bob-banner-copy,
+.bob-split-copy,
+.bob-wide-content {
+  position: relative;
+  z-index: 2;
+  color: #ffffff;
+  width: 100%;
+  max-width: 620px;
+}
+
+.bob-title-xl {
+  font-size: 2.6rem;
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  margin-bottom: 16px;
 }
 
 .bob-title-lg {
-  font-size: 2.2rem;
+  font-size: 2.25rem;
   font-weight: 300;
-  letter-spacing: 0.2em;
-  margin-bottom: 25px;
+  letter-spacing: 0.05em;
 }
 
-/* --- RESPONSIVE MOBILE MẠNH MẼ --- */
+.bob-title-md,
+.bob-title-sm {
+  font-size: 1.2rem;
+  letter-spacing: 0.12em;
+}
+
+.bob-desc,
+.bob-desc-sm {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  opacity: 0.92;
+}
+
+/* BUTTON */
+.bob-btn-light,
+.bob-btn-dark {
+  padding: 15px 38px;
+  font-size: 0.82rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  border: 1px solid #fff;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.35s ease;
+  border-radius: 0;
+}
+
+.bob-btn-light:hover {
+  background: #fff;
+  color: #000;
+}
+
+.bob-btn-dark {
+  border-color: #000;
+  color: #000;
+}
+
+.bob-btn-dark:hover {
+  background: #000;
+  color: #fff;
+}
+
+/* ====================== RESPONSIVE - MOBILE FULL MÀN ====================== */
 @media (max-width: 1024px) {
-  .bob-banner-grid, .bob-split-grid {
+  .bob-banner-grid,
+  .bob-split-grid {
     grid-template-columns: 1fr;
-    gap: 0 !important;
   }
-  .bob-banner-card, .bob-split-card {
-    height: 70vh;
-    padding: 30px;
+
+  .bob-banner-card,
+  .bob-split-card,
+  .bob-wide-banner {
+    height: 100vh;
+    padding: 35px 25px;
   }
+
+  .bob-hero {
+    padding: 0 6% 20% 6%;
+  }
+
+  .bob-title-xl {
+    font-size: 2.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .bob-hero {
+    padding: 0 5% 25% 5%;
+  }
+
+  .bob-title-xl {
+    font-size: 2rem;
+  }
+
+  .bob-banner-card,
+  .bob-split-card {
+    padding: 30px 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .bob-hero {
+    padding-bottom: 28%;
+  }
+
   .bob-title-xl {
     font-size: 1.8rem;
+  }
+
+  .bob-title-lg {
+    font-size: 1.9rem;
   }
 }

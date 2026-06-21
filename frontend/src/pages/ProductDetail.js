@@ -106,7 +106,7 @@ export default function ProductDetail() {
     try {
       const response = await fetch(`${API_BASE_URL}/products/${id}`);
       if (!response.ok) {
-        addNotification('San pham khong ton tai', 'error');
+        addNotification('Sản phẩm không tồn tại', 'error');
         navigate('/products');
         return;
       }
@@ -118,7 +118,7 @@ export default function ProductDetail() {
       setQuantity(1);
     } catch (error) {
       console.error('Failed to fetch product:', error);
-      addNotification('Loi khi tai san pham', 'error');
+      addNotification('Lỗi khi tải sản phẩm', 'error');
     } finally {
       setLoading(false);
     }
@@ -134,7 +134,6 @@ export default function ProductDetail() {
   }, [product, isInWishlist]);
 
   const variants = useMemo(() => getVariants(product), [product]);
-
 
   const colorOptions = useMemo(() => {
     return uniqueById(
@@ -291,18 +290,18 @@ export default function ProductDetail() {
     if (inWishlist) {
       removeFromWishlist(product.id);
       setInWishlist(false);
-      addNotification('Da xoa khoi danh sach yeu thich', 'info');
+      addNotification('Đã xóa khỏi danh sách yêu thích', 'info');
     } else {
       addToWishlist(product);
       setInWishlist(true);
-      addNotification('Da them vao danh sach yeu thich', 'success');
+      addNotification('Đã thêm vào danh sách yêu thích', 'success');
     }
   };
 
   const handleSubmitReview = async (event) => {
     event.preventDefault();
     if (!reviewComment.trim()) {
-      addNotification('Vui long nhap binh luan danh gia', 'warning');
+      addNotification('Vui lòng nhập bình luận đánh giá', 'warning');
       return;
     }
 
@@ -321,46 +320,45 @@ export default function ProductDetail() {
         }),
       });
 
-      if (!response.ok) throw new Error('Khong gui duoc danh gia');
+      if (!response.ok) throw new Error('Không gửi được đánh giá');
 
       setReviewRating(5);
       setReviewComment('');
       await fetchReviews();
-      addNotification('Cam on ban da gui danh gia!', 'success');
+      addNotification('Cảm ơn bạn đã gửi đánh giá!', 'success');
     } catch (error) {
       console.error('Failed to submit review:', error);
-      addNotification('Gui danh gia that bai, vui long thu lai.', 'error');
+      addNotification('Gửi đánh giá thất bại, vui lòng thử lại.', 'error');
     } finally {
       setReviewSubmitting(false);
     }
   };
 
-  if (loading) return <div className="loading-page">Dang tai san pham...</div>;
-  if (!product) return <div className="error-page">San pham khong ton tai</div>;
+  if (loading) return <div className="loading-page">Đang tải sản phẩm...</div>;
+  if (!product) return <div className="error-page">Sản phẩm không tồn tại</div>;
 
   return (
     <>
-   
       <div className="product-detail-container">
         <div className="product-gallery">
           <div className="main-image-container">
             <div className="main-image">
               <img src={productImages[activeImageIndex]} alt={toText(product.name)} />
-              {product.isFeatured && <span className="badge-featured">Noi Bat</span>}
+              {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
             </div>
             {productImages.length > 1 && (
               <>
                 <button
                   className="arrow-button prev-arrow"
                   onClick={() => setActiveImageIndex((activeImageIndex - 1 + productImages.length) % productImages.length)}
-                  title="Anh truoc"
+                  title="Ảnh trước"
                 >
                   ‹
                 </button>
                 <button
                   className="arrow-button next-arrow"
                   onClick={() => setActiveImageIndex((activeImageIndex + 1) % productImages.length)}
-                  title="Anh tiep theo"
+                  title="Ảnh tiếp theo"
                 >
                   ›
                 </button>
@@ -388,54 +386,57 @@ export default function ProductDetail() {
             <button
               className={`btn-wishlist ${inWishlist ? 'active' : ''}`}
               onClick={handleWishlistToggle}
-              title={inWishlist ? 'Xoa khoi danh sach yeu thich' : 'Them vao danh sach yeu thich'}
+              title={inWishlist ? 'Xóa khỏi danh sách yêu thích' : 'Thêm vào danh sách yêu thích'}
             >
               ♥
             </button>
           </div>
 
           <div className="product-meta">
-            <span className="brand">Thuong hieu: {toText(product.brandName ?? product.brand, 'Khong xac dinh')}</span>
-            <span className="sku">Ma: {selectedVariant?.sku || toText(product.sku, '-')}</span>
-            <span className="category">{toText(product.categoryName ?? product.category, 'Khong xac dinh')}</span>
+            <span className="brand">Thương hiệu: {toText(product.brandName ?? product.brand, 'Không xác định')}</span>
+            <span className="sku">Mã: {selectedVariant?.sku || toText(product.sku, '-')}</span>
+            <span className="category">{toText(product.categoryName ?? product.category, 'Không xác định')}</span>
           </div>
 
           <div className="product-rating">
             <span className="stars">★ {Number(product.rating ?? 0).toFixed(1)}</span>
-            <span className="reviews">({product.reviewCount ?? 0} danh gia)</span>
+            <span className="reviews">({product.reviewCount ?? 0} đánh giá)</span>
           </div>
 
-          <div className="product-price">
-            <span className="price">{productPrice.toLocaleString('vi-VN')} VND</span>
-            <span className={`stock-badge ${displayStock > 0 ? 'in-stock' : 'out-of-stock'}`}>
+          {/* KHU VỰC GIÁ TIỀN & TỔNG KHO - TÁCH KHỐI ĐỂ TỰ ĐỘNG XUỐNG DÒNG */}
+          <div className="product-price-block">
+            <div className="price-display">
+              {productPrice.toLocaleString('vi-VN')} VND
+            </div>
+            <div className={`stock-badge ${displayStock > 0 ? 'in-stock' : 'out-of-stock'}`}>
               {selectedVariant ? (displayStock > 0 ? `Còn ${displayStock} sản phẩm` : 'Hết hàng') : `Tổng kho: ${totalStock}`}
-            </span>
+            </div>
           </div>
 
           <div className="product-description">
-            <h3>Mo Ta</h3>
+            <h3>Mô Tả</h3>
             <p>{toText(product.description)}</p>
           </div>
 
           <div className="product-details-info">
             <div className="detail-item">
-              <span className="label">Chat Lieu:</span>
-              <span className="value">{toText(product.material, 'Khong xac dinh')}</span>
+              <span className="label">Chất Liệu:</span>
+              <span className="value">{toText(product.material, 'Không xác định')}</span>
             </div>
             <div className="detail-item">
-              <span className="label">Mau Sac:</span>
-              <span className="value">{selectedColorName || 'Chua chon'}</span>
+              <span className="label">Màu Sắc:</span>
+              <span className="value">{selectedColorName || 'Chưa chọn'}</span>
             </div>
             <div className="detail-item">
-              <span className="label">Huong Dan Cham Soc:</span>
-              <span className="value">{toText(product.careInstructions, 'Khong xac dinh')}</span>
+              <span className="label">Hướng Dẫn Chăm Sóc:</span>
+              <span className="value">{toText(product.careInstructions, 'Không xác định')}</span>
             </div>
           </div>
 
           <div className="product-options">
             {colorOptions.length > 0 && (
               <div className="option-group">
-                <label>Mau Sac</label>
+                <label>Màu Sắc</label>
                 <div className="color-options">
                   {colorOptions.map((color) => (
                     <button
@@ -503,22 +504,22 @@ export default function ProductDetail() {
           <div className="reviews-section">
             <div className="reviews-header">
               <div>
-                <h2>Danh gia & Nhan xet</h2>
-                <p>{reviews.length} danh gia cho san pham nay</p>
+                <h2>Đánh giá & Nhận xét</h2>
+                <p>{reviews.length} đánh giá cho sản phẩm này</p>
               </div>
             </div>
 
             {reviewLoading ? (
-              <p className="reviews-loading">Dang tai danh gia...</p>
+              <p className="reviews-loading">Đang tải đánh giá...</p>
             ) : (
               <div className="reviews-list">
                 {reviews.length === 0 ? (
-                  <div className="reviews-empty">Chua co danh gia nao cho san pham nay.</div>
+                  <div className="reviews-empty">Chưa có đánh giá nào cho sản phẩm này.</div>
                 ) : (
                   reviews.map((review) => (
                     <div key={review.id} className="review-card">
                       <div className="review-card-header">
-                        <span className="review-username">{toText(review.username, 'Khach hang')}</span>
+                        <span className="review-username">{toText(review.username, 'Khách hàng')}</span>
                         <span className="review-date">
                           {new Date(review.createdAt).toLocaleDateString('vi-VN', {
                             year: 'numeric',
@@ -539,9 +540,9 @@ export default function ProductDetail() {
 
             {token ? (
               <form className="review-form" onSubmit={handleSubmitReview}>
-                <h3>Viet danh gia cua ban</h3>
+                <h3>Viết đánh giá của bạn</h3>
                 <div className="review-form-row">
-                  <label htmlFor="reviewRating">Danh gia</label>
+                  <label htmlFor="reviewRating">Đánh giá</label>
                   <select id="reviewRating" value={reviewRating} onChange={(event) => setReviewRating(Number(event.target.value))}>
                     {[5, 4, 3, 2, 1].map((star) => (
                       <option key={star} value={star}>
@@ -552,23 +553,23 @@ export default function ProductDetail() {
                 </div>
 
                 <div className="review-form-row">
-                  <label htmlFor="reviewComment">Binh luan</label>
+                  <label htmlFor="reviewComment">Bình luận</label>
                   <textarea
                     id="reviewComment"
                     value={reviewComment}
                     onChange={(event) => setReviewComment(event.target.value)}
                     rows={5}
                     className="review-textarea"
-                    placeholder="Viet cam nhan cua ban ve san pham..."
+                    placeholder="Viết cảm nhận của bạn về sản phẩm..."
                   />
                 </div>
 
                 <button className="review-submit" type="submit" disabled={reviewSubmitting}>
-                  {reviewSubmitting ? 'Dang gui...' : 'Gui danh gia'}
+                  {reviewSubmitting ? 'Đang gửi...' : 'Gửi đánh giá'}
                 </button>
               </form>
             ) : (
-              <div className="review-placeholder">Vui long dang nhap de viet binh luan danh gia san pham nay.</div>
+              <div className="review-placeholder">Vui lòng đăng nhập để viết bình luận đánh giá sản phẩm này.</div>
             )}
           </div>
         </div>

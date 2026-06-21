@@ -1,7 +1,41 @@
+/* ==========================================================================
+   VARIABLES & DESIGN TOKENS (Quản lý màu sắc & cấu hình tập trung)
+   ========================================================================== */
+:root {
+  --pm-bg-main: #f6f7f8;
+  --pm-bg-card: #ffffff;
+  --pm-bg-hover: #f1f3f5;
+  
+  --pm-color-primary: #111827;
+  --pm-color-primary-hover: #273142;
+  --pm-color-text-main: #1f2933;
+  --pm-color-text-muted: #667085;
+  --pm-color-text-heading: #111827;
+  
+  --pm-border-color: #dfe4ea;
+  --pm-border-input: #cfd6df;
+  
+  --pm-color-danger: #b42318;
+  --pm-bg-danger-light: #fff1f0;
+  --pm-border-danger-light: #f3b8b2;
+  
+  --pm-color-success: #176b3a;
+  --pm-bg-success-light: #e8f5ee;
+  
+  --pm-color-warning: #986f0b;
+  --pm-bg-warning-light: #fff4d6;
+}
+
+/* ==========================================================================
+   PAGE CONTAINER & BASE RESET
+   ========================================================================== */
 .admin-products-page {
   min-height: 100%;
-  background: #f6f7f8;
-  color: #1f2933;
+  background: var(--pm-bg-main);
+  color: var(--pm-color-text-main);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .pm-header,
@@ -12,13 +46,16 @@
   margin: 20px 24px;
 }
 
+/* ==========================================================================
+   HEADER SECTION
+   ========================================================================== */
 .pm-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: #ffffff;
-  border: 1px solid #dfe4ea;
+  background: var(--pm-bg-card);
+  border: 1px solid var(--pm-border-color);
   border-radius: 8px;
   padding: 20px;
 }
@@ -27,18 +64,19 @@
 .pm-form-header h2,
 .pm-section-heading h3 {
   margin: 0;
-  color: #111827;
-  letter-spacing: 0;
+  color: var(--pm-color-text-heading);
+  letter-spacing: -0.02em;
 }
 
 .pm-header h1 {
   font-size: 28px;
+  font-weight: 700;
 }
 
 .pm-header span,
 .pm-section-heading p,
 .pm-empty p {
-  color: #667085;
+  color: var(--pm-color-text-muted);
   font-size: 14px;
 }
 
@@ -48,64 +86,84 @@
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
+/* ==========================================================================
+   BUTTONS SYSTEM
+   ========================================================================== */
 .pm-button,
 .pm-mini-button,
 .pm-icon-button {
-  border: 1px solid #cfd6df;
+  border: 1px solid var(--pm-border-input);
   border-radius: 6px;
   cursor: pointer;
   font-weight: 700;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .pm-button {
   min-height: 40px;
   padding: 0 16px;
+  font-size: 14px;
 }
 
 .pm-button-primary {
-  background: #111827;
-  border-color: #111827;
+  background: var(--pm-color-primary);
+  border-color: var(--pm-color-primary);
   color: #ffffff;
 }
 
 .pm-button-primary:hover:not(:disabled) {
-  background: #273142;
+  background: var(--pm-color-primary-hover);
+  border-color: var(--pm-color-primary-hover);
 }
 
 .pm-button-secondary,
 .pm-mini-button,
 .pm-icon-button {
   background: #ffffff;
-  color: #1f2933;
+  color: var(--pm-color-text-main);
 }
 
 .pm-button-secondary:hover:not(:disabled),
 .pm-mini-button:hover,
 .pm-icon-button:hover {
-  background: #f1f3f5;
+  background: var(--pm-bg-hover);
   border-color: #9aa6b2;
 }
 
 .pm-button:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.5;
+  box-shadow: none !important;
 }
 
 .pm-danger {
-  color: #b42318;
-  border-color: #f3b8b2;
+  color: var(--pm-color-danger);
+  border-color: var(--pm-border-danger-light);
 }
 
+.pm-danger:hover:not(:disabled) {
+  background: var(--pm-bg-danger-light) !important;
+  border-color: var(--pm-color-danger) !important;
+}
+
+/* ==========================================================================
+   TOOLBAR & FORM INPUTS
+   ========================================================================== */
 .pm-toolbar {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 190px 190px 170px auto;
   gap: 12px;
   align-items: center;
-  background: #ffffff;
-  border: 1px solid #dfe4ea;
+  background: var(--pm-bg-card);
+  border: 1px solid var(--pm-border-color);
   border-radius: 8px;
   padding: 14px;
 }
@@ -118,14 +176,15 @@
 .pm-inline-add input,
 .pm-variant-image-row input {
   width: 100%;
-  border: 1px solid #cfd6df;
+  border: 1px solid var(--pm-border-input);
   border-radius: 6px;
-  color: #1f2933;
+  color: var(--pm-color-text-main);
   font: inherit;
   min-height: 40px;
   padding: 9px 11px;
   background: #ffffff;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .pm-field textarea {
@@ -140,15 +199,20 @@
 .pm-field textarea:focus,
 .pm-inline-add input:focus,
 .pm-variant-image-row input:focus {
-  border-color: #111827;
-  outline: 3px solid rgba(17, 24, 39, 0.08);
+  border-color: var(--pm-color-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
 }
 
+/* ==========================================================================
+   DATA TABLE LISTING
+   ========================================================================== */
 .pm-table-wrap {
   overflow-x: auto;
-  background: #ffffff;
-  border: 1px solid #dfe4ea;
+  background: var(--pm-bg-card);
+  border: 1px solid var(--pm-border-color);
   border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .pm-table {
@@ -162,25 +226,32 @@
   background: #f1f3f5;
   color: #475467;
   font-size: 12px;
+  font-weight: 700;
   text-align: left;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .pm-table th,
 .pm-table td {
   border-bottom: 1px solid #edf0f2;
-  padding: 12px;
+  padding: 14px 12px;
   vertical-align: middle;
+}
+
+.pm-table tbody tr {
+  transition: background-color 0.15s ease;
 }
 
 .pm-table tbody tr:hover {
   background: #fafafa;
 }
 
+/* Thumbnail */
 .pm-thumb {
   align-items: center;
   background: #eef1f4;
-  border: 1px solid #dfe4ea;
+  border: 1px solid var(--pm-border-color);
   border-radius: 6px;
   display: flex;
   height: 58px;
@@ -206,10 +277,13 @@
   white-space: nowrap;
 }
 
+/* Badges System (Stock & Status) */
 .pm-stock,
 .pm-status {
   border-radius: 999px;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
@@ -218,28 +292,28 @@
 }
 
 .pm-stock {
-  background: #e8f5ee;
-  color: #176b3a;
+  background: var(--pm-bg-success-light);
+  color: var(--pm-color-success);
 }
 
 .pm-stock.is-low {
-  background: #fff4d6;
-  color: #986f0b;
+  background: var(--pm-bg-warning-light);
+  color: var(--pm-color-warning);
 }
 
 .pm-stock.is-empty {
-  background: #ffe8e5;
-  color: #b42318;
+  background: var(--pm-bg-danger-light);
+  color: var(--pm-color-danger);
 }
 
 .pm-status-available {
-  background: #e8f5ee;
-  color: #176b3a;
+  background: var(--pm-bg-success-light);
+  color: var(--pm-color-success);
 }
 
 .pm-status-lowStock {
-  background: #fff4d6;
-  color: #986f0b;
+  background: var(--pm-bg-warning-light);
+  color: var(--pm-color-warning);
 }
 
 .pm-status-outOfStock,
@@ -253,19 +327,23 @@
   padding: 0 10px;
 }
 
+/* Empty State */
 .pm-empty {
-  background: #ffffff;
-  border: 1px solid #dfe4ea;
+  background: var(--pm-bg-card);
+  border: 1px solid var(--pm-border-color);
   border-radius: 8px;
-  padding: 28px;
+  padding: 40px 28px;
   text-align: center;
 }
 
+/* ==========================================================================
+   PRODUCT CRUD FORM
+   ========================================================================== */
 .pm-form {
-  background: #ffffff;
-  border: 1px solid #dfe4ea;
+  background: var(--pm-bg-card);
+  border: 1px solid var(--pm-border-color);
   border-radius: 8px;
-  padding: 20px;
+  padding: 24px;
 }
 
 .pm-form-header,
@@ -297,7 +375,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 22px 0;
+  padding: 24px 0;
 }
 
 .pm-grid-two {
@@ -320,25 +398,38 @@
 }
 
 .pm-field small {
-  color: #b42318;
+  color: var(--pm-color-danger);
   font-weight: 700;
+  font-size: 12px;
+  margin-top: 2px;
 }
 
 .pm-field .is-invalid {
   border-color: #d92d20;
 }
 
+.pm-field .is-invalid:focus {
+  border-color: #d92d20;
+  box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.08);
+}
+
+/* Toggle Switch */
 .pm-switch {
   align-items: center;
   display: inline-flex;
   gap: 8px;
+  cursor: pointer;
 }
 
 .pm-switch input {
   height: 18px;
   width: 18px;
+  cursor: pointer;
 }
 
+/* ==========================================================================
+   IMAGES UPLOAD & GALLERY PREVIEW
+   ========================================================================== */
 .pm-main-preview {
   min-height: 170px;
 }
@@ -346,8 +437,8 @@
 .pm-image-preview,
 .pm-image-card {
   align-items: center;
-  background: #f6f7f8;
-  border: 1px solid #dfe4ea;
+  background: var(--pm-bg-main);
+  border: 1px solid var(--pm-border-color);
   border-radius: 8px;
   display: flex;
   justify-content: center;
@@ -362,7 +453,7 @@
 }
 
 .pm-image-preview span {
-  color: #667085;
+  color: var(--pm-color-text-muted);
 }
 
 .pm-inline-add {
@@ -393,6 +484,7 @@
   justify-content: center;
   padding: 6px;
   border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .pm-mini-button {
@@ -401,20 +493,26 @@
   font-size: 12px;
 }
 
+/* Form Error Box */
 .pm-error {
-  background: #fff1f0;
-  border: 1px solid #f3b8b2;
+  background: var(--pm-bg-danger-light);
+  border: 1px solid var(--pm-border-danger-light);
   border-radius: 6px;
-  color: #b42318;
+  color: var(--pm-color-danger);
   font-weight: 700;
   padding: 10px 12px;
+  font-size: 14px;
 }
 
+/* ==========================================================================
+   PRODUCT ATTRIBUTES / OPTIONS & VARIANTS
+   ========================================================================== */
 .pm-option-group h4 {
   color: #344054;
   font-size: 13px;
   margin: 0 0 10px;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .pm-option-grid {
@@ -426,27 +524,31 @@
 .pm-check-option {
   align-items: center;
   background: #ffffff;
-  border: 1px solid #cfd6df;
+  border: 1px solid var(--pm-border-input);
   border-radius: 6px;
   cursor: pointer;
   display: flex;
   gap: 8px;
   min-height: 38px;
   padding: 8px 10px;
+  box-sizing: border-box;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .pm-check-option.is-selected {
-  background: #f1f3f5;
-  border-color: #111827;
+  background: var(--pm-bg-hover);
+  border-color: var(--pm-color-primary);
 }
 
 .pm-check-option input {
   height: 16px;
   width: 16px;
+  margin: 0;
+  cursor: pointer;
 }
 
 .pm-check-option span {
-  color: #1f2933;
+  color: var(--pm-color-text-main);
   font-size: 13px;
   font-weight: 700;
 }
@@ -458,9 +560,10 @@
 }
 
 .pm-variant-row {
-  border: 1px solid #dfe4ea;
+  border: 1px solid var(--pm-border-color);
   border-radius: 8px;
   padding: 14px;
+  background: #ffffff;
 }
 
 .pm-variant-grid {
@@ -477,9 +580,10 @@
 
 .pm-variant-summary span,
 .pm-variant-summary strong {
-  background: #f1f3f5;
+  background: var(--pm-bg-hover);
   border-radius: 6px;
   padding: 6px 10px;
+  font-size: 13px;
 }
 
 .pm-variant-images {
@@ -500,7 +604,7 @@
 }
 
 .pm-variant-image-row img {
-  border: 1px solid #dfe4ea;
+  border: 1px solid var(--pm-border-color);
   border-radius: 6px;
   height: 40px;
   object-fit: cover;
@@ -512,6 +616,11 @@
   padding-top: 18px;
 }
 
+/* ==========================================================================
+   RESPONSIVE MEDIA QUERIES (Breakpoints)
+   ========================================================================== */
+
+/* Tablet & Màn hình vừa */
 @media (max-width: 1180px) {
   .pm-toolbar {
     grid-template-columns: 1fr 1fr 1fr;
@@ -526,6 +635,7 @@
   }
 }
 
+/* Mobile */
 @media (max-width: 760px) {
   .pm-header,
   .pm-form-header,
@@ -533,6 +643,7 @@
   .pm-form-footer {
     align-items: stretch;
     flex-direction: column;
+    gap: 14px;
   }
 
   .pm-header,
@@ -566,5 +677,6 @@
 
   .pm-image-actions {
     flex-direction: column;
+    gap: 6px;
   }
 }

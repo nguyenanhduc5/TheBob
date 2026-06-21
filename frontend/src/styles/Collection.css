@@ -1,0 +1,30 @@
+/* Áp dụng cho cả collections-grid và products-grid */
+.collections-grid, 
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 4 cột sát nhau */
+  gap: 0; /* QUAN TRỌNG: Loại bỏ mọi khoảng cách */
+  width: 100%;
+}
+
+.collection-item, 
+.product-card {
+  border: 0.5px solid #000; /* Viền mỏng để phân tách khi sát nhau */
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.collection-item img, 
+.product-image {
+  width: 100%;
+  aspect-ratio: 3/4; /* Tỉ lệ dọc của hình */
+  object-fit: cover; /* Cắt ảnh lấp đầy khung */
+}
+
+/* Responsive cho điện thoại (tự động chuyển 2 cột hoặc 1 cột) */
+@media (max-width: 768px) {
+  .collections-grid, .products-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

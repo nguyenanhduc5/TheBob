@@ -132,31 +132,12 @@ export default function Header() {
 
         <div className="header-actions">
           <button
-            className="icon-button"
-            onClick={() => handleNavigate('/products')}
-            aria-label="Search products"
-          >
-            🔍
-          </button>
-          <button
             className="icon-button cart-icon"
             onClick={() => handleNavigate('/cart')}
             aria-label="View cart"
           >
             🛒
             {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
-          </button>
-          <button
-            className="icon-button notification-icon"
-            onClick={() => {
-              resetUnread();
-              handleNavigate('/user/profile?menu=orders');
-            }}
-            aria-label="Notifications"
-            style={{ position: 'relative' }}
-          >
-            🔔
-            {unreadCount > 0 && <span className="cart-badge" style={{ backgroundColor: '#e53e3e' }}>{unreadCount}</span>}
           </button>
           <button
             className="icon-button user-icon"

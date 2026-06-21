@@ -1,7 +1,7 @@
 import '../styles/Home.css';
+import { useNavigate } from 'react-router-dom'; // 1. Chỉ thêm dòng này
 
-
-const heroImage = 'https://pos.nvncdn.com/0406df-94299/bn/20260616_MKS0LDOj.jpg?v=1781597314';
+const heroImage = 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/homy.jpg';
 const bannerItems = [
  {
     title: 'WHY THEBOB',
@@ -36,10 +36,12 @@ const extraBanners = [
 const wideBanner = {
   title: 'DISCOVER THEBOB',
   description: 'The modern wardrobe for everyday life, crafted with premium fabrics and thoughtful design.',
-  image: 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/japan.jpg',
+  image: 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/king.jpg',
 };
 
 export default function Home() {
+  const navigate = useNavigate(); // 2. Chỉ thêm dòng này
+
   return (
     <div className="bob-container">
       {/* 1. HERO BANNER CHÍNH */}
@@ -48,7 +50,12 @@ export default function Home() {
           <span className="bob-label">NEW COLLECTION</span>
           <h1 className="bob-title-xl">PHONG CÁCH MỚI CHO NGÀY BÌNH THƯỜNG</h1>
           <p className="bob-desc">CHẤT LIỆU PREMIUM, THIẾT KẾ TỐI GIẢN.</p>
-          <button className="bob-btn-light">KHÁM PHÁ NGAY</button>
+         <button 
+      className="bob-btn-light" 
+      onClick={() => navigate('/products')} 
+    >
+      KHÁM PHÁ NGAY
+    </button>
         </div>
       </section>
 
@@ -81,7 +88,9 @@ export default function Home() {
         <div className="bob-wide-content">
           <span className="bob-label">NEW DROP</span>
           <h2 className="bob-title-lg">{wideBanner.title.toUpperCase()}</h2>
-          <button className="bob-btn-dark">XEM CHI TIẾT</button>
+          <button className="bob-btn-dark" onClick={() => navigate('/products')}>
+            XEM CHI TIẾT
+          </button>
         </div>
       </section>
     </div>

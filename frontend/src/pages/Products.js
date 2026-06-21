@@ -20,6 +20,10 @@ export default function Products() {
   });
   const [sortBy, setSortBy] = useState('newest');
 
+  // Thêm State quản lý phân trang
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 8; // Hiển thị 8 sản phẩm/trang (vừa khít 2 hàng x 4 cột)
+
   const fetchCategories = useCallback(async () => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/products/categories`);
@@ -56,6 +60,7 @@ export default function Products() {
         }
         
         setProducts(data);
+        setCurrentPage(1); // Reset về trang 1 mỗi khi đổi bộ lọc hoặc sắp xếp
       }
     } catch (error) {
       console.error('Failed to fetch products:', error);
@@ -76,6 +81,18 @@ export default function Products() {
 
   const handleProductClick = (productId) => {
     navigate(`/products/${productId}`);
+  };
+
+  // Tính toán logic chia dữ liệu cho trang hiện tại
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = products.slice(indexOfFirstProduct, indexOfLastProduct);
+  const totalPages = Math.ceil(products.length / productsPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    // Cuộn mượt lên vị trí lưới sản phẩm để người dùng tiện theo dõi loạt hàng mới
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -183,46 +200,80 @@ export default function Products() {
           ) : products.length === 0 ? (
             <div className="no-products">Không tìm thấy sản phẩm nào.</div>
           ) : (
-            <div className="products-grid">
-              {products.map((product) => (
-                <div key={product.id} className="product-card">
-                  <div
-                    className="product-image-container"
-                    onClick={() => handleProductClick(product.id)}
-                  >
-                    <img
-                      src={product.mainImageUrl || '/placeholder.jpg'}
-                      alt={product.name}
-                      className="product-image"
-                    />
-                    {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
-                  </div>
-                  <div className="product-info">
-                    <h3 className="product-name" onClick={() => handleProductClick(product.id)}>
-                      {product.name}
-                    </h3>
-                    <div className="product-rating">
-                      <span className="stars">⭐ {Number(product.rating ?? 0).toFixed(1)}</span>
-                      <span className="reviews">({product.reviewCount ?? 0})</span>
-                    </div>
-                    <div className="product-price">
-                      {product.price !== undefined && product.price !== null
-                        ? product.price.toLocaleString('vi-VN')
-                        : product.productVariants?.[0]?.price
-                        ? product.productVariants[0].price.toLocaleString('vi-VN')
-                        : '0'}{' '}
-                      VNĐ
-                    </div>
-                    <button
+            <>
+              {/* Chỉ map mảng currentProducts đã qua xử lý phân trang */}
+              <div className="products-grid">
+                {currentProducts.map((product) => (
+                  <div key={product.id} className="product-card">
+                    <div
+                      className="product-image-container"
                       onClick={() => handleProductClick(product.id)}
-                      className="btn-add-to-cart"
                     >
-                      Xem chi tiết
-                    </button>
+                      <img
+                        src={product.mainImageUrl || '/placeholder.jpg'}
+                        alt={product.name}
+                        className="product-image"
+                      />
+                      {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
+                    </div>
+                    <div className="product-info">
+                      <h3 className="product-name" onClick={() => handleProductClick(product.id)}>
+                        {product.name}
+                      </h3>
+                      <div className="product-rating">
+                        <span className="stars">⭐ {Number(product.rating ?? 0).toFixed(1)}</span>
+                        <span className="reviews">({product.reviewCount ?? 0})</span>
+                      </div>
+                      <div className="product-price">
+                        {product.price !== undefined && product.price !== null
+                          ? product.price.toLocaleString('vi-VN')
+                          : product.productVariants?.[0]?.price
+                          ? product.productVariants[0].price.toLocaleString('vi-VN')
+                          : '0'}{' '}
+                        VNĐ
+                      </div>
+                      <button
+                        onClick={() => handleProductClick(product.id)}
+                        className="btn-add-to-cart"
+                      >
+                        Xem chi tiết
+                      </button>
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {/* Khối giao diện phân trang hiển thị khi tổng số trang lớn hơn 1 */}
+              {totalPages > 1 && (
+                <div className="bob-pagination">
+                  <button 
+                    onClick={() => handlePageChange(currentPage - 1)} 
+                    disabled={currentPage === 1}
+                    className="pagination-arrow"
+                  >
+                    PREV
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, index) => (
+                    <button
+                      key={index + 1}
+                      onClick={() => handlePageChange(index + 1)}
+                      className={`pagination-number ${currentPage === index + 1 ? 'active' : ''}`}
+                    >
+                      {index + 1}
+                    </button>
+                  ))}
+
+                  <button 
+                    onClick={() => handlePageChange(currentPage + 1)} 
+                    disabled={currentPage === totalPages}
+                    className="pagination-arrow"
+                  >
+                    NEXT
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </main>
       </div>

@@ -1,318 +1,472 @@
-/* Profile Page */
-.account-page-container {
-  background: var(--bg);
-  min-height: 80vh;
-  padding: 40px 20px;
+
+/* ==========================================================================
+   THEBOB - PROFILE & ACCOUNT PAGE STYLES (MINIMALISM CONCEPT)
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
 }
 
-.account-page {
+/* ==========================================================================
+   1. GIAO DIỆN USER (MEMBER)
+   ========================================================================== */
+
+/* Container bọc toàn bộ trang cá nhân */
+.account-page-container {
   max-width: 1200px;
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 40px;
+  padding: 40px 20px 80px;
+  background: #ffffff;
 }
 
-/* Sidebar */
+/* Khung phân tách Sidebar và Nội dung chính */
+.account-page {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+/* --- SIDEBAR MENU TRÁI --- */
 .account-sidebar {
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 20px;
+  border: 1px solid #000000;
+  padding: 24px 16px;
+  background: #ffffff;
 }
 
 .sidebar-header {
-  font-weight: 700;
   font-size: 1.1rem;
-  margin-bottom: 1.5rem;
-  color: var(--text);
+  font-weight: bold;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #000000;
+  text-align: center;
 }
 
 .sidebar-menu {
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
+/* Nút điều hướng */
 .menu-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  border: none;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.3s ease;
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  border: 1px solid transparent;
   font-size: 0.9rem;
-  color: var(--text);
-}
-
-.menu-item:hover {
-  background: var(--bg);
-}
-
-.menu-item.active {
-  background: var(--primary);
-  color: white;
-}
-
-.menu-item.logout {
-  color: #c33;
-  margin-top: auto;
-}
-
-.menu-item.logout:hover {
-  background: #fee;
+  font-weight: 500;
+  color: #333333;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease-in-out;
 }
 
 .menu-icon {
-  font-size: 1rem;
+  font-size: 1.1rem;
 }
 
-/* Main Content */
+.menu-item:hover,
+.menu-item.active {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+}
+
+/* Nút đăng xuất đặc biệt */
+.menu-item.logout {
+  margin-top: 12px;
+  border-top: 1px dashed #cccccc;
+}
+.menu-item.logout:hover {
+  background: #cf2222;
+  color: #ffffff;
+  border-color: #cf2222;
+}
+
+/* --- VÙNG NỘI DUNG CHÍNH (MAIN CONTENT) --- */
 .account-main {
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 30px;
+  min-width: 0; /* Khóa layout chống tràn ngang */
 }
 
 .account-section h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 2rem;
-  color: var(--text);
+  font-size: 1.4rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0 0 28px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.success-message {
-  background: #efe;
-  color: #363;
-  padding: 12px;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-}
-
+/* --- FORM NHẬP LIỆU CHUNG --- */
 .account-form {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 20px;
+  max-width: 760px;
 }
 
 .form-row {
   display: flex;
+  flex-direction: column;
   gap: 20px;
 }
 
+/* Layout 2 cột trên PC */
 .form-row.two-cols {
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
 }
 
 .form-group {
-  flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
 .form-group label {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #000000;
 }
 
-.form-group input {
+/* Ô input & textarea phong cách BOB vuông vắn */
+.account-form input[type="text"],
+.account-form input[type="email"],
+.account-form input[type="tel"],
+.account-form input[type="password"],
+.account-form textarea {
+  width: 100%;
   padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 1rem;
-  transition: border-color 0.3s ease;
-}
-
-.form-group input:focus {
+  border: 1px solid #000000;
+  border-radius: 0; 
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #ffffff;
   outline: none;
-  border-color: var(--primary);
+  transition: all 0.2s ease;
 }
 
-.form-group textarea {
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 1rem;
-  transition: border-color 0.3s ease;
-  resize: vertical;
-  min-height: 120px;
+.account-form input:focus,
+.account-form textarea:focus {
+  background: #fafafa;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--primary);
-}
-
-.form-group input.disabled-input {
-  background: var(--bg);
+/* Input bị khóa (Email) */
+.account-form input.disabled-input {
+  background: #f5f5f5;
+  border-color: #dddddd;
+  color: #777777;
   cursor: not-allowed;
 }
 
-.form-error {
-  color: #c33;
+.account-form textarea {
+  resize: vertical;
+}
+
+.address-group small {
+  display: block;
+  margin-top: 4px;
   font-size: 0.8rem;
-  margin-top: 0.5rem;
+  color: #666666;
 }
 
+/* Text nhắc nhở bắt buộc nhập */
+.form-error {
+  font-size: 0.85rem;
+  color: #cf2222;
+  font-style: italic;
+}
+
+/* Nút Submit cập nhật */
 .btn-update {
-  background: var(--primary);
-  color: white;
-  padding: 12px 24px;
-  border-radius: 4px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: background 0.3s ease;
   align-self: flex-start;
-}
-
-.btn-update:hover {
-  background: var(--accent);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .account-page {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
-  .account-sidebar {
-    order: 2;
-  }
-
-  .account-main {
-    order: 1;
-  }
-
-  .form-row.two-cols {
-    flex-direction: column;
-    gap: 1rem;
-  }
-}
-
-/* Orders History Table */
-.orders-history-table {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 1rem;
-}
-
-.orders-history-header {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr 1.5fr 1.5fr 1fr;
-  padding: 14px 20px;
-  background-color: var(--bg);
-  font-weight: 700;
+  padding: 14px 32px;
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid #000000;
+  border-radius: 0;
   font-size: 0.9rem;
-  color: var(--text);
-  border-bottom: 1px solid var(--border);
-}
-
-.orders-history-row {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr 1.5fr 1.5fr 1fr;
-  padding: 16px 20px;
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.9rem;
-  transition: background-color 0.2s;
-}
-
-.orders-history-row:last-child {
-  border-bottom: none;
-}
-
-.orders-history-row:hover {
-  background-color: #fafafa;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 50px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: bold;
   text-transform: uppercase;
-  text-align: center;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.status-badge.pending {
-  background-color: #fef3c7;
-  color: #d97706;
+.btn-update:hover:not(:disabled) {
+  background: #ffffff;
+  color: #000000;
 }
 
-.status-badge.processing {
-  background-color: #dbeafe;
-  color: #2563eb;
+.btn-update:disabled {
+  background: #999999;
+  border-color: #999999;
+  cursor: not-allowed;
 }
 
-.status-badge.shipped {
-  background-color: #e0f2fe;
-  color: #0284c7;
+/* Thông báo trạng thái nhanh */
+.success-message {
+  padding: 12px 16px;
+  background: #e6f7ed;
+  color: #1f8b4c;
+  border-left: 4px solid #1f8b4c;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
 }
 
-.status-badge.delivered {
-  background-color: #d1fae5;
-  color: #059669;
+/* --- DANH SÁCH LỊCH SỬ ĐƠN HÀNG (.orders-history-list) --- */
+.orders-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.status-badge.cancelled {
-  background-color: #fee2e2;
-  color: #dc2626;
+.order-history-card {
+  border: 1px solid #000000;
+  background: #ffffff;
+}
+
+/* Header đơn hàng */
+.order-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background: #fafafa;
+  border-bottom: 1px solid #000000;
+}
+
+.order-header-info {
+  font-size: 0.9rem;
+  color: #333333;
+}
+
+/* Các nhãn trạng thái (Status Badges) */
+.status-badge {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.status-badge.pendingpayment { background: #fef3c7; color: #d97706; } /* Vàng */
+.status-badge.pending { background: #edf2f7; color: #4a5568; }        /* Xám bợt */
+.status-badge.processing { background: #e0f2fe; color: #0369a1; }     /* Xanh dương */
+.status-badge.shipped { background: #f3e8ff; color: #6b21a8; }        /* Tím */
+.status-badge.delivered { background: #dcfce7; color: #15803d; }      /* Xanh lá */
+.status-badge.cancelled { background: #fee2e2; color: #b91c1c; }      /* Đỏ */
+
+/* Bảng hiển thị sản phẩm trong đơn */
+.order-history-items-container {
+  width: 100%;
+  overflow-x: auto; /* Cuộn ngang mượt nếu hiển thị trên màn hình quá nhỏ */
+}
+
+.order-history-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px; /* Đảm bảo cấu trúc bảng không méo mó */
+}
+
+.order-history-items-table th {
+  background: #ffffff;
+  padding: 12px 20px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  border-bottom: 1px solid #eeeeee;
+  text-align: left;
+}
+
+.order-history-items-table td {
+  padding: 16px 20px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #eeeeee;
+  vertical-align: middle;
+}
+
+/* Cột thông tin sản phẩm (Ảnh + Tên) */
+.order-item-prod-cell {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.order-item-thumb {
+  width: 50px;
+  height: 60px;
+  object-fit: cover;
+  border: 1px solid #eeeeee;
+  background: #f9f9f9;
+}
+
+.order-item-name {
+  font-weight: 500;
+  color: #000000;
+}
+
+/* Footer đơn hàng (Tổng tiền + Nút Chi tiết) */
+.order-history-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #fafafa;
+  border-top: 1px solid #eeeeee;
+}
+
+.order-footer-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: #666666;
+}
+
+.order-footer-total {
+  font-size: 1.05rem;
+  color: #000000;
+}
+.order-footer-total strong {
+  font-size: 1.15rem;
+  color: #cf2222;
 }
 
 .btn-view-detail {
-  padding: 6px 12px;
-  background-color: #333;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+  padding: 10px 20px;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
+  border-radius: 0;
   font-size: 0.8rem;
-  font-weight: 600;
-  transition: background-color 0.3s;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .btn-view-detail:hover {
-  background-color: #555;
+  background: #000000;
+  color: #ffffff;
 }
 
-@media (max-width: 768px) {
-  .orders-history-header {
-    display: none;
+
+/* ==========================================================================
+   2. GIAO DIỆN ADMIN PROFILE (.admin-profile-section)
+   ========================================================================== */
+
+.admin-profile-section {
+  padding: 20px 0;
+  font-family: inherit;
+}
+
+/* Kế thừa form chung nhưng ghi đè các định dạng bo góc, shadow nhẹ theo file mẫu JSX */
+.admin-profile-section .account-form input {
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e0 !important;
+}
+
+.admin-profile-section .btn-update {
+  border-radius: 8px !important;
+  border: none !important;
+  font-weight: 600;
+  padding: 12px 24px;
+}
+
+
+/* ==========================================================================
+   3. RESPONSIVE LAYER (MÀN HÌNH ĐIỆN THOẠI & TABLET)
+   ========================================================================== */
+
+/* Cho máy tính bảng / màn hình vừa */
+@media (max-width: 992px) {
+  .account-page {
+    grid-template-columns: 1fr; /* Chuyển thành bố cục 1 cột dọc */
+    gap: 30px;
   }
-  
-  .orders-history-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
+
+  .account-sidebar {
     padding: 16px;
   }
-  
-  .orders-history-row span {
-    display: flex;
-    justify-content: space-between;
+
+  /* Biến menu dọc thành các thẻ tab nằm ngang cuộn ngang được */
+  .sidebar-menu {
+    flex-direction: row;
+    overflow-x: auto;
+    white-space: nowrap;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .menu-item {
+    width: auto;
+    flex-shrink: 0;
+    padding: 10px 16px;
+    border: 1px solid #eeeeee;
   }
   
-  .orders-history-row span::before {
-    content: attr(class);
-    font-weight: 600;
-    color: #999;
-    font-size: 0.8rem;
-    text-transform: capitalize;
+  .menu-item.logout {
+    margin-top: 0;
+    border-top: 1px solid #eeeeee;
   }
-  
-  .orders-history-row span.col-id::before { content: "Mã đơn"; }
-  .orders-history-row span.col-date::before { content: "Ngày đặt"; }
-  .orders-history-row span.col-total::before { content: "Tổng tiền"; }
-  .orders-history-row span.col-status::before { content: "Trạng thái"; }
-  .orders-history-row span.col-action::before { content: "Hành động"; }
 }
+
+/* Cho điện thoại nhỏ (Chống bể form triệt để) */
+@media (max-width: 576px) {
+  .account-page-container {
+    padding: 20px 10px 40px;
+  }
+
+  .account-section h2 {
+    font-size: 1.15rem;
+    margin-bottom: 20px;
+  }
+
+  /* Bẻ đôi 2 cột nhập liệu thành hàng dọc */
+  .form-row.two-cols {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  .form-row two-dienthoai{
+    grid-template-columns: 1fr;
+    gap: 15px;
+ }
+
+  .btn-update {
+    width: 100%; /* Bung rộng nút gửi trên điện thoại */
+    text-align: center;
+  }
+
+  /* Responsive gọn lại card đơn hàng */
+  .order-history-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .order-history-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .btn-view-detail {
+    width: 100%;
+    text-align: center;
+    padding: 12px;
+  }
+}
+
+

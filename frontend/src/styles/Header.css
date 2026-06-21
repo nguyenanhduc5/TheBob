@@ -1,4 +1,8 @@
-/* Top Banner */
+/* ==========================================================================
+   THEBOB - HEADER & NAVBAR SYSTEM
+   ========================================================================== */
+
+/* 1. Top Banner (Thông báo) */
 .top-banner {
   background: #111111;
   color: #ffffff;
@@ -9,7 +13,7 @@
   font-weight: 700;
 }
 
-/* Main Header */
+/* 2. Main Header */
 .main-header {
   position: sticky;
   top: 0;
@@ -33,9 +37,89 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  height: 70px;
 }
 
+.logo {
+  /* Font và vị trí giữ nguyên */
+  font-weight: 900;
+  letter-spacing: 0.38em;
+  font-size: 1.55rem;
+  text-transform: uppercase;
+  
+  /* Đưa về màu đen thuần túy hoặc màu xám đậm của text */
+  color: #000000; 
+  
+  /* Xóa bỏ mọi yếu tố trang trí */
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+  background: transparent !important;
+  
+  /* Định vị */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  width: auto;
+  z-index: 10;
+  
+  /* Đảm bảo không có hiệu ứng chuyển màu khi di chuột */
+  transition: none !important;
+}
+
+/* Loại bỏ trạng thái hover nếu bạn muốn logo luôn đứng yên, không màu */
+.logo:hover {
+  color: #000000;
+  opacity: 1;
+  transform: translateX(-50%); /* Giữ nguyên vị trí */
+}
+
+/* 4. Navigation Actions (Cart & User) */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.icon-button {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: opacity 0.2s ease;
+}
+
+.icon-button:hover {
+  background: transparent !important;
+  transform: translateY(-1px);
+  opacity: 0.6;
+}
+
+.cart-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #000;
+  color: #fff;
+  font-size: 10px;
+  font-weight: bold;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 5. Hamburger & Mobile Menu */
 .hamburger {
   width: 28px;
   height: 22px;
@@ -54,40 +138,6 @@
   background: var(--text);
   display: block;
   border-radius: 999px;
-}
-
-.logo {
-  font-weight: 900;
-  letter-spacing: 0.38em;
-  font-size: 1.55rem;
-  text-transform: uppercase;
-  color: var(--text);
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  width: auto;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.icon-button {
-  background: rgba(17, 17, 17, 0.06);
-  border: 1px solid rgba(17, 17, 17, 0.12);
-  border-radius: 14px;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 10px;
-  transition: transform var(--transition), background var(--transition);
-}
-
-.icon-button:hover {
-  transform: translateY(-1px);
-  background: rgba(17, 17, 17, 0.12);
 }
 
 .mobile-menu {
@@ -121,37 +171,9 @@
   background: white;
   color: var(--text);
   text-decoration: none;
-  transition: background var(--transition);
 }
 
-.mobile-nav-item:last-child {
-  border-right: none;
-  background: var(--primary);
-  color: white;
-}
-
-.mobile-nav-item:hover {
-  background: var(--surface-soft);
-}
-
-.mobile-nav-item:last-child:hover {
-  background: var(--primary-dark);
-}
-
-.user-menu-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 99;
-  background: transparent;
-  visibility: hidden;
-  pointer-events: none; /* Disable events by default */
-}
-
-.user-menu-overlay.active {
-  visibility: visible;
-  pointer-events: auto;
-}
-
+/* 6. User Menu Overlay */
 .user-menu {
   position: absolute;
   top: 70px;
@@ -162,44 +184,15 @@
   box-shadow: var(--shadow-sm);
   min-width: 210px;
   z-index: 100;
+  display: none; /* Dùng JS để toggle class này */
 }
 
-.user-menu .menu-item {
-  width: 100%;
-  padding: 14px 18px;
-  text-align: left;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: background var(--transition);
-  color: var(--text);
-}
-
-.user-menu .menu-item:hover {
-  background: var(--surface-soft);
-}
-
-.user-menu .menu-item.logout {
-  color: #111111;
-}
-
+/* Responsive */
 @media (max-width: 768px) {
   .header-container {
-    padding: 12px 16px;
     height: 66px;
+    padding: 12px 16px;
   }
-
-  .logo {
-    font-size: 1.2rem;
-  }
-
-  .header-actions {
-    gap: 10px;
-  }
-
-  .mobile-nav-item {
-    font-size: 0.85rem;
-    padding: 16px 0;
-  }
+  .logo { font-size: 1.2rem; }
+  .header-actions { gap: 10px; }
 }
