@@ -348,6 +348,43 @@ export const couponsAPI = {
   }
 };
 
+export const paymentAPI = {
+  createQrPayment(data) {
+    return apiClient('/payment/create-qr', {
+      method: 'POST',
+      auth: true,
+      body: data
+    });
+  },
+
+  getPaymentStatus(orderId) {
+    return apiClient(`/payment/status/${orderId}`, {
+      auth: true
+    });
+  },
+
+  cancelPayment(orderId) {
+    return apiClient(`/payment/cancel/${orderId}`, {
+      method: 'POST',
+      auth: true
+    });
+  },
+
+  confirmPayment(data) {
+    return apiClient('/payment/confirm', {
+      method: 'POST',
+      auth: true,
+      body: data
+    });
+  },
+
+  getPaymentHistory() {
+    return apiClient('/payment/history', {
+      auth: true
+    });
+  }
+};
+
 export const ORDER_HUB_URL =
   API_BASE_URL.replace(/\/api\/?$/, '') +
   '/hubs/order';

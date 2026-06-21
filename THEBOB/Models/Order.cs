@@ -5,12 +5,13 @@ namespace THEBOB.Models
 {
     public enum OrderStatus
     {
-        Pending,
-        Processing,
-        Paid,
-        Shipped,
-        Delivered,
-        Cancelled
+        Pending = 0,
+        Processing = 1,
+        Paid = 2,
+        Shipped = 3,
+        Delivered = 4,
+        Cancelled = 5,
+        PendingPayment = 6
     }
 
     public class Order

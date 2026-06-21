@@ -102,4 +102,16 @@ namespace THEBOB.Data.Configurations
                 .OnDelete(DeleteBehavior.SetNull);
         }
     }
+
+    public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
+    {
+        public void Configure(EntityTypeBuilder<Notification> builder)
+        {
+            builder.HasIndex(n => n.UserId);
+            builder.HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+    }
 }

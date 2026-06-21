@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { ordersAPI } from '../api/app';
+import { ordersAPI, paymentAPI } from '../api/app';
 import '../styles/AdminOrders.css';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
@@ -58,8 +58,26 @@ export default function AdminOrders() {
     }
   };
 
+  const handleConfirmPayment = async (orderId) => {
+    if (!window.confirm('Xác nhận thanh toán cho đơn hàng này? Trạng thái đơn hàng sẽ tự động đổi thành Đang xử lý.')) return;
+
+    setUpdatingId(orderId);
+    try {
+      await paymentAPI.confirmPayment({ orderId });
+      addNotification('Xác nhận thanh toán thành công!', 'success');
+      // Cập nhật local state tức thì
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, paymentStatus: 'Paid', status: 'Processing' } : o));
+    } catch (error) {
+      addNotification(error.message || 'Lỗi khi xác nhận thanh toán', 'error');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const getStatusBadgeClass = (status) => {
     switch (status) {
+      case 'PendingPayment':
+        return 'status-waiting';
       case 'Pending':
         return 'status-pending';
       case 'Processing':
@@ -106,6 +124,12 @@ export default function AdminOrders() {
           onClick={() => setFilter('all')}
         >
           Tất Cả ({getCount('all')})
+        </button>
+        <button
+          className={`filter-btn ${filter === 'PendingPayment' ? 'active' : ''}`}
+          onClick={() => setFilter('PendingPayment')}
+        >
+          Chờ Thanh Toán ({getCount('PendingPayment')})
         </button>
         <button
           className={`filter-btn ${filter === 'Pending' ? 'active' : ''}`}
@@ -156,13 +180,19 @@ export default function AdminOrders() {
             <div key={order.id} className="table-row">
               <span className="col-id">#{order.id}</span>
               <span className="col-customer">
-                {order.customerName || 'Không xác định'}
+                <div style={{ fontWeight: '600' }}>{order.customerName || 'Không xác định'}</div>
+                <div className="payment-method-badge">
+                  {order.paymentMethod === 'cod' ? 'COD' : order.paymentMethod === 'bank_transfer' ? 'Chuyển khoản' : order.paymentMethod === 'qr' ? 'QR Code' : order.paymentMethod}
+                </div>
               </span>
               <span className="col-date">
                 {new Date(order.createdAt).toLocaleDateString('vi-VN')}
               </span>
               <span className="col-total">
-                {order.totalAmount.toLocaleString('vi-VN')} VNĐ
+                <div>{order.totalAmount.toLocaleString('vi-VN')} VNĐ</div>
+                <div className={`payment-status ${order.paymentStatus === 'Paid' ? 'paid' : 'pending'}`}>
+                  {order.paymentStatus === 'Paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                </div>
               </span>
               <span className="col-status">
                 <select
@@ -173,6 +203,7 @@ export default function AdminOrders() {
                   onChange={(e) => handleStatusChange(order.id, e.target.value)}
                   className={`status-select ${getStatusBadgeClass(order.status)}`}
                 >
+                  <option value="PendingPayment">Chờ thanh toán</option>
                   <option value="Pending">Chờ xử lý</option>
                   <option value="Processing">Đang xử lý</option>
                   <option value="Shipped">Đang giao</option>
@@ -187,6 +218,15 @@ export default function AdminOrders() {
                 >
                   Chi Tiết
                 </button>
+                {order.paymentStatus !== 'Paid' && (order.paymentMethod === 'bank_transfer' || order.paymentMethod === 'qr') && (
+                  <button
+                    onClick={() => handleConfirmPayment(order.id)}
+                    className="btn-confirm-payment"
+                    disabled={updatingId === order.id}
+                  >
+                    Xác nhận TT
+                  </button>
+                )}
               </span>
             </div>
           ))}

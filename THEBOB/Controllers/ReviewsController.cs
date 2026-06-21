@@ -63,7 +63,7 @@ namespace THEBOB.Controllers
                 .Include(oi => oi.Variant)
                 .Where(oi => oi.Order.UserId == userId.Value)
                 .Where(oi => oi.Variant != null && oi.Variant.ProductId == request.ProductId)
-                .Where(oi => oi.Order.Status == OrderStatus.Paid ||
+                .Where(oi => oi.Order.Status == OrderStatus.Processing ||
                              oi.Order.Status == OrderStatus.Shipped ||
                              oi.Order.Status == OrderStatus.Delivered)
                 .Where(oi => !request.OrderItemId.HasValue || oi.Id == request.OrderItemId.Value)

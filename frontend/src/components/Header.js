@@ -66,6 +66,16 @@ export default function Header() {
         const event = new CustomEvent('order-status-updated', { detail: { orderId, statusText } });
         window.dispatchEvent(event);
       });
+
+      connection.on('ReceivePaymentSuccess', (orderId, message) => {
+        console.log(`Received payment success for order ${orderId}: ${message}`);
+        addNotificationRef.current(message, 'success');
+        incrementUnreadRef.current();
+
+        // Dispatch browser custom event so PaymentPage.js can receive it in real-time
+        const event = new CustomEvent('payment-success-received', { detail: { orderId, message } });
+        window.dispatchEvent(event);
+      });
     }
 
     return () => {

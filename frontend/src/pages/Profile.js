@@ -364,7 +364,8 @@ export default function Profile() {
                           <span className="order-date"> | Ngày đặt: {new Date(order.createdAt).toLocaleDateString('vi-VN')}</span>
                         </div>
                         <span className={`status-badge ${order.status.toLowerCase()}`}>
-                          {order.status === 'Pending' ? 'Chờ xử lý' :
+                          {order.status === 'PendingPayment' ? 'Chờ thanh toán' :
+                           order.status === 'Pending' ? 'Chờ xử lý' :
                            order.status === 'Processing' ? 'Đang xử lý' :
                            order.status === 'Shipped' ? 'Đang giao' :
                            order.status === 'Delivered' ? 'Đã giao' :

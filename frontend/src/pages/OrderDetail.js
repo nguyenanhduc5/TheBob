@@ -71,6 +71,8 @@ export default function OrderDetail() {
 
   const getStatusBadgeClass = (status) => {
     switch (status) {
+      case 'PendingPayment':
+        return 'status-pending';
       case 'Pending':
         return 'status-pending';
       case 'Processing':
@@ -90,6 +92,7 @@ export default function OrderDetail() {
 
   const getStatusLabel = (status) => {
     const statusMap = {
+      'PendingPayment': 'Chờ thanh toán',
       'Pending': 'Chờ xử lý',
       'Processing': 'Đang xử lý',
       'Paid': 'Đã thanh toán',

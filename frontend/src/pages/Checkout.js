@@ -102,13 +102,13 @@ export default function Checkout() {
     try {
       const invalidItem = cartItems.find((item) => !item.variantId);
       if (invalidItem) {
-        addNotification('Giá» hÃ ng cÃ³ sáº£n pháº©m chÆ°a chá»n biáº¿n thá»ƒ, vui lÃ²ng thÃªm láº¡i sáº£n pháº©m.', 'error');
+        addNotification('Giỏ hàng có sản phẩm chưa chọn biến thể, vui lòng thêm lại sản phẩm.', 'error');
         setIsProcessing(false);
         return;
       }
 
+      // Sync backend cart before checkout
       await cartAPI.clearCart();
-
       for (const item of cartItems) {
         await cartAPI.addItem(item.variantId, item.quantity);
       }
@@ -127,16 +127,29 @@ export default function Checkout() {
 
       if (order) {
         addNotification('Đặt hàng thành công! Cảm ơn bạn đã mua sắm.', 'success');
-        clearCart();
         
-        // Redirect to order confirmation page
+        // Only clear cart locally for COD (since QR/Bank transfer is not paid yet)
+        if (formData.paymentMethod === 'cod') {
+          clearCart();
+        }
+
+        // Redirect to order confirmation page or payment page depending on payment method
         setTimeout(() => {
-          navigate(`/orders/${order.id}`);
+          if (formData.paymentMethod === 'bank_transfer' || formData.paymentMethod === 'qr') {
+            navigate(`/payment/${order.id}`);
+          } else {
+            navigate(`/orders/${order.id}`);
+          }
         }, 1000);
       }
     } catch (error) {
       console.error('Order submission error:', error);
-      addNotification('Lỗi khi xử lý đơn hàng', 'error');
+      if (error?.status === 409 && error?.payload?.orderId) {
+        addNotification(error.payload.message || 'Bạn đang có đơn hàng chờ thanh toán', 'warning');
+        navigate(`/payment/${error.payload.orderId}`);
+        return;
+      }
+      addNotification(error?.message || 'Lỗi khi xử lý đơn hàng', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -241,12 +254,12 @@ export default function Checkout() {
                     type="radio"
                     id="payment-bank"
                     name="paymentMethod"
-                    value="bank"
-                    checked={formData.paymentMethod === 'bank'}
+                    value="bank_transfer"
+                    checked={formData.paymentMethod === 'bank_transfer'}
                     onChange={handleInputChange('paymentMethod')}
                   />
                   <label htmlFor="payment-bank">
-                    <span className="payment-title">Chuyển Khoản Ngân Hàng</span>
+                    <span className="payment-title">Chuyển Khoản QR Banking</span>
                     <span className="payment-description">Chuyển tiền vào tài khoản</span>
                   </label>
                 </div>
@@ -254,15 +267,15 @@ export default function Checkout() {
                 <div className="payment-option">
                   <input
                     type="radio"
-                    id="payment-card"
+                    id="payment-qr"
                     name="paymentMethod"
-                    value="card"
-                    checked={formData.paymentMethod === 'card'}
+                    value="qr"
+                    checked={formData.paymentMethod === 'qr'}
                     onChange={handleInputChange('paymentMethod')}
                   />
-                  <label htmlFor="payment-card">
-                    <span className="payment-title">Thẻ Tín Dụng / Ghi Nợ</span>
-                    <span className="payment-description">Thanh toán bằng thẻ</span>
+                  <label htmlFor="payment-qr">
+                    <span className="payment-title">Thanh Toán Bằng QR Code</span>
+                    <span className="payment-description">Quét mã QR Code chuyển khoản</span>
                   </label>
                 </div>
               </div>
