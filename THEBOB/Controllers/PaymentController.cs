@@ -73,15 +73,21 @@ namespace THEBOB.Controllers
                     return BadRequest(new { message = "Số tiền thanh toán không khớp với tổng giá trị đơn hàng." });
                 }
 
-                var bankName = "MB Bank";
-                var accountNumber = "123456789";
-                var accountName = "THEBOB";
-                var content = $"THEBOB_{order.Id}";
+// FIXED SECTION: CreateQr
+var bankName = "Sacombank";
+var bankCode = "SACOMBANK";
+var accountNumber = "050145284268";
+var accountName = "NGUYEN ANH DUC";
+var content = $"THEBOB_{order.Id}";
 
-                // Generate dynamic VietQR URL
-                // Format: https://img.vietqr.io/image/{bankId}-{accountNo}-{template}.png?amount={amount}&addInfo={addInfo}&accountName={accountName}
-                var amountInt = (int)order.TotalAmount;
-                var qrUrl = $"https://img.vietqr.io/image/MB-{accountNumber}-print.png?amount={amountInt}&addInfo={Uri.EscapeDataString(content)}&accountName={Uri.EscapeDataString(accountName)}";
+// Generate dynamic VietQR URL (FIXED BANK CODE)
+var amountInt = (int)order.TotalAmount;
+
+var qrUrl =
+    $"https://img.vietqr.io/image/{bankCode}-{accountNumber}-print.png" +
+    $"?amount={amountInt}" +
+    $"&addInfo={Uri.EscapeDataString(content)}" +
+    $"&accountName={Uri.EscapeDataString(accountName)}";
 
                 _logger.LogInformation("CreateQr Success: OrderId={OrderId}, PaymentStatus={PaymentStatus}, OrderStatus={OrderStatus}", 
                     order.Id, order.PaymentStatus, order.Status);
