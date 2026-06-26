@@ -1,30 +1,66 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as signalR from '@microsoft/signalr';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { ordersAPI, paymentAPI } from '../api/app';
+import { ordersAPI, ORDER_HUB_URL } from '../api/app';
 import '../styles/AdminOrders.css';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+
+const FILTERS = [
+  { key: 'all', label: 'Tất cả' },
+  { key: 'pending', label: 'Chờ thanh toán' },
+  { key: 'paid', label: 'Đã thanh toán' },
+  { key: 'cancelled', label: 'Đã hủy' }
+];
 
 export default function AdminOrders() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const { addNotification } = useNotification();
+  const connectionRef = useRef(null);
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState(null);
   const [filter, setFilter] = useState('all');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const playTingTing = useCallback(() => {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const audioContext = new AudioContextClass();
+
+      // Tạo hai nốt ngắn liên tiếp bằng Web Audio API, không cần file mp3.
+      [880, 1320].forEach((frequency, index) => {
+        const startAt = audioContext.currentTime + index * 0.16;
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(frequency, startAt);
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(0.18, startAt + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.13);
+
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(startAt);
+        oscillator.stop(startAt + 0.14);
+      });
+
+      setTimeout(() => audioContext.close?.(), 600);
+    } catch (error) {
+      console.error('Unable to play admin notification tone:', error);
+    }
+  }, []);
 
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
       const data = await ordersAPI.getAllOrders();
-      
-      // Sắp xếp đơn hàng mới nhất lên đầu
       data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      
       setOrders(data);
     } catch (error) {
       console.error('Failed to fetch orders:', error);
@@ -39,68 +75,117 @@ export default function AdminOrders() {
       navigate('/');
       return;
     }
+
     fetchOrders();
-  }, [fetchOrders, isAdmin, navigate, refreshKey]);
+  }, [fetchOrders, isAdmin, navigate]);
 
-  const handleStatusChange = async (orderId, newStatus) => {
-    if (!window.confirm(`Xác nhận thay đổi trạng thái đơn hàng sang: ${newStatus}?`)) return;
-    
-    setUpdatingId(orderId);
-    try {
-      await ordersAPI.updateOrderStatus(orderId, newStatus);
-      addNotification('Cập nhật trạng thái thành công', 'success');
-      // Cập nhật local state ngay lập tức để giao diện mượt mà không reload trang
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-    } catch (error) {
-      addNotification(error.message || 'Lỗi khi cập nhật trạng thái', 'error');
-    } finally {
-      setUpdatingId(null);
-    }
+  useEffect(() => {
+    if (!isAdmin()) return;
+
+    const token = localStorage.getItem('thebob-token');
+    if (!token) return;
+
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(ORDER_HUB_URL, {
+        accessTokenFactory: () => token
+      })
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on('ReceiveOrderUpdate', (receivedOrderId, status) => {
+      if (status !== 'Success') return;
+
+      const normalizedOrderId = String(receivedOrderId);
+
+      // Cập nhật row/badge tại chỗ, không cần F5.
+      setOrders(prev =>
+        prev.map(order =>
+          String(order.id) === normalizedOrderId
+            ? { ...order, paymentStatus: 'Paid', status: 'Processing' }
+            : order
+        )
+      );
+
+      setSelectedOrder(prev =>
+        prev && String(prev.id) === normalizedOrderId
+          ? { ...prev, paymentStatus: 'Paid', status: 'Processing' }
+          : prev
+      );
+
+      playTingTing();
+      addNotification(`Don hang #${normalizedOrderId} da thanh toan thanh cong qua SePay.`, 'success');
+    });
+
+    connection.on('ReceivePaymentSuccess', (receivedOrderId) => {
+      const normalizedOrderId = String(receivedOrderId);
+
+      setOrders(prev =>
+        prev.map(order =>
+          String(order.id) === normalizedOrderId
+            ? { ...order, paymentStatus: 'Paid', status: 'Processing' }
+            : order
+        )
+      );
+
+      setSelectedOrder(prev =>
+        prev && String(prev.id) === normalizedOrderId
+          ? { ...prev, paymentStatus: 'Paid', status: 'Processing' }
+          : prev
+      );
+
+      playTingTing();
+      addNotification(`Don hang #${normalizedOrderId} da thanh toan thanh cong qua SePay.`, 'success');
+    });
+
+    connection.start().catch(error => {
+      console.error('SignalR connection failed on AdminOrders:', error);
+    });
+
+    connectionRef.current = connection;
+
+    return () => {
+      connection.off('ReceiveOrderUpdate');
+      connection.off('ReceivePaymentSuccess');
+      connection.stop().catch(error => {
+        console.error('Error stopping AdminOrders SignalR connection:', error);
+      });
+      connectionRef.current = null;
+    };
+  }, [addNotification, isAdmin, playTingTing]);
+
+  const getPaymentState = (order) => {
+    if (order.paymentStatus === 'Paid' || order.status === 'Paid') return 'paid';
+    if (order.paymentStatus === 'Cancelled' || order.paymentStatus === 'Expired' || order.status === 'Cancelled') return 'cancelled';
+    return 'pending';
   };
 
-  const handleConfirmPayment = async (orderId) => {
-    if (!window.confirm('Xác nhận thanh toán cho đơn hàng này? Trạng thái đơn hàng sẽ tự động đổi thành Đang xử lý.')) return;
+  const counts = useMemo(() => ({
+    all: orders.length,
+    pending: orders.filter(order => getPaymentState(order) === 'pending').length,
+    paid: orders.filter(order => getPaymentState(order) === 'paid').length,
+    cancelled: orders.filter(order => getPaymentState(order) === 'cancelled').length
+  }), [orders]);
 
-    setUpdatingId(orderId);
-    try {
-      await paymentAPI.confirmPayment({ orderId });
-      addNotification('Xác nhận thanh toán thành công!', 'success');
-      // Cập nhật local state tức thì
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, paymentStatus: 'Paid', status: 'Processing' } : o));
-    } catch (error) {
-      addNotification(error.message || 'Lỗi khi xác nhận thanh toán', 'error');
-    } finally {
-      setUpdatingId(null);
-    }
+  const filteredOrders = useMemo(() => {
+    if (filter === 'all') return orders;
+    return orders.filter(order => getPaymentState(order) === filter);
+  }, [filter, orders]);
+
+  const getStatusBadgeClass = (order) => {
+    const state = getPaymentState(order);
+    if (state === 'paid') return 'status-paid';
+    if (state === 'cancelled') return 'status-cancelled';
+    return 'status-waiting';
   };
 
-  const getStatusBadgeClass = (status) => {
-    switch (status) {
-      case 'PendingPayment':
-        return 'status-waiting';
-      case 'Pending':
-        return 'status-pending';
-      case 'Processing':
-        return 'status-processing';
-      case 'Shipped':
-        return 'status-shipped';
-      case 'Delivered':
-        return 'status-delivered';
-      case 'Cancelled':
-        return 'status-cancelled';
-      default:
-        return '';
-    }
+  const getStatusText = (order) => {
+    const state = getPaymentState(order);
+    if (state === 'paid') return 'Đã thanh toán';
+    if (state === 'cancelled') return order.paymentStatus === 'Expired' ? 'Hết hạn' : 'Đã hủy';
+    return 'Chờ thanh toán';
   };
 
-  const getCount = (status) => {
-    if (status === 'all') return orders.length;
-    return orders.filter(o => o.status === status).length;
-  };
-
-  const filteredOrders = filter === 'all' 
-    ? orders 
-    : orders.filter(o => o.status === filter);
+  const formatMoney = (value) => `${Number(value || 0).toLocaleString('vi-VN')} VND`;
 
   if (loading) {
     return <LoadingSkeleton type="table" />;
@@ -111,56 +196,23 @@ export default function AdminOrders() {
       <div className="admin-header">
         <div>
           <h1>Quản Lý Đơn Hàng</h1>
-          <p>Xem và cập nhật trạng thái các đơn hàng trong hệ thống</p>
+          <p>Webhook SePay se tu dong cap nhat trang thai thanh toan theo thoi gian thuc.</p>
         </div>
-        <button className="btn-refresh" onClick={() => setRefreshKey(prev => prev + 1)}>
-          🔄 Làm mới dữ liệu
+        <button className="btn-refresh" onClick={fetchOrders}>
+          Làm mới dữ liệu
         </button>
       </div>
 
       <div className="orders-filters">
-        <button
-          className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-          onClick={() => setFilter('all')}
-        >
-          Tất Cả ({getCount('all')})
-        </button>
-        <button
-          className={`filter-btn ${filter === 'PendingPayment' ? 'active' : ''}`}
-          onClick={() => setFilter('PendingPayment')}
-        >
-          Chờ Thanh Toán ({getCount('PendingPayment')})
-        </button>
-        <button
-          className={`filter-btn ${filter === 'Pending' ? 'active' : ''}`}
-          onClick={() => setFilter('Pending')}
-        >
-          Chờ Xử Lý ({getCount('Pending')})
-        </button>
-        <button
-          className={`filter-btn ${filter === 'Processing' ? 'active' : ''}`}
-          onClick={() => setFilter('Processing')}
-        >
-          Đang Xử Lý ({getCount('Processing')})
-        </button>
-        <button
-          className={`filter-btn ${filter === 'Shipped' ? 'active' : ''}`}
-          onClick={() => setFilter('Shipped')}
-        >
-          Đang Giao ({getCount('Shipped')})
-        </button>
-        <button
-          className={`filter-btn ${filter === 'Delivered' ? 'active' : ''}`}
-          onClick={() => setFilter('Delivered')}
-        >
-          Đã Giao ({getCount('Delivered')})
-        </button>
-        <button
-          className={`filter-btn ${filter === 'Cancelled' ? 'active' : ''}`}
-          onClick={() => setFilter('Cancelled')}
-        >
-          Đã Hủy ({getCount('Cancelled')})
-        </button>
+        {FILTERS.map(item => (
+          <button
+            key={item.key}
+            className={`filter-btn ${filter === item.key ? 'active' : ''}`}
+            onClick={() => setFilter(item.key)}
+          >
+            {item.label} ({counts[item.key]})
+          </button>
+        ))}
       </div>
 
       {filteredOrders.length === 0 ? (
@@ -169,67 +221,89 @@ export default function AdminOrders() {
         <div className="orders-table">
           <div className="table-header">
             <span className="col-id">Mã ĐH</span>
-            <span className="col-customer">Khách Hàng</span>
-            <span className="col-date">Ngày Đặt</span>
-            <span className="col-total">Tổng Tiền</span>
-            <span className="col-status">Trạng Thái</span>
-            <span className="col-actions">Thao Tác</span>
+            <span className="col-customer">Khách hàng</span>
+            <span className="col-date">Ngày đặt</span>
+            <span className="col-total">Tổng tiền</span>
+            <span className="col-status">Thanh toán</span>
+            <span className="col-actions">Thao tác</span>
           </div>
 
-          {filteredOrders.map((order) => (
+          {filteredOrders.map(order => (
             <div key={order.id} className="table-row">
               <span className="col-id">#{order.id}</span>
               <span className="col-customer">
-                <div style={{ fontWeight: '600' }}>{order.customerName || 'Không xác định'}</div>
-                <div className="payment-method-badge">
-                  {order.paymentMethod === 'cod' ? 'COD' : order.paymentMethod === 'bank_transfer' ? 'Chuyển khoản' : order.paymentMethod === 'qr' ? 'QR Code' : order.paymentMethod}
-                </div>
+                <div style={{ fontWeight: 700 }}>{order.customerName || order.customerEmail || 'Không xác định'}</div>
+                <div className="payment-method-badge">{order.paymentGateway || order.paymentMethod || 'SePay'}</div>
               </span>
               <span className="col-date">
-                {new Date(order.createdAt).toLocaleDateString('vi-VN')}
+                {new Date(order.createdAt).toLocaleString('vi-VN')}
               </span>
-              <span className="col-total">
-                <div>{order.totalAmount.toLocaleString('vi-VN')} VNĐ</div>
-                <div className={`payment-status ${order.paymentStatus === 'Paid' ? 'paid' : 'pending'}`}>
-                  {order.paymentStatus === 'Paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
-                </div>
-              </span>
+              <span className="col-total">{formatMoney(order.totalAmount)}</span>
               <span className="col-status">
-                <select
-                  aria-label="Cập nhật trạng thái đơn hàng"
-                  title="Chọn trạng thái mới cho đơn hàng"
-                  value={order.status}
-                  disabled={updatingId === order.id}
-                  onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                  className={`status-select ${getStatusBadgeClass(order.status)}`}
-                >
-                  <option value="PendingPayment">Chờ thanh toán</option>
-                  <option value="Pending">Chờ xử lý</option>
-                  <option value="Processing">Đang xử lý</option>
-                  <option value="Shipped">Đang giao</option>
-                  <option value="Delivered">Đã giao</option>
-                  <option value="Cancelled">Đã hủy</option>
-                </select>
+                <span className={`status-pill ${getStatusBadgeClass(order)}`}>
+                  {getStatusText(order)}
+                </span>
               </span>
               <span className="col-actions">
-                <button
-                  onClick={() => navigate(`/orders/${order.id}`)}
-                  className="btn-view"
-                >
-                  Chi Tiết
+                <button className="btn-view" onClick={() => setSelectedOrder(order)}>
+                  Xem chi tiết
                 </button>
-                {order.paymentStatus !== 'Paid' && (order.paymentMethod === 'bank_transfer' || order.paymentMethod === 'qr') && (
-                  <button
-                    onClick={() => handleConfirmPayment(order.id)}
-                    className="btn-confirm-payment"
-                    disabled={updatingId === order.id}
-                  >
-                    Xác nhận TT
-                  </button>
-                )}
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {selectedOrder && (
+        <div className="admin-modal-backdrop" onClick={() => setSelectedOrder(null)}>
+          <div className="admin-order-modal" onClick={event => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h2>Đơn hàng #{selectedOrder.id}</h2>
+                <p>{getStatusText(selectedOrder)}</p>
+              </div>
+              <button className="modal-close" onClick={() => setSelectedOrder(null)}>x</button>
+            </div>
+
+            <div className="modal-grid">
+              <div className="modal-section">
+                <h3>Khách hàng</h3>
+                <p><strong>Tên:</strong> {selectedOrder.customerName || 'Không xác định'}</p>
+                <p><strong>Điện thoại:</strong> {selectedOrder.customerPhone || 'Chưa có'}</p>
+                <p><strong>Email:</strong> {selectedOrder.customerEmail || 'Chưa có'}</p>
+                <p><strong>Địa chỉ giao hàng:</strong> {selectedOrder.shippingAddress || 'Chưa có'}</p>
+              </div>
+
+              <div className="modal-section">
+                <h3>Đối soát</h3>
+                <p><strong>Cổng:</strong> {selectedOrder.paymentGateway || selectedOrder.paymentMethod || 'SePay'}</p>
+                <p><strong>Mã giao dịch:</strong> {selectedOrder.transactionCode || 'Chưa ghi nhận'}</p>
+                <p><strong>VA Number:</strong> {selectedOrder.vaNumber || 'Chua ghi nhan'}</p>
+                <p><strong>TransactionId:</strong> {selectedOrder.transactionId || 'Chua ghi nhan'}</p>
+                <p><strong>Provider:</strong> {selectedOrder.paymentProvider || selectedOrder.paymentGateway || 'SePay'}</p>
+                <p><strong>PaidAt:</strong> {selectedOrder.paidAt ? new Date(selectedOrder.paidAt).toLocaleString('vi-VN') : 'Chua thanh toan'}</p>
+                <p><strong>Loi:</strong> {selectedOrder.failureReason || 'Khong co'}</p>
+                <p><strong>Tổng tiền:</strong> {formatMoney(selectedOrder.totalAmount)}</p>
+                <p><strong>Thời gian:</strong> {new Date(selectedOrder.updatedAt || selectedOrder.createdAt).toLocaleString('vi-VN')}</p>
+              </div>
+            </div>
+
+            <div className="modal-section">
+              <h3>Sản phẩm</h3>
+              <div className="modal-items">
+                {(selectedOrder.items || []).map(item => (
+                  <div className="modal-item" key={item.id}>
+                    <div>
+                      <strong>{item.productName}</strong>
+                      <p>{item.sku} - {item.size} - {item.color}</p>
+                    </div>
+                    <div>x{item.quantity}</div>
+                    <div>{formatMoney(item.price)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

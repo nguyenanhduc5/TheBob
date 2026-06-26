@@ -275,6 +275,12 @@ export const ordersAPI = {
     });
   },
 
+  getOrderStatus(id) {
+    return apiClient(`/orders/status/${id}`, {
+      auth: true
+    });
+  },
+
   createOrder(data) {
     return apiClient('/orders', {
       method: 'POST',
@@ -313,6 +319,14 @@ export const cartAPI = {
       auth: true,
       body: { variantId, quantity }
     });
+  },
+
+  syncCart(items) {
+    return apiClient('/cart/sync', {
+      method: 'POST',
+      auth: true,
+      body: { items }
+    });
   }
 };
 
@@ -349,39 +363,65 @@ export const couponsAPI = {
 };
 
 export const paymentAPI = {
-  createQrPayment(data) {
-    return apiClient('/payment/create-qr', {
+  async createPayment(orderId, amount) {
+    const response = await apiClient('/payment/create', {
+      method: 'POST',
+      auth: true,
+      body: { orderId, amount }
+    });
+    return response?.data || response;
+  },
+
+  createPaymentLink(orderId) {
+    return paymentAPI.createPayment(orderId);
+  },
+
+  async createQrPayment(data) {
+    const response = await apiClient('/payment/create-qr', {
       method: 'POST',
       auth: true,
       body: data
     });
+    return response?.data || response;
   },
 
-  getPaymentStatus(orderId) {
-    return apiClient(`/payment/status/${orderId}`, {
+  async getPaymentStatus(orderId) {
+    const response = await apiClient(`/payment/status/${orderId}`, {
       auth: true
     });
+    return response?.data || response;
   },
 
-  cancelPayment(orderId) {
-    return apiClient(`/payment/cancel/${orderId}`, {
+  async cancelPayment(orderId) {
+    const response = await apiClient(`/payment/cancel/${orderId}`, {
       method: 'POST',
       auth: true
     });
+    return response?.data || response;
   },
 
-  confirmPayment(data) {
-    return apiClient('/payment/confirm', {
+  async confirmPayment(data) {
+    const response = await apiClient('/payment/confirm', {
       method: 'POST',
       auth: true,
       body: data
     });
+    return response?.data || response;
   },
 
-  getPaymentHistory() {
-    return apiClient('/payment/history', {
+  async getPaymentHistory() {
+    const response = await apiClient('/payment/history', {
       auth: true
     });
+    return response?.data || response;
+  },
+
+  async getTransactions({ status = 'All', page = 1, pageSize = 20 } = {}) {
+    const params = new URLSearchParams({ status, page: String(page), pageSize: String(pageSize) });
+    const response = await apiClient(`/payment/admin/transactions?${params.toString()}`, {
+      auth: true
+    });
+    return response?.data || response;
   }
 };
 

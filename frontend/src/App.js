@@ -22,10 +22,12 @@ import OrderDetail from './pages/OrderDetail';
 import PaymentPage from './pages/PaymentPage';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFailed from './pages/PaymentFailed';
+import PaymentExpired from './pages/PaymentExpired';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminProducts from './pages/AdminProducts';
 import AdminCategories from './pages/AdminCategories';
 import AdminOrders from './pages/AdminOrders';
+import AdminPayments from './pages/AdminPayments';
 import AdminUsers from './pages/AdminUsers';
 import AdminCoupons from './pages/AdminCoupons';
 import './App.css';
@@ -58,6 +60,7 @@ function AppLayout() {
           <Route path="/payment/:orderId" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
           <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
           <Route path="/payment/failed" element={<ProtectedRoute><PaymentFailed /></ProtectedRoute>} />
+          <Route path="/payment/expired" element={<ProtectedRoute><PaymentExpired /></ProtectedRoute>} />
           <Route path="/user/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           
           {/* Admin Routes - Nested with shared AdminLayoutWrapper */}
@@ -75,6 +78,7 @@ function AppLayout() {
             <Route path="products/:id/edit" element={<AdminProducts />} />
             <Route path="categories" element={<AdminCategories />} />
             <Route path="orders" element={<AdminOrders />} />
+            <Route path="payments" element={<AdminPayments />} />
             <Route path="coupons" element={<AdminCoupons />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="profile" element={<Profile />} />

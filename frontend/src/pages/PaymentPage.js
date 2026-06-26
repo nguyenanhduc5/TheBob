@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ordersAPI, paymentAPI } from '../api/app';
+import * as signalR from '@microsoft/signalr';
+import { ordersAPI, paymentAPI, ORDER_HUB_URL } from '../api/app';
 import { useNotification } from '../context/NotificationContext';
+import { useCart } from '../context/CartContext';
 import '../styles/Payment.css';
+import '../styles/PaymentFeedback.css';
 
 const PAYMENT_WINDOW_SECONDS = 15 * 60;
 
@@ -10,46 +13,48 @@ export default function PaymentPage() {
   const { orderId } = useParams();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const { clearCart } = useCart();
 
   const [order, setOrder] = useState(null);
-  const [qrDetails, setQrDetails] = useState(null);
+  const [paymentInfo, setPaymentInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [timer, setTimer] = useState(PAYMENT_WINDOW_SECONDS);
-  const [expired, setExpired] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
 
+  const timerRef = useRef(null);
   const completedRef = useRef(false);
-  const cancellingRef = useRef(false);
 
-  const goToSuccess = useCallback(() => {
+  const stopCountdown = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const goSuccess = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
-    addNotification('Thanh toán thành công!', 'success');
-    navigate('/payment/success');
-  }, [addNotification, navigate]);
+    stopCountdown();
+    clearCart();
+    setIsPaid(true);
+    setLoading(false);
+    addNotification('Thanh toan thanh cong!', 'success');
+    setTimeout(() => navigate('/payment/success'), 1200);
+  }, [addNotification, clearCart, navigate, stopCountdown]);
 
-  const cancelPayment = useCallback(async (redirect = true) => {
-    if (completedRef.current || cancellingRef.current) return;
-
-    cancellingRef.current = true;
-    try {
-      await paymentAPI.cancelPayment(orderId);
-      completedRef.current = true;
-      setExpired(true);
-      if (redirect) {
-        navigate('/payment/failed');
-      }
-    } catch (err) {
-      addNotification(err?.message || 'Lỗi khi hủy thanh toán.', 'error');
-    } finally {
-      cancellingRef.current = false;
-    }
-  }, [addNotification, navigate, orderId]);
+  const goFailed = useCallback((path = '/payment/failed') => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    stopCountdown();
+    setLoading(false);
+    navigate(path);
+  }, [navigate, stopCountdown]);
 
   useEffect(() => {
     let isMounted = true;
 
-    const fetchDetails = async () => {
+    const loadPayment = async () => {
       try {
         setLoading(true);
         setError(null);
@@ -58,119 +63,129 @@ export default function PaymentPage() {
         if (!isMounted) return;
 
         if (orderData.paymentStatus === 'Paid') {
-          goToSuccess();
+          goSuccess();
           return;
         }
 
-        if (
-          orderData.paymentStatus === 'Cancelled' ||
-          orderData.paymentStatus === 'Expired' ||
-          orderData.status === 'Cancelled'
-        ) {
-          setExpired(true);
-          setLoading(false);
+        if (orderData.paymentStatus === 'Failed') {
+          goFailed('/payment/failed');
+          return;
+        }
+
+        if (orderData.paymentStatus === 'Expired' || orderData.status === 'Cancelled') {
+          goFailed('/payment/expired');
           return;
         }
 
         const status = await paymentAPI.getPaymentStatus(orderId);
         if (!isMounted) return;
 
-        if (status.paymentStatus === 'Paid') {
-          goToSuccess();
-          return;
-        }
-
         setTimer(Math.max(0, status.remainingSeconds ?? PAYMENT_WINDOW_SECONDS));
-        if (status.isExpired || status.paymentStatus === 'Expired' || status.paymentStatus === 'Cancelled') {
-          setExpired(true);
-          setLoading(false);
+        if (status.paymentStatus === 'Paid') {
+          goSuccess();
+          return;
+        }
+        if (status.paymentStatus === 'Failed') {
+          goFailed('/payment/failed');
+          return;
+        }
+        if (status.paymentStatus === 'Expired') {
+          goFailed('/payment/expired');
           return;
         }
 
-        const qrResponse = await paymentAPI.createQrPayment({
-          amount: orderData.totalAmount,
-          orderInfo: `THEBOB_${orderData.id}`
-        });
-
+        const payment = await paymentAPI.createPayment(Number(orderId), orderData.totalAmount);
         if (!isMounted) return;
+
         setOrder(orderData);
-        setQrDetails(qrResponse);
+        setPaymentInfo(payment);
         setLoading(false);
       } catch (err) {
-        console.error('Error loading payment details:', err);
+        console.error('Error loading SePay payment page:', err);
         if (isMounted) {
-          setError(err?.message || 'Không thể tải thông tin thanh toán.');
+          setError(err?.message || 'Khong the tai thong tin thanh toan.');
           setLoading(false);
         }
       }
     };
 
-    fetchDetails();
+    loadPayment();
 
     return () => {
       isMounted = false;
     };
-  }, [goToSuccess, orderId]);
+  }, [goFailed, goSuccess, orderId]);
 
   useEffect(() => {
-    if (loading || error || expired || !order) return;
+    const token = localStorage.getItem('thebob-token');
+    if (!token) return;
 
-    const checkStatus = async () => {
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(ORDER_HUB_URL, { accessTokenFactory: () => token })
+      .withAutomaticReconnect()
+      .build();
+
+    const matchesOrder = (receivedOrderId) => String(receivedOrderId) === String(orderId);
+
+    connection.on('ReceivePaymentSuccess', (receivedOrderId, message) => {
+  if (matchesOrder(receivedOrderId)) goSuccess();
+});
+
+    connection.on('ReceivePaymentFailed', (receivedOrderId) => {
+      if (matchesOrder(receivedOrderId)) goFailed('/payment/failed');
+    });
+
+    connection.on('ReceivePaymentExpired', (receivedOrderId) => {
+      if (matchesOrder(receivedOrderId)) goFailed('/payment/expired');
+    });
+
+    connection.start().catch((err) => console.error('Payment SignalR failed:', err));
+
+    return () => {
+      connection.off('ReceivePaymentSuccess');
+      connection.off('ReceivePaymentFailed');
+      connection.off('ReceivePaymentExpired');
+      connection.stop().catch((err) => console.error('Payment SignalR stop failed:', err));
+    };
+  }, [goFailed, goSuccess, orderId]);
+
+  useEffect(() => {
+    if (loading || error || isPaid || !order) return;
+
+    const poll = setInterval(async () => {
       try {
         const status = await paymentAPI.getPaymentStatus(orderId);
         setTimer(Math.max(0, status.remainingSeconds ?? 0));
 
-        if (status.paymentStatus === 'Paid') {
-          goToSuccess();
-          return;
-        }
-
-        if (status.isExpired) {
-          await cancelPayment(true);
-          return;
-        }
-
-        if (status.paymentStatus === 'Expired' || status.paymentStatus === 'Cancelled') {
-          completedRef.current = true;
-          setExpired(true);
-        }
+        if (status.paymentStatus === 'Paid') goSuccess();
+        if (status.paymentStatus === 'Failed') goFailed('/payment/failed');
+        if (status.paymentStatus === 'Expired') goFailed('/payment/expired');
       } catch (err) {
-        console.error('Polling error:', err);
+        console.error('Payment status polling failed:', err);
       }
-    };
+    }, 5000);
 
-    const pollInterval = setInterval(checkStatus, 5000);
-
-    const handleSignalRPaymentSuccess = (e) => {
-      if (parseInt(e.detail.orderId, 10) === parseInt(orderId, 10)) {
-        goToSuccess();
-      }
-    };
-
-    window.addEventListener('payment-success-received', handleSignalRPaymentSuccess);
-
-    return () => {
-      clearInterval(pollInterval);
-      window.removeEventListener('payment-success-received', handleSignalRPaymentSuccess);
-    };
-  }, [cancelPayment, error, expired, goToSuccess, loading, order, orderId]);
+    return () => clearInterval(poll);
+  }, [error, goFailed, goSuccess, isPaid, loading, order, orderId]);
 
   useEffect(() => {
-    if (loading || error || expired || !order) return;
+    if (loading || error || isPaid || !order) return;
 
-    const countdown = setInterval(() => {
-      setTimer(prev => Math.max(0, prev - 1));
+    stopCountdown();
+    timerRef.current = setInterval(() => {
+      setTimer((value) => Math.max(0, value - 1));
     }, 1000);
 
-    return () => clearInterval(countdown);
-  }, [error, expired, loading, order]);
+    return stopCountdown;
+  }, [error, isPaid, loading, order, stopCountdown]);
 
   useEffect(() => {
-    if (loading || error || expired || !order || timer > 0 || completedRef.current) return;
+    if (loading || error || isPaid || !order || timer > 0 || completedRef.current) return;
 
-    addNotification('Thời gian thanh toán đã hết hạn.', 'warning');
-    cancelPayment(true);
-  }, [addNotification, cancelPayment, error, expired, loading, order, timer]);
+    paymentAPI.cancelPayment(orderId)
+      .catch((err) => console.error('Auto expire cancel failed:', err))
+      .finally(() => goFailed('/payment/expired'));
+  }, [error, goFailed, isPaid, loading, order, orderId, timer]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -178,32 +193,44 @@ export default function PaymentPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const copy = (value, message) => {
+    navigator.clipboard.writeText(value || '');
+    addNotification(message, 'success');
+  };
+
   const handleCancelPayment = async () => {
-    if (!window.confirm('Bạn muốn hủy thanh toán đơn hàng này?')) return;
+    if (!window.confirm('Ban muon huy thanh toan don hang nay?')) return;
 
     setLoading(true);
-    await cancelPayment(true);
-    addNotification('Đã hủy thanh toán.', 'info');
-    setLoading(false);
+    try {
+      await paymentAPI.cancelPayment(orderId);
+      goFailed('/payment/failed');
+    } catch (err) {
+      addNotification(err?.message || 'Loi khi huy thanh toan.', 'error');
+      setLoading(false);
+    }
   };
 
   if (loading) {
     return (
       <div className="payment-loading-container">
         <div className="spinner"></div>
-        <p>Đang tải thông tin thanh toán...</p>
+        <p>Dang tai thong tin thanh toan...</p>
       </div>
     );
   }
 
-  if (expired) {
+  if (isPaid) {
     return (
-      <div className="payment-error-container">
-        <div className="error-card">
-          <div className="error-icon" style={{ backgroundColor: '#fff5f5', borderColor: '#fed7d7', color: '#e53e3e' }}>x</div>
-          <h2>Đơn hàng đã hết hạn thanh toán</h2>
-          <p>Thời gian thanh toán 15 phút cho đơn hàng này đã kết thúc. Vui lòng tạo đơn hàng mới.</p>
-          <button onClick={() => navigate('/products')} className="btn-retry">Quay lại mua sắm</button>
+      <div className="payment-feedback-container">
+        <div className="feedback-card">
+          <div className="feedback-icon-wrapper success">
+            <svg className="feedback-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </div>
+          <h1>Thanh toan thanh cong!</h1>
+          <p>Don hang cua ban da duoc SePay xac nhan va dang duoc xu ly.</p>
         </div>
       </div>
     );
@@ -214,9 +241,9 @@ export default function PaymentPage() {
       <div className="payment-error-container">
         <div className="error-card">
           <div className="error-icon">x</div>
-          <h2>Lỗi thanh toán</h2>
+          <h2>Loi thanh toan</h2>
           <p>{error}</p>
-          <button onClick={() => navigate('/checkout')} className="btn-retry">Quay lại thanh toán</button>
+          <button onClick={() => navigate('/checkout')} className="btn-retry">Quay lai thanh toan</button>
         </div>
       </div>
     );
@@ -226,86 +253,68 @@ export default function PaymentPage() {
     <div className="payment-page-wrapper">
       <div className="payment-card-container">
         <div className="payment-info-box">
-          <h2>Thông Tin Chuyển Khoản</h2>
+          <h2>Thanh Toan SePay</h2>
           <div className="timer-display">
-            Thực hiện thanh toán trong: <span className="countdown">{formatTime(timer)}</span>
+            Thuc hien thanh toan trong: <span className="countdown">{formatTime(timer)}</span>
           </div>
 
           <div className="info-fields">
             <div className="info-row">
-              <span className="info-label">Ngân hàng</span>
-              <span className="info-value highlight">{qrDetails?.bankName}</span>
+              <span className="info-label">Ngan hang</span>
+              <span className="info-value highlight">{paymentInfo?.bankName}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Số tài khoản</span>
+              <span className="info-label">So tai khoan</span>
               <span className="info-value copyable">
-                {qrDetails?.accountNumber}
-                <button
-                  className="btn-copy"
-                  onClick={() => {
-                    navigator.clipboard.writeText(qrDetails?.accountNumber || '');
-                    addNotification('Đã sao chép số tài khoản', 'success');
-                  }}
-                >
-                  Sao chép
-                </button>
+                {paymentInfo?.bankAccount}
+                <button className="btn-copy" onClick={() => copy(paymentInfo?.bankAccount, 'Da sao chep so tai khoan')}>Sao chep</button>
               </span>
             </div>
             <div className="info-row">
-              <span className="info-label">Chủ tài khoản</span>
-              <span className="info-value">{qrDetails?.accountName}</span>
-            </div>
-            <div className="info-row">
-              <span className="info-label">Số tiền</span>
-              <span className="info-value price-highlight">
-                {qrDetails?.amount?.toLocaleString('vi-VN')} VND
-                <button
-                  className="btn-copy"
-                  onClick={() => {
-                    navigator.clipboard.writeText(qrDetails?.amount?.toString() || '');
-                    addNotification('Đã sao chép số tiền', 'success');
-                  }}
-                >
-                  Sao chép
-                </button>
+              <span className="info-label">Virtual Account</span>
+              <span className="info-value copyable">
+                {paymentInfo?.vaNumber}
+                <button className="btn-copy" onClick={() => copy(paymentInfo?.vaNumber, 'Da sao chep VA')}>Sao chep</button>
               </span>
             </div>
             <div className="info-row">
-              <span className="info-label">Nội dung chuyển khoản</span>
+              <span className="info-label">Chu tai khoan</span>
+              <span className="info-value">{paymentInfo?.accountName}</span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">Noi dung CK</span>
               <span className="info-value copyable content-highlight">
-                {qrDetails?.content}
-                <button
-                  className="btn-copy"
-                  onClick={() => {
-                    navigator.clipboard.writeText(qrDetails?.content || '');
-                    addNotification('Đã sao chép nội dung chuyển khoản', 'success');
-                  }}
-                >
-                  Sao chép
-                </button>
+                {paymentInfo?.transferContent}
+                <button className="btn-copy" onClick={() => copy(paymentInfo?.transferContent, 'Da sao chep noi dung')}>Sao chep</button>
+              </span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">So tien</span>
+              <span className="info-value price-highlight">
+                {paymentInfo?.amount?.toLocaleString('vi-VN')} VND
               </span>
             </div>
           </div>
 
           <div className="payment-note-box">
-            <p><strong>Lưu ý:</strong> Vui lòng chuyển chính xác số tiền và nội dung chuyển khoản ở trên để đơn hàng được xác nhận.</p>
+            <p><strong>Luu y:</strong> Chuyen dung so tien va noi dung. SePay se tu dong gui webhook sau khi ngan hang ghi nhan giao dich.</p>
           </div>
 
           <div style={{ marginTop: '20px' }}>
             <button onClick={handleCancelPayment} className="btn-retry" style={{ backgroundColor: '#e53e3e', width: '100%' }}>
-              Hủy thanh toán
+              Huy thanh toan
             </button>
           </div>
         </div>
 
         <div className="payment-qr-box">
-          <h3>Quét mã để thanh toán</h3>
+          <h3>Quet ma de thanh toan</h3>
           <div className="qr-image-wrapper">
-            <img src={qrDetails?.qrUrl} alt="VietQR Code" className="viet-qr-img" />
+            <img src={paymentInfo?.qrCode} alt="SePay VietQR Code" className="viet-qr-img" />
           </div>
           <div className="payment-status-indicator">
             <span className="pulse-dot"></span>
-            Đang chờ bạn quét mã và chuyển tiền...
+            Dang cho SePay xac nhan giao dich...
           </div>
         </div>
       </div>

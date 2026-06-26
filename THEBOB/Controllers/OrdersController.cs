@@ -6,6 +6,7 @@ using THEBOB.Data;
 using THEBOB.Models;
 using THEBOB.Hubs;
 using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 
 namespace THEBOB.Controllers
 {
@@ -36,14 +37,15 @@ namespace THEBOB.Controllers
             var orders = await _context.Orders
                 .Where(o => o.UserId == userId)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Product)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Product!)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Size)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Size!)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Color)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Color!)
+                .Include(o => o.PaymentTransactions)
                 .OrderByDescending(o => o.CreatedAt)
                 .AsSplitQuery() // Prevent cartesian explosion
                 .ToListAsync();
@@ -63,14 +65,15 @@ namespace THEBOB.Controllers
 
             var query = _context.Orders
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Product)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Product!)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Size)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Size!)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Color)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Color!)
+                .Include(o => o.PaymentTransactions)
                 .Include(o => o.User)
                 .AsSplitQuery()
                 .AsQueryable();
@@ -86,6 +89,40 @@ namespace THEBOB.Controllers
                 return NotFound();
 
             return Ok(ToOrderDto(order));
+        }
+
+        // GET: api/orders/status/{id}
+        // Fallback nhẹ cho PaymentPage: dùng khi vừa render/F5 hoặc SignalR vừa reconnect.
+        [HttpGet("status/{id}")]
+        public async Task<ActionResult<object>> GetOrderStatus(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+                return Unauthorized();
+
+            var query = _context.Orders
+                .Include(o => o.PaymentTransactions)
+                .AsQueryable();
+
+            if (!IsCurrentUserAdmin())
+                query = query.Where(o => o.UserId == userId.Value);
+
+            var order = await query.FirstOrDefaultAsync(o => o.Id == id);
+            if (order == null)
+                return NotFound(new { message = "Không tìm thấy đơn hàng." });
+
+            var latestTransaction = order.PaymentTransactions
+                .OrderByDescending(t => t.PaidAt ?? t.UpdatedAt)
+                .FirstOrDefault();
+
+            return Ok(new
+            {
+                orderId = order.Id,
+                status = order.Status.ToString(),
+                paymentStatus = order.PaymentStatus,
+                isPaid = order.PaymentStatus == "Paid" || order.Status == OrderStatus.Paid,
+                transactionCode = latestTransaction?.TransactionCode ?? string.Empty
+            });
         }
 
         // POST: api/orders OR api/orders/checkout (checkout from cart)
@@ -119,6 +156,9 @@ namespace THEBOB.Controllers
             }
 
             // Run database updates inside an atomic transaction
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -161,13 +201,15 @@ namespace THEBOB.Controllers
                 bool isCod = request.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase);
 
                 // Create order
+                var shippingAddress = BuildShippingAddress(request);
+
                 var order = new Order
                 {
                     OrderNumber = orderNumber,
                     UserId = userId.Value,
                     Status = isCod ? OrderStatus.Pending : OrderStatus.PendingPayment,
                     TotalAmount = totalAmount,
-                    ShippingAddress = request.ShippingAddress,
+                    ShippingAddress = shippingAddress,
                     PaymentMethod = request.PaymentMethod,
                     PaymentStatus = "Pending",
                     CreatedAt = DateTime.UtcNow,
@@ -189,7 +231,8 @@ namespace THEBOB.Controllers
                 var paymentTx = new PaymentTransaction
                 {
                     OrderId = order.Id,
-                    Gateway = request.PaymentMethod,
+                    Gateway = isCod ? "COD" : "SePay",
+                    PaymentProvider = isCod ? "COD" : "SePay",
                     TransactionCode = request.TransactionCode ?? string.Empty,
                     Amount = totalAmount,
                     Status = "Pending", // Default status is Pending
@@ -207,11 +250,11 @@ namespace THEBOB.Controllers
                         OrderId = order.Id,
                         VariantId = cartItem.VariantId,
                         Quantity = cartItem.Quantity,
-                        PricePerItem = cartItem.Variant.Price,
-                        ProductName = cartItem.Variant.Product.Name,
+                        PricePerItem = cartItem.Variant!.Price,
+                        ProductName = cartItem.Variant.Product!.Name,
                         Sku = cartItem.Variant.Sku,
-                        Size = cartItem.Variant.Size?.Name ?? string.Empty,
-                        Color = cartItem.Variant.Color?.Name ?? string.Empty,
+                        Size = cartItem.Variant.Size!.Name,
+                        Color = cartItem.Variant.Color!.Name,
                         ProductImage = cartItem.Variant.Product.MainImageUrl
                     };
 
@@ -241,14 +284,15 @@ namespace THEBOB.Controllers
                 // Fetch complete order payload to return
                 var completeOrder = await _context.Orders
                     .Include(o => o.OrderItems)
-                    .ThenInclude(oi => oi.Variant)
-                    .ThenInclude(v => v.Product)
+                    .ThenInclude(oi => oi.Variant!)
+                    .ThenInclude(v => v.Product!)
                     .Include(o => o.OrderItems)
-                    .ThenInclude(oi => oi.Variant)
-                    .ThenInclude(v => v.Size)
+                    .ThenInclude(oi => oi.Variant!)
+                    .ThenInclude(v => v.Size!)
                     .Include(o => o.OrderItems)
-                    .ThenInclude(oi => oi.Variant)
-                    .ThenInclude(v => v.Color)
+                    .ThenInclude(oi => oi.Variant!)
+                    .ThenInclude(v => v.Color!)
+                    .Include(o => o.PaymentTransactions)
                     .AsSplitQuery()
                     .FirstAsync(o => o.Id == order.Id);
 
@@ -266,6 +310,7 @@ namespace THEBOB.Controllers
                 }
                 return StatusCode(500, new { message = ex.Message, stack = ex.StackTrace });
             }
+            });
         }
 
         // GET: api/orders/admin/all (admin only)
@@ -277,14 +322,15 @@ namespace THEBOB.Controllers
 
             var orders = await _context.Orders
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Product)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Product!)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Size)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Size!)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Color)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Color!)
+                .Include(o => o.PaymentTransactions)
                 .Include(o => o.User)
                 .OrderByDescending(o => o.CreatedAt)
                 .AsSplitQuery()
@@ -300,7 +346,7 @@ namespace THEBOB.Controllers
         {
             var order = await _context.Orders
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(oi => oi.Variant!)
                 .FirstOrDefaultAsync(o => o.Id == id);
             if (order == null)
                 return NotFound(new { message = "Không tìm thấy đơn hàng" });
@@ -334,6 +380,10 @@ namespace THEBOB.Controllers
             }
             // Strict forward progression: Pending -> Processing -> Shipped -> Delivered
             else if (currentStatus == OrderStatus.Pending && newStatus == OrderStatus.Processing)
+            {
+                isValid = true;
+            }
+            else if (currentStatus == OrderStatus.Paid && newStatus == OrderStatus.Processing)
             {
                 isValid = true;
             }
@@ -394,16 +444,16 @@ namespace THEBOB.Controllers
 
             var order = await _context.Orders
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
+                .ThenInclude(oi => oi.Variant!)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Product)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Product!)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Size)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Size!)
                 .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .ThenInclude(v => v.Color)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Color!)
                 .Include(o => o.User)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(o => o.Id == id && o.UserId == userId);
@@ -417,6 +467,9 @@ namespace THEBOB.Controllers
             if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Processing && order.Status != OrderStatus.PendingPayment)
                 return BadRequest(new { message = "Không thể hủy đơn hàng ở trạng thái này" });
 
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -435,6 +488,7 @@ namespace THEBOB.Controllers
                 await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Lỗi khi hủy đơn hàng", error = ex.Message });
             }
+            });
         }
 
         private string GenerateOrderNumber()
@@ -461,6 +515,9 @@ namespace THEBOB.Controllers
         {
             var subtotal = order.OrderItems != null ? order.OrderItems.Sum(item => item.PricePerItem * item.Quantity) : 0;
             var shippingAmount = subtotal > 500000 ? 0 : 30000;
+            var latestTransaction = order.PaymentTransactions?
+                .OrderByDescending(t => t.PaidAt ?? t.UpdatedAt)
+                .FirstOrDefault();
 
             return new
             {
@@ -468,6 +525,8 @@ namespace THEBOB.Controllers
                 order.OrderNumber,
                 order.UserId,
                 CustomerName = order.User?.FullName ?? order.User?.Email,
+                CustomerEmail = order.User?.Email ?? string.Empty,
+                CustomerPhone = order.User?.Phone ?? string.Empty,
                 Status = order.Status.ToString(),
                 order.TotalAmount,
                 order.ShippingAddress,
@@ -476,6 +535,14 @@ namespace THEBOB.Controllers
                 order.CouponId,
                 Subtotal = subtotal,
                 ShippingAmount = shippingAmount,
+                TransactionCode = latestTransaction?.TransactionCode ?? string.Empty,
+                TransactionId = latestTransaction?.TransactionId ?? string.Empty,
+                VaNumber = latestTransaction?.VaNumber ?? string.Empty,
+                PaymentGateway = latestTransaction?.Gateway ?? order.PaymentMethod,
+                PaymentProvider = latestTransaction?.PaymentProvider ?? latestTransaction?.Gateway ?? order.PaymentMethod,
+                PaidAt = latestTransaction?.PaidAt,
+                WebhookTime = latestTransaction?.UpdatedAt,
+                FailureReason = latestTransaction?.FailureReason ?? string.Empty,
                 order.CreatedAt,
                 order.UpdatedAt,
                 Items = order.OrderItems != null ? order.OrderItems.Select(item => new
@@ -496,6 +563,19 @@ namespace THEBOB.Controllers
                         : item.ProductImage
                 }) : Enumerable.Empty<object>()
             };
+        }
+
+        private static string BuildShippingAddress(CreateOrderRequest request)
+        {
+            return string.Join(", ", new[]
+            {
+                request.SpecificAddress?.Trim(),
+                request.Ward?.Trim(),
+                request.District?.Trim(),
+                request.ProvinceCity?.Trim(),
+                request.Phone?.Trim(),
+                request.Email?.Trim()
+            }.Where(value => !string.IsNullOrWhiteSpace(value)));
         }
 
         private void LogInventoryChange(int variantId, InventoryChangeType changeType, int quantityChanged, string reason, int? userId)
@@ -547,6 +627,7 @@ namespace THEBOB.Controllers
         {
             var expiryTime = DateTime.UtcNow.AddMinutes(-15);
             var expiredOrders = await _context.Orders
+                .Include(o => o.PaymentTransactions)
                 .Where(o => o.Status == OrderStatus.PendingPayment && o.CreatedAt < expiryTime)
                 .ToListAsync();
 
@@ -557,6 +638,13 @@ namespace THEBOB.Controllers
                     order.Status = OrderStatus.Cancelled;
                     order.PaymentStatus = "Expired";
                     order.UpdatedAt = DateTime.UtcNow;
+
+                    foreach (var tx in order.PaymentTransactions.Where(t => t.Status == "Pending"))
+                    {
+                        tx.Status = "Expired";
+                        tx.FailureReason = "Payment expired";
+                        tx.UpdatedAt = DateTime.UtcNow;
+                    }
                 }
                 await _context.SaveChangesAsync();
             }
@@ -565,8 +653,33 @@ namespace THEBOB.Controllers
 
     public class CreateOrderRequest
     {
-        public string ShippingAddress { get; set; } = string.Empty;
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        [RegularExpression(@"^(0(3|5|7|8|9)\d{8}|\+84(3|5|7|8|9)\d{8})$", ErrorMessage = "Số điện thoại Việt Nam không hợp lệ.")]
+        public string Phone { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(255, MinimumLength = 2)]
+        public string ProvinceCity { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(255, MinimumLength = 2)]
+        public string District { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(255, MinimumLength = 2)]
+        public string Ward { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(500, MinimumLength = 2)]
+        public string SpecificAddress { get; set; } = string.Empty;
+
+        [Required]
         public string PaymentMethod { get; set; } = string.Empty;
+
         public string? TransactionCode { get; set; }
         public string? RawPaymentResponse { get; set; }
     }

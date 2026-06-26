@@ -41,6 +41,12 @@
   border: 2px solid #fed7d7;
 }
 
+.feedback-icon-wrapper.warning {
+  background: #fffbeb;
+  color: #b45309;
+  border: 2px solid #fde68a;
+}
+
 .feedback-svg {
   width: 40px;
   height: 40px;

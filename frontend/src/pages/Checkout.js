@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -35,14 +35,27 @@ export default function Checkout() {
   const { user, token } = useAuth();
   const { addNotification } = useNotification();
 
+  const phoneRegex = /^(0(3|5|7|8|9)\d{8}|\+84(3|5|7|8|9)\d{8})$/;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   const [formData, setFormData] = useState({
     fullName: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || '',
-    address: user?.address || '',
+    specificAddress: '',
+    provinceCity: '',
+    district: '',
+    ward: '',
     paymentMethod: 'cod',
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [selectedProvinceName, setSelectedProvinceName] = useState('');
+  const [selectedDistrictName, setSelectedDistrictName] = useState('');
+  const [selectedWardName, setSelectedWardName] = useState('');
 
   useEffect(() => {
     const autoFillProfile = async () => {
@@ -57,7 +70,6 @@ export default function Checkout() {
           fullName: prev.fullName || decoded.name || '',
           email: prev.email || decoded.email || '',
           phone: prev.phone || decoded.phone || '',
-          address: prev.address || decoded.address || '',
         }));
       }
 
@@ -71,7 +83,6 @@ export default function Checkout() {
             fullName: profile.name || profile.fullName || prev.fullName,
             email: profile.email || prev.email,
             phone: profile.phone || prev.phone,
-            address: profile.address || prev.address,
           }));
         }
       } catch (error) {
@@ -82,6 +93,30 @@ export default function Checkout() {
     autoFillProfile();
   }, [token]);
 
+  useEffect(() => {
+    const loadProvinces = async () => {
+      try {
+        const res = await fetch('https://provinces.open-api.vn/api/?depth=1');
+        const data = await res.json();
+        setProvinces(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Failed to load provinces:', error);
+        addNotification('Không tải được danh sách tỉnh/thành', 'error');
+      }
+    };
+
+    loadProvinces();
+  }, [addNotification]);
+
+  const fullShippingAddress = useMemo(() => {
+    return [
+      formData.specificAddress,
+      selectedWardName,
+      selectedDistrictName,
+      selectedProvinceName,
+    ].filter(Boolean).join(', ');
+  }, [formData.specificAddress, selectedDistrictName, selectedProvinceName, selectedWardName]);
+
   const handleInputChange = (field) => (e) => {
     setFormData({
       ...formData,
@@ -89,11 +124,88 @@ export default function Checkout() {
     });
   };
 
+  const validateForm = () => {
+    const errors = {};
+
+    if (!formData.fullName.trim()) errors.fullName = 'Họ tên là bắt buộc';
+    if (!emailRegex.test(formData.email.trim())) errors.email = 'Email không hợp lệ';
+    if (!phoneRegex.test(formData.phone.trim())) errors.phone = 'SĐT phải là số Việt Nam hợp lệ';
+    if (!formData.provinceCity) errors.provinceCity = 'Vui lòng chọn tỉnh/thành';
+    if (!formData.district) errors.district = 'Vui lòng chọn quận/huyện';
+    if (!formData.ward) errors.ward = 'Vui lòng chọn phường/xã';
+    if (!formData.specificAddress.trim()) errors.specificAddress = 'Vui lòng nhập số nhà, tên đường';
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleProvinceChange = async (e) => {
+    const provinceCode = e.target.value;
+    const province = provinces.find((item) => String(item.code) === String(provinceCode));
+
+    setFormData((prev) => ({
+      ...prev,
+      provinceCity: province?.name || '',
+      district: '',
+      ward: '',
+    }));
+    setSelectedProvinceName(province?.name || '');
+    setSelectedDistrictName('');
+    setSelectedWardName('');
+    setDistricts([]);
+    setWards([]);
+
+    if (!provinceCode) return;
+
+    try {
+      const res = await fetch(`https://provinces.open-api.vn/api/p/${provinceCode}?depth=2`);
+      const data = await res.json();
+      setDistricts(Array.isArray(data?.districts) ? data.districts : []);
+    } catch (error) {
+      console.error('Failed to load districts:', error);
+    }
+  };
+
+  const handleDistrictChange = async (e) => {
+    const districtCode = e.target.value;
+    const district = districts.find((item) => String(item.code) === String(districtCode));
+
+    setFormData((prev) => ({
+      ...prev,
+      district: district?.name || '',
+      ward: '',
+    }));
+    setSelectedDistrictName(district?.name || '');
+    setSelectedWardName('');
+    setWards([]);
+
+    if (!districtCode) return;
+
+    try {
+      const res = await fetch(`https://provinces.open-api.vn/api/d/${districtCode}?depth=2`);
+      const data = await res.json();
+      setWards(Array.isArray(data?.wards) ? data.wards : []);
+    } catch (error) {
+      console.error('Failed to load wards:', error);
+    }
+  };
+
+  const handleWardChange = (e) => {
+    const wardCode = e.target.value;
+    const ward = wards.find((item) => String(item.code) === String(wardCode));
+
+    setFormData((prev) => ({
+      ...prev,
+      ward: ward?.name || '',
+    }));
+    setSelectedWardName(ward?.name || '');
+  };
+
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
 
-    if (!formData.fullName || !formData.email || !formData.phone || !formData.address) {
-      addNotification('Vui lòng điền đầy đủ thông tin giao hàng', 'warning');
+    if (!validateForm()) {
+      addNotification('Vui lòng kiểm tra lại thông tin giao hàng', 'warning');
       return;
     }
 
@@ -107,19 +219,21 @@ export default function Checkout() {
         return;
       }
 
-      // Sync backend cart before checkout
-      await cartAPI.clearCart();
-      for (const item of cartItems) {
-        await cartAPI.addItem(item.variantId, item.quantity);
-      }
+      // Sync backend cart atomically before checkout.
+      await cartAPI.syncCart(
+        cartItems.map(item => ({
+          variantId: item.variantId,
+          quantity: item.quantity
+        }))
+      );
 
       const orderData = {
-        shippingAddress: [
-          formData.fullName,
-          formData.phone,
-          formData.email,
-          formData.address,
-        ].filter(Boolean).join(' - '),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
+        provinceCity: formData.provinceCity,
+        district: formData.district,
+        ward: formData.ward,
+        specificAddress: formData.specificAddress.trim(),
         paymentMethod: formData.paymentMethod,
       };
 
@@ -200,33 +314,77 @@ export default function Checkout() {
                   <label>Email *</label>
                   <input
                     type="email"
+                    inputMode="email"
                     value={formData.email}
                     onChange={handleInputChange('email')}
                     placeholder="email@example.com"
                     required
                   />
+                  {formErrors.email && <span className="field-error">{formErrors.email}</span>}
                 </div>
                 <div className="form-group">
                   <label>Số Điện Thoại *</label>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    pattern="^(0(3|5|7|8|9)\d{8}|\\+84(3|5|7|8|9)\\d{8})$"
                     value={formData.phone}
                     onChange={handleInputChange('phone')}
                     placeholder="0908474355"
                     required
                   />
+                  {formErrors.phone && <span className="field-error">{formErrors.phone}</span>}
                 </div>
               </div>
 
               <div className="form-group">
-                <label>Địa Chỉ Giao Hàng *</label>
+                <label>Tỉnh / Thành phố *</label>
+                <select value={provinces.find((item) => item.name === formData.provinceCity)?.code || ''} onChange={handleProvinceChange} required>
+                  <option value="">Chọn tỉnh/thành</option>
+                  {provinces.map((province) => (
+                    <option key={province.code} value={province.code}>{province.name}</option>
+                  ))}
+                </select>
+                {formErrors.provinceCity && <span className="field-error">{formErrors.provinceCity}</span>}
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Quận / Huyện *</label>
+                  <select value={districts.find((item) => item.name === formData.district)?.code || ''} onChange={handleDistrictChange} required disabled={!districts.length}>
+                    <option value="">Chọn quận/huyện</option>
+                    {districts.map((district) => (
+                      <option key={district.code} value={district.code}>{district.name}</option>
+                    ))}
+                  </select>
+                  {formErrors.district && <span className="field-error">{formErrors.district}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label>Phường / Xã *</label>
+                  <select value={wards.find((item) => item.name === formData.ward)?.code || ''} onChange={handleWardChange} required disabled={!wards.length}>
+                    <option value="">Chọn phường/xã</option>
+                    {wards.map((ward) => (
+                      <option key={ward.code} value={ward.code}>{ward.name}</option>
+                    ))}
+                  </select>
+                  {formErrors.ward && <span className="field-error">{formErrors.ward}</span>}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Số nhà, tên đường *</label>
                 <input
                   type="text"
-                  value={formData.address}
-                  onChange={handleInputChange('address')}
-                  placeholder="76 Nguyễn Sơn, Phú Thọ Hòa, Tân Phú, TPHCM"
+                  value={formData.specificAddress}
+                  onChange={handleInputChange('specificAddress')}
+                  placeholder="76 Nguyễn Sơn"
                   required
                 />
+                {formErrors.specificAddress && <span className="field-error">{formErrors.specificAddress}</span>}
+              </div>
+              <div className="address-preview">
+                <strong>Địa chỉ đầy đủ:</strong> {fullShippingAddress || 'Chưa hoàn tất địa chỉ'}
               </div>
             </div>
 

@@ -55,11 +55,16 @@ namespace THEBOB.Data.Configurations
         {
             builder.Property(p => p.Gateway).HasMaxLength(50).IsRequired();
             builder.Property(p => p.TransactionCode).HasMaxLength(100);
+            builder.Property(p => p.VaNumber).HasMaxLength(100);
+            builder.Property(p => p.TransactionId).HasMaxLength(100);
+            builder.Property(p => p.PaymentProvider).HasMaxLength(50);
             builder.Property(p => p.Amount).HasColumnType("decimal(12,2)");
             builder.Property(p => p.Status).HasMaxLength(50).IsRequired();
 
             builder.HasIndex(p => p.OrderId);
             builder.HasIndex(p => p.TransactionCode);
+            builder.HasIndex(p => p.VaNumber);
+            builder.HasIndex(p => p.TransactionId);
 
             builder.HasOne(p => p.Order)
                 .WithMany(o => o.PaymentTransactions)

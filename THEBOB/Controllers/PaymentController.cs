@@ -2,245 +2,468 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using THEBOB.Data;
-using THEBOB.Models;
-using THEBOB.Hubs;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using System.Text.Json;
+using THEBOB.Data;
+using THEBOB.Hubs;
+using THEBOB.Models;
+using THEBOB.Services;
 
 namespace THEBOB.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
     public class PaymentController : ControllerBase
     {
+        private const int PaymentWindowSeconds = 15 * 60;
+
         private readonly ThebobDbContext _context;
+        private readonly SepayService _sepayService;
         private readonly IHubContext<OrderHub> _hubContext;
         private readonly ILogger<PaymentController> _logger;
 
         public PaymentController(
-            ThebobDbContext context, 
+            ThebobDbContext context,
+            SepayService sepayService,
             IHubContext<OrderHub> hubContext,
             ILogger<PaymentController> logger)
         {
             _context = context;
+            _sepayService = sepayService;
             _hubContext = hubContext;
             _logger = logger;
         }
 
-        // POST: api/payment/create-qr
-        [HttpPost("create-qr")]
-        public async Task<ActionResult<object>> CreateQr([FromBody] CreateQrPaymentRequest request)
+        [HttpPost("create")]
+        [Authorize]
+        public async Task<ActionResult<ApiResponse<CreatePaymentResponse>>> Create([FromBody] CreatePaymentRequest request)
         {
             if (!ModelState.IsValid)
-            {
-                _logger.LogWarning("CreateQr: Invalid ModelState");
-                return BadRequest(ModelState);
-            }
+                return BadRequest(ApiResponse<CreatePaymentResponse>.Fail("Invalid payment request.", ModelState));
+
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+                return Unauthorized(ApiResponse<CreatePaymentResponse>.Fail("Unauthorized."));
 
             try
             {
-                // Extract OrderId from transferContent/orderInfo
-                int orderId = 0;
-                if (request.OrderInfo.StartsWith("PAY_ORDER_", StringComparison.OrdinalIgnoreCase))
-                {
-                    int.TryParse(request.OrderInfo.Substring("PAY_ORDER_".Length), out orderId);
-                }
-                else if (request.OrderInfo.StartsWith("THEBOB-", StringComparison.OrdinalIgnoreCase))
-                {
-                    int.TryParse(request.OrderInfo.Substring("THEBOB-".Length), out orderId);
-                }
-                else if (request.OrderInfo.StartsWith("THEBOB_", StringComparison.OrdinalIgnoreCase))
-                {
-                    int.TryParse(request.OrderInfo.Substring("THEBOB_".Length), out orderId);
-                }
-                else
-                {
-                    int.TryParse(request.OrderInfo, out orderId);
-                }
+                var order = await _context.Orders
+                    .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.UserId == userId.Value);
 
-                var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
                 if (order == null)
+                    return NotFound(ApiResponse<CreatePaymentResponse>.Fail("Order not found."));
+
+                if (order.PaymentStatus == "Paid")
+                    return BadRequest(ApiResponse<CreatePaymentResponse>.Fail("Order already paid."));
+
+                if (order.Status == OrderStatus.Cancelled || order.PaymentStatus is "Cancelled" or "Expired")
+                    return BadRequest(ApiResponse<CreatePaymentResponse>.Fail("Order has been cancelled or expired."));
+
+                var remainingSeconds = GetRemainingSeconds(order);
+                if (remainingSeconds <= 0)
                 {
-                    _logger.LogWarning("CreateQr: Order not found for OrderId: {OrderId}", orderId);
-                    return NotFound(new { message = "Không tìm thấy đơn hàng tương ứng." });
+                    await ExpireOrderAsync(order);
+                    return BadRequest(ApiResponse<CreatePaymentResponse>.Fail("Payment expired."));
                 }
 
-                // Security check: Validate amount to prevent manual tampering on frontend
-                if (Math.Abs(order.TotalAmount - request.Amount) > 0.01m)
+                var amount = order.TotalAmount;
+                if (request.Amount.HasValue && Math.Abs(request.Amount.Value - amount) > 0.01m)
+                    return BadRequest(ApiResponse<CreatePaymentResponse>.Fail("Payment amount does not match order total."));
+
+                var existingTx = await _context.PaymentTransactions
+                    .FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending" && t.PaymentProvider == "SePay");
+
+                if (existingTx != null && !string.IsNullOrWhiteSpace(existingTx.VaNumber))
                 {
-                    _logger.LogWarning("CreateQr: Amount mismatch. DB: {DbAmount}, Request: {ReqAmount}", order.TotalAmount, request.Amount);
-                    return BadRequest(new { message = "Số tiền thanh toán không khớp với tổng giá trị đơn hàng." });
+                    return Ok(ApiResponse<CreatePaymentResponse>.Ok(BuildCreatePaymentResponse(order, existingTx, remainingSeconds)));
                 }
 
-// FIXED SECTION: CreateQr
-var bankName = "Sacombank";
-var bankCode = "SACOMBANK";
-var accountNumber = "050145284268";
-var accountName = "NGUYEN ANH DUC";
-var content = $"THEBOB_{order.Id}";
-
-// Generate dynamic VietQR URL (FIXED BANK CODE)
-var amountInt = (int)order.TotalAmount;
-
-var qrUrl =
-    $"https://img.vietqr.io/image/{bankCode}-{accountNumber}-print.png" +
-    $"?amount={amountInt}" +
-    $"&addInfo={Uri.EscapeDataString(content)}" +
-    $"&accountName={Uri.EscapeDataString(accountName)}";
-
-                _logger.LogInformation("CreateQr Success: OrderId={OrderId}, PaymentStatus={PaymentStatus}, OrderStatus={OrderStatus}", 
-                    order.Id, order.PaymentStatus, order.Status);
-
-                return Ok(new
+                var sepayResult = await _sepayService.CreateVirtualAccount(order.Id, amount);
+                var now = DateTime.UtcNow;
+                var paymentTx = existingTx ?? new PaymentTransaction
                 {
-                    orderId = order.Id,
-                    amount = amountInt,
-                    bankName,
-                    accountNumber,
-                    accountName,
-                    content,
-                    qrUrl
-                });
+                    OrderId = order.Id,
+                    CreatedAt = now
+                };
+
+                paymentTx.Gateway = "SePay";
+                paymentTx.PaymentProvider = "SePay";
+                paymentTx.Amount = amount;
+                paymentTx.Status = "Pending";
+                paymentTx.VaNumber = sepayResult.VaNumber;
+                paymentTx.TransactionCode = sepayResult.TransferContent;
+                paymentTx.RawResponse = sepayResult.RawResponse;
+                paymentTx.UpdatedAt = now;
+
+                if (existingTx == null)
+                    _context.PaymentTransactions.Add(paymentTx);
+
+                await _context.SaveChangesAsync();
+
+                return Ok(ApiResponse<CreatePaymentResponse>.Ok(new CreatePaymentResponse
+                {
+                    Success = true,
+                    VaNumber = sepayResult.VaNumber,
+                    Amount = amount,
+                    BankName = sepayResult.BankName,
+                    BankAccount = sepayResult.BankAccount,
+                    AccountName = sepayResult.AccountName,
+                    TransferContent = sepayResult.TransferContent,
+                    QrCode = sepayResult.QrCode,
+                    ExpiredAt = order.CreatedAt.AddSeconds(PaymentWindowSeconds)
+                }));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "CreateQr Exception for OrderInfo: {OrderInfo}. Message: {Msg}", request.OrderInfo, ex.Message);
-                return StatusCode(500, new { message = "Lỗi khi sinh mã QR thanh toán.", error = ex.Message });
+                _logger.LogError(ex, "Create SePay payment failed for OrderId={OrderId}", request.OrderId);
+                return StatusCode(500, ApiResponse<CreatePaymentResponse>.Fail("Could not create SePay payment.", ex.Message));
             }
         }
 
-        // GET: api/payment/status/{orderId}
+        [HttpPost("create-link")]
+        [Authorize]
+        public Task<ActionResult<ApiResponse<CreatePaymentResponse>>> CreateLink([FromBody] CreatePaymentLinkRequest request)
+        {
+            return Create(new CreatePaymentRequest { OrderId = request.OrderId, Amount = request.Amount });
+        }
+
+        [HttpPost("create-qr")]
+        [Authorize]
+        public Task<ActionResult<ApiResponse<CreatePaymentResponse>>> CreateQr([FromBody] CreateQrPaymentRequest request)
+        {
+            return Create(new CreatePaymentRequest
+            {
+                OrderId = request.OrderId > 0 ? request.OrderId : ExtractOrderId(request.OrderInfo),
+                Amount = request.Amount
+            });
+        }
+
         [HttpGet("status/{orderId}")]
-        public async Task<ActionResult<object>> GetPaymentStatus(int orderId)
+        [Authorize]
+        public async Task<ActionResult<ApiResponse<PaymentStatusResponse>>> GetPaymentStatus(int orderId)
         {
             var userId = GetCurrentUserId();
             if (!userId.HasValue)
-                return Unauthorized();
+                return Unauthorized(ApiResponse<PaymentStatusResponse>.Fail("Unauthorized."));
 
             try
             {
                 var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
                 if (order == null)
-                {
-                    _logger.LogWarning("GetPaymentStatus: Order not found for OrderId: {OrderId}", orderId);
-                    return NotFound(new { message = "Không tìm thấy đơn hàng." });
-                }
+                    return NotFound(ApiResponse<PaymentStatusResponse>.Fail("Order not found."));
 
-                // Allow only admin or the order owner to see the status
-                if (order.UserId != userId && !IsCurrentUserAdmin())
-                {
-                    _logger.LogWarning("GetPaymentStatus: Forbidden access by User {UserId} to Order {OrderId}", userId, orderId);
+                if (order.UserId != userId.Value && !User.IsInRole("Admin"))
                     return Forbid();
+
+                var remainingSeconds = GetRemainingSeconds(order);
+                if (remainingSeconds <= 0 && order.PaymentStatus == "Pending" && order.Status == OrderStatus.PendingPayment)
+                {
+                    await ExpireOrderAsync(order);
+                    await _hubContext.Clients.User(order.UserId.ToString()).SendAsync("ReceivePaymentExpired", order.Id);
                 }
 
-                var now = DateTime.UtcNow;
-                var expiresAt = order.CreatedAt.AddMinutes(15);
-                var remainingSeconds = Math.Max(0, (int)Math.Floor((expiresAt - now).TotalSeconds));
-                var isExpired = order.Status == OrderStatus.PendingPayment
-                    && order.PaymentStatus == "Pending"
-                    && remainingSeconds <= 0;
+                var tx = await _context.PaymentTransactions
+                    .OrderByDescending(t => t.CreatedAt)
+                    .FirstOrDefaultAsync(t => t.OrderId == order.Id);
 
-                if (isExpired)
+                var response = new PaymentStatusResponse
                 {
-                    order.Status = OrderStatus.Cancelled;
-                    order.PaymentStatus = "Expired";
-                    order.UpdatedAt = now;
+                    Status = order.PaymentStatus,
+                    PaymentStatus = order.PaymentStatus,
+                    OrderStatus = order.Status.ToString(),
+                    RemainingSeconds = Math.Max(0, remainingSeconds),
+                    IsExpired = order.PaymentStatus == "Expired" || (order.Status == OrderStatus.Cancelled && remainingSeconds <= 0),
+                    VaNumber = tx?.VaNumber,
+                    TransactionId = tx?.TransactionId
+                };
 
-                    var payTx = await _context.PaymentTransactions.FirstOrDefaultAsync(t => t.OrderId == order.Id);
-                    if (payTx != null)
-                    {
-                        payTx.Status = "Expired";
-                        payTx.FailureReason = "Payment window expired";
-                        payTx.UpdatedAt = now;
-                    }
-
-                    await _context.SaveChangesAsync();
-                }
-
-                _logger.LogInformation("GetPaymentStatus Success: OrderId={OrderId}, PaymentStatus={PaymentStatus}, OrderStatus={OrderStatus}", 
-                    order.Id, order.PaymentStatus, order.Status);
-
-                return Ok(new
-                {
-                    orderId = order.Id,
-                    paymentStatus = order.PaymentStatus,
-                    orderStatus = order.Status.ToString(),
-                    remainingSeconds,
-                    isExpired
-                });
+                return Ok(ApiResponse<PaymentStatusResponse>.Ok(response));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "GetPaymentStatus Exception for OrderId: {OrderId}. Message: {Msg}", orderId, ex.Message);
-                return StatusCode(500, new { message = "Lỗi khi lấy trạng thái thanh toán.", error = ex.Message });
+                _logger.LogError(ex, "GetPaymentStatus failed for OrderId={OrderId}", orderId);
+                return StatusCode(500, ApiResponse<PaymentStatusResponse>.Fail("Could not get payment status.", ex.Message));
             }
         }
 
-        // POST: api/payment/confirm (Admin confirms payment)
-        [HttpPost("confirm")]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<object>> ConfirmPayment([FromBody] ConfirmPaymentRequest request)
+        [HttpPost("cancel/{orderId}")]
+        [Authorize]
+        public async Task<ActionResult<ApiResponse<object>>> CancelPayment(int orderId)
         {
-            if (!ModelState.IsValid)
-            {
-                _logger.LogWarning("ConfirmPayment: Invalid ModelState");
-                return BadRequest(ModelState);
-            }
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+                return Unauthorized(ApiResponse<object>.Fail("Unauthorized."));
 
-            var order = await _context.Orders
-                .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Variant)
-                .FirstOrDefaultAsync(o => o.Id == request.OrderId);
-
-            if (order == null)
-            {
-                _logger.LogWarning("ConfirmPayment: Order not found for OrderId: {OrderId}", request.OrderId);
-                return NotFound(new { message = "Không tìm thấy đơn hàng." });
-            }
-
-            // Prevent duplicate confirmations
-            if (order.PaymentStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogWarning("ConfirmPayment: Order {OrderId} already confirmed as Paid.", order.Id);
-                return BadRequest(new { message = "Đơn hàng này đã được xác nhận thanh toán trước đó." });
-            }
-
-            if (order.Status == OrderStatus.Cancelled || order.PaymentStatus == "Cancelled" || order.PaymentStatus == "Expired")
-            {
-                return BadRequest(new { message = "Đơn hàng đã bị hủy hoặc hết hạn thanh toán." });
-            }
-
-            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Update Order details
-                order.PaymentStatus = "Paid";
-                order.Status = OrderStatus.Processing;
+                var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId.Value);
+                if (order == null)
+                    return NotFound(ApiResponse<object>.Fail("Order not found."));
+
+                if (order.PaymentStatus != "Pending")
+                    return BadRequest(ApiResponse<object>.Fail("Only pending payments can be cancelled."));
+
+                order.Status = OrderStatus.Cancelled;
+                order.PaymentStatus = "Cancelled";
                 order.UpdatedAt = DateTime.UtcNow;
 
-                // Deduct stock and log inventory change
-                foreach (var item in order.OrderItems)
+                var tx = await _context.PaymentTransactions.FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending");
+                if (tx != null)
                 {
-                    if (item.Variant == null)
-                        throw new InvalidOperationException("Biến thể sản phẩm không tồn tại.");
-                    if (item.Variant.Stock < item.Quantity)
-                        throw new InvalidOperationException($"Sản phẩm {item.ProductName} - {item.Sku} không đủ hàng tồn kho.");
+                    tx.Status = "Cancelled";
+                    tx.FailureReason = "Cancelled by customer";
+                    tx.UpdatedAt = DateTime.UtcNow;
+                }
 
-                    item.Variant.Stock -= item.Quantity;
-                    item.Variant.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                await _hubContext.Clients.User(order.UserId.ToString()).SendAsync("ReceivePaymentFailed", order.Id);
 
+                return Ok(ApiResponse<object>.Ok(new { orderId = order.Id }, "Payment cancelled."));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CancelPayment failed for OrderId={OrderId}", orderId);
+                return StatusCode(500, ApiResponse<object>.Fail("Could not cancel payment.", ex.Message));
+            }
+        }
+
+        [HttpPost("webhook")]
+        [AllowAnonymous]
+        public async Task<ActionResult<ApiResponse<object>>> Webhook([FromBody] JsonElement payload)
+        {
+            if (!_sepayService.VerifyWebhook(Request, out var verifyError))
+            {
+                _logger.LogWarning("Rejected SePay webhook: {Reason}", verifyError);
+                return Unauthorized(ApiResponse<object>.Fail(verifyError));
+            }
+
+            try
+            {
+                var rawPayload = payload.GetRawText();
+                var webhook = _sepayService.ParseWebhook(payload);
+
+                if (string.IsNullOrWhiteSpace(webhook.TransactionId))
+                    return BadRequest(ApiResponse<object>.Fail("Webhook missing transaction id."));
+
+                if (!string.Equals(webhook.Status, "Paid", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(webhook.Status, "Success", StringComparison.OrdinalIgnoreCase))
+                {
+                    await MarkPaymentFailedAsync(webhook, rawPayload);
+                    return Ok(ApiResponse<object>.Ok(new { webhook.TransactionId }, "Webhook marked as failed."));
+                }
+
+                var order = await FindOrderFromWebhookAsync(webhook);
+                if (order == null)
+                    return NotFound(ApiResponse<object>.Fail("Order not found for SePay webhook."));
+
+                var result = await FinalizePaidOrderAsync(order.Id, webhook, rawPayload);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "SePay webhook processing failed.");
+                return StatusCode(500, ApiResponse<object>.Fail("Could not process SePay webhook.", ex.Message));
+            }
+        }
+
+        [HttpGet("admin/transactions")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<ApiResponse<PagedPaymentTransactionsResponse>>> GetTransactions(
+            [FromQuery] string? status,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            try
+            {
+                var query = _context.PaymentTransactions
+                    .Include(t => t.Order)
+                    .AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
+                    query = query.Where(t => t.Status == status);
+
+                var total = await query.CountAsync();
+                var items = await query
+                    .OrderByDescending(t => t.CreatedAt)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(t => new PaymentTransactionDto
+                    {
+                        Id = t.Id,
+                        OrderId = t.OrderId,
+                        Amount = t.Amount,
+                        Status = t.Status,
+                        VaNumber = t.VaNumber,
+                        TransactionId = t.TransactionId,
+                        PaymentProvider = t.PaymentProvider,
+                        PaidAt = t.PaidAt,
+                        FailureReason = t.FailureReason,
+                        CreatedAt = t.CreatedAt,
+                        UpdatedAt = t.UpdatedAt
+                    })
+                    .ToListAsync();
+
+                return Ok(ApiResponse<PagedPaymentTransactionsResponse>.Ok(new PagedPaymentTransactionsResponse
+                {
+                    Items = items,
+                    Page = page,
+                    PageSize = pageSize,
+                    Total = total
+                }));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetTransactions failed.");
+                return StatusCode(500, ApiResponse<PagedPaymentTransactionsResponse>.Fail("Could not load transactions.", ex.Message));
+            }
+        }
+
+        [HttpPost("confirm")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<ApiResponse<object>>> ConfirmPayment([FromBody] ConfirmPaymentRequest request)
+        {
+            var webhook = new SepayWebhookPayload
+            {
+                TransactionId = request.TransactionCode ?? $"ADMIN_{request.OrderId}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
+                Amount = 0,
+                Status = "Paid",
+                PaidAt = DateTime.UtcNow
+            };
+            return await FinalizePaidOrderAsync(request.OrderId, webhook, request.Note ?? "Confirmed by Admin");
+        }
+
+        private async Task<ActionResult<ApiResponse<object>>> FinalizePaidOrderAsync(int orderId, SepayWebhookPayload webhook, string rawPayload)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var now = DateTime.UtcNow;
+                var duplicated = await _context.PaymentTransactions.AnyAsync(t =>
+                    t.TransactionId == webhook.TransactionId && t.Status == "Paid");
+
+                if (duplicated)
+                {
+                    await transaction.RollbackAsync();
+                    return Ok(ApiResponse<object>.Ok(new { orderId }, "Transaction already processed."));
+                }
+
+                var order = await _context.Orders
+                    .FromSqlRaw("SELECT * FROM Orders WHERE Id = {0} FOR UPDATE", orderId)
+                    .AsTracking()
+                    .FirstOrDefaultAsync();
+
+                if (order == null)
+                {
+                    await transaction.RollbackAsync();
+                    return NotFound(ApiResponse<object>.Fail("Order not found."));
+                }
+
+                if (order.PaymentStatus == "Paid")
+                {
+                    await transaction.RollbackAsync();
+                    return Ok(ApiResponse<object>.Ok(new { orderId }, "Order already paid."));
+                }
+
+                if (order.PaymentStatus is "Cancelled" or "Expired")
+                {
+                    await transaction.RollbackAsync();
+                    return BadRequest(ApiResponse<object>.Fail("Order is cancelled or expired."));
+                }
+
+                if (webhook.Amount > 0 && Math.Abs(order.TotalAmount - webhook.Amount) > 0.01m)
+                    throw new InvalidOperationException("Webhook amount does not match order total.");
+
+                var orderItems = await _context.OrderItems
+                    .FromSqlRaw("SELECT * FROM OrderItems WHERE OrderId = {0} FOR UPDATE", orderId)
+                    .AsTracking()
+                    .ToListAsync();
+
+                foreach (var item in orderItems)
+                {
+                    if (!item.VariantId.HasValue)
+                        throw new InvalidOperationException($"Order item {item.Id} missing VariantId.");
+
+                    var variant = await _context.ProductVariants
+                        .FromSqlRaw("SELECT * FROM ProductVariants WHERE Id = {0} FOR UPDATE", item.VariantId.Value)
+                        .AsTracking()
+                        .FirstOrDefaultAsync();
+
+                    if (variant == null)
+                        throw new InvalidOperationException($"Variant {item.VariantId.Value} not found.");
+
+                    if (variant.Stock < item.Quantity)
+                        throw new InvalidOperationException($"Insufficient stock for {item.ProductName} - {item.Sku}.");
+
+                    variant.Stock -= item.Quantity;
+                    variant.UpdatedAt = now;
                     _context.InventoryLogs.Add(new InventoryLog
                     {
-                        VariantId = item.Variant.Id,
+                        VariantId = variant.Id,
                         ChangeType = InventoryChangeType.Sold,
                         QuantityChanged = -item.Quantity,
-                        Reason = $"Order {order.OrderNumber} Paid Confirmation",
+                        Reason = $"Order {order.OrderNumber} paid via SePay",
                         UserId = order.UserId
                     });
                 }
 
-                // Clear user's shopping cart
+                order.PaymentStatus = "Paid";
+                order.Status = OrderStatus.Processing;
+                order.UpdatedAt = now;
+
+                var paymentTx = await _context.PaymentTransactions
+                    .FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending");
+
+                if (paymentTx == null)
+                {
+                    paymentTx = new PaymentTransaction
+                    {
+                        OrderId = order.Id,
+                        Amount = order.TotalAmount,
+                        CreatedAt = now
+                    };
+                    _context.PaymentTransactions.Add(paymentTx);
+                }
+
+                paymentTx.Gateway = "SePay";
+                paymentTx.PaymentProvider = "SePay";
+                paymentTx.TransactionCode = webhook.TransactionId ?? paymentTx.TransactionCode;
+                paymentTx.TransactionId = webhook.TransactionId;
+                paymentTx.VaNumber = webhook.VaNumber ?? paymentTx.VaNumber;
+                paymentTx.Status = "Paid";
+                paymentTx.PaidAt = webhook.PaidAt;
+                paymentTx.Amount = order.TotalAmount;
+                paymentTx.WebhookPayload = rawPayload;
+                paymentTx.UpdatedAt = now;
+
+                if (order.CouponId.HasValue)
+                {
+                    var alreadyUsed = await _context.CouponUsages
+                        .AnyAsync(cu => cu.CouponId == order.CouponId.Value && cu.UserId == order.UserId);
+                    if (!alreadyUsed)
+                    {
+                        _context.CouponUsages.Add(new CouponUsage
+                        {
+                            CouponId = order.CouponId.Value,
+                            UserId = order.UserId,
+                            UsedAt = now
+                        });
+
+                        var coupon = await _context.Coupons.FindAsync(order.CouponId.Value);
+                        if (coupon != null)
+                        {
+                            coupon.UsedCount += 1;
+                            coupon.UpdatedAt = now;
+                        }
+                    }
+                }
+
                 var cart = await _context.Carts
                     .Include(c => c.CartItems)
                     .FirstOrDefaultAsync(c => c.UserId == order.UserId);
@@ -250,156 +473,112 @@ var qrUrl =
                     _context.Carts.Remove(cart);
                 }
 
-                // Create or update payment transaction record
-                var payTx = await _context.PaymentTransactions.FirstOrDefaultAsync(t => t.OrderId == order.Id);
-                if (payTx == null)
-                {
-                    payTx = new PaymentTransaction
-                    {
-                        OrderId = order.Id,
-                        Gateway = order.PaymentMethod,
-                        Amount = order.TotalAmount,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    _context.PaymentTransactions.Add(payTx);
-                }
-
-                payTx.Status = "Paid";
-                payTx.TransactionCode = request.TransactionCode ?? $"TX-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
-                payTx.PaidAt = DateTime.UtcNow;
-                payTx.RawResponse = request.Note ?? "Confirmed by Admin";
-                payTx.UpdatedAt = DateTime.UtcNow;
-
-                // Create database notification for the customer
-                var notification = new Notification
+                _context.Notifications.Add(new Notification
                 {
                     UserId = order.UserId,
-                    Message = $"Thanh toán đơn hàng #{order.Id} thành công",
+                    Message = $"Thanh toan don hang #{order.Id} thanh cong",
                     Type = "Success",
                     IsRead = false,
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.Notifications.Add(notification);
+                    CreatedAt = now
+                });
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                _logger.LogInformation("ConfirmPayment Success: OrderId={OrderId}, PaymentStatus={PaymentStatus}, OrderStatus={OrderStatus}", 
-                    order.Id, order.PaymentStatus, order.Status);
+                await _hubContext.Clients.User(order.UserId.ToString())
+                    .SendAsync("ReceivePaymentSuccess", order.Id, "Thanh toan thanh cong");
 
-                // Trigger SignalR realtime notifications to the customer
-                try
-                {
-                    // Emit ReceivePaymentSuccess
-                    await _hubContext.Clients.User(order.UserId.ToString())
-                        .SendAsync("ReceivePaymentSuccess", order.Id, $"Thanh toán đơn hàng #{order.Id} thành công");
-
-                    // Emit ReceiveStatusUpdate
-                    await _hubContext.Clients.User(order.UserId.ToString())
-                        .SendAsync("ReceiveStatusUpdate", order.Id, "Processing");
-
-                    // Emit ReceiveOrderStatusUpdate
-                    await _hubContext.Clients.User(order.UserId.ToString())
-                        .SendAsync("ReceiveOrderStatusUpdate", order.Id, "Processing");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning("ConfirmPayment SignalR Error: {Msg}", ex.Message);
-                }
-
-                return Ok(new { message = "Xác nhận thanh toán thành công.", orderId = order.Id });
+                return Ok(ApiResponse<object>.Ok(new { orderId = order.Id }, "Payment confirmed."));
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, "ConfirmPayment Exception for OrderId: {OrderId}. Message: {Msg}", request.OrderId, ex.Message);
-                return StatusCode(500, new { message = "Lỗi khi lưu xác nhận thanh toán.", error = ex.Message });
+                _logger.LogError(ex, "FinalizePaidOrderAsync failed for OrderId={OrderId}", orderId);
+                return StatusCode(500, ApiResponse<object>.Fail("Could not finalize payment.", ex.Message));
             }
+            });
         }
 
-        // POST: api/payment/cancel/{orderId}
-        [HttpPost("cancel/{orderId}")]
-        public async Task<ActionResult<object>> CancelPayment(int orderId)
+        private async Task MarkPaymentFailedAsync(SepayWebhookPayload webhook, string rawPayload)
         {
-            var userId = GetCurrentUserId();
-            if (!userId.HasValue)
-                return Unauthorized();
+            var tx = await _context.PaymentTransactions
+                .FirstOrDefaultAsync(t =>
+                    (!string.IsNullOrWhiteSpace(webhook.VaNumber) && t.VaNumber == webhook.VaNumber) ||
+                    (!string.IsNullOrWhiteSpace(webhook.TransactionId) && t.TransactionId == webhook.TransactionId));
 
-            var order = await _context.Orders
-                .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId.Value);
+            if (tx == null)
+                return;
 
-            if (order == null)
-                return NotFound(new { message = "Không tìm thấy đơn hàng." });
+            tx.Status = "Failed";
+            tx.TransactionId = webhook.TransactionId;
+            tx.FailureReason = webhook.Status;
+            tx.WebhookPayload = rawPayload;
+            tx.UpdatedAt = DateTime.UtcNow;
 
-            if (order.PaymentStatus == "Paid")
-                return BadRequest(new { message = "Đơn hàng đã thanh toán, không thể hủy thanh toán." });
-
-            if (order.Status == OrderStatus.Cancelled)
-                return Ok(new { message = "Đơn hàng đã được hủy.", orderId = order.Id });
-
-            if (order.Status != OrderStatus.PendingPayment)
-                return BadRequest(new { message = "Chỉ có thể hủy đơn đang chờ thanh toán." });
-
-            var now = DateTime.UtcNow;
-            order.Status = OrderStatus.Cancelled;
-            order.PaymentStatus = "Cancelled";
-            order.UpdatedAt = now;
-
-            var payTx = await _context.PaymentTransactions.FirstOrDefaultAsync(t => t.OrderId == order.Id);
-            if (payTx != null)
+            var order = await _context.Orders.FindAsync(tx.OrderId);
+            if (order != null && order.PaymentStatus == "Pending")
             {
-                payTx.Status = "Cancelled";
-                payTx.FailureReason = "Cancelled by customer or payment timeout";
-                payTx.UpdatedAt = now;
+                order.PaymentStatus = "Failed";
+                order.UpdatedAt = DateTime.UtcNow;
+                await _hubContext.Clients.User(order.UserId.ToString()).SendAsync("ReceivePaymentFailed", order.Id);
             }
 
             await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Đã hủy thanh toán.", orderId = order.Id });
         }
 
-        // GET: api/payment/history
-        [HttpGet("history")]
-        public async Task<ActionResult<object>> GetPaymentHistory()
+        private async Task<Order?> FindOrderFromWebhookAsync(SepayWebhookPayload webhook)
         {
-            var userId = GetCurrentUserId();
-            if (!userId.HasValue)
-                return Unauthorized();
-
-            try
+            if (!string.IsNullOrWhiteSpace(webhook.VaNumber))
             {
-                var query = _context.PaymentTransactions
-                    .Include(p => p.Order)
-                    .AsQueryable();
-
-                if (!IsCurrentUserAdmin())
-                {
-                    query = query.Where(p => p.Order.UserId == userId);
-                }
-
-                var history = await query
-                    .OrderByDescending(p => p.CreatedAt)
-                    .Select(p => new
-                    {
-                        p.Id,
-                        p.OrderId,
-                        OrderNumber = p.Order.OrderNumber,
-                        p.Gateway,
-                        p.TransactionCode,
-                        p.Amount,
-                        p.Status,
-                        p.PaidAt,
-                        p.CreatedAt
-                    })
-                    .ToListAsync();
-
-                return Ok(history);
+                var tx = await _context.PaymentTransactions
+                    .FirstOrDefaultAsync(t => t.VaNumber == webhook.VaNumber && t.Status == "Pending");
+                if (tx != null)
+                    return await _context.Orders.FirstOrDefaultAsync(o => o.Id == tx.OrderId);
             }
-            catch (Exception ex)
+
+            var orderId = ExtractOrderId(webhook.TransferContent ?? string.Empty);
+            return orderId > 0
+                ? await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId)
+                : null;
+        }
+
+        private CreatePaymentResponse BuildCreatePaymentResponse(Order order, PaymentTransaction tx, int remainingSeconds)
+        {
+            var content = string.IsNullOrWhiteSpace(tx.TransactionCode) ? $"THEBOB_{order.Id}" : tx.TransactionCode;
+            return new CreatePaymentResponse
             {
-                _logger.LogError(ex, "GetPaymentHistory Exception for User: {UserId}. Message: {Msg}", userId, ex.Message);
-                return StatusCode(500, new { message = "Lỗi khi tải lịch sử thanh toán.", error = ex.Message });
+                Success = true,
+                VaNumber = tx.VaNumber ?? string.Empty,
+                Amount = tx.Amount,
+                BankName = "SePay",
+                BankAccount = tx.VaNumber ?? string.Empty,
+                AccountName = "THEBOB",
+                TransferContent = content,
+                QrCode = $"https://img.vietqr.io/image/{_sepayService.GetBankBin()}-{Uri.EscapeDataString(tx.VaNumber ?? string.Empty)}-compact.png?amount={decimal.ToInt64(tx.Amount)}&addInfo={Uri.EscapeDataString(content)}&accountName=THEBOB",
+                ExpiredAt = DateTime.UtcNow.AddSeconds(Math.Max(0, remainingSeconds))
+            };
+        }
+
+        private async Task ExpireOrderAsync(Order order)
+        {
+            order.Status = OrderStatus.Cancelled;
+            order.PaymentStatus = "Expired";
+            order.UpdatedAt = DateTime.UtcNow;
+
+            var tx = await _context.PaymentTransactions.FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending");
+            if (tx != null)
+            {
+                tx.Status = "Expired";
+                tx.FailureReason = "Payment expired";
+                tx.UpdatedAt = DateTime.UtcNow;
             }
+
+            await _context.SaveChangesAsync();
+        }
+
+        private static int GetRemainingSeconds(Order order)
+        {
+            return PaymentWindowSeconds - (int)Math.Floor((DateTime.UtcNow - order.CreatedAt).TotalSeconds);
         }
 
         private int? GetCurrentUserId()
@@ -408,36 +587,58 @@ var qrUrl =
             return userIdClaim != null ? int.Parse(userIdClaim) : null;
         }
 
-        private bool IsCurrentUserAdmin()
+        private static int ExtractOrderId(string orderInfo)
         {
-            return User.IsInRole("Admin");
-        }
+            if (string.IsNullOrWhiteSpace(orderInfo))
+                return 0;
 
-        private async Task AutoCancelExpiredOrdersAsync()
-        {
-            var expiryTime = DateTime.UtcNow.AddMinutes(-15);
-            var expiredOrders = await _context.Orders
-                .Where(o => o.Status == OrderStatus.PendingPayment && o.CreatedAt < expiryTime)
-                .ToListAsync();
-
-            if (expiredOrders.Any())
-            {
-                foreach (var order in expiredOrders)
-                {
-                    order.Status = OrderStatus.Cancelled;
-                    order.PaymentStatus = "Expired";
-                    order.UpdatedAt = DateTime.UtcNow;
-                }
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("AutoCancelExpiredOrdersAsync: Cancelled {Count} expired PendingPayment orders.", expiredOrders.Count);
-            }
+            var digits = new string(orderInfo.Where(char.IsDigit).ToArray());
+            return int.TryParse(digits, out var orderId) ? orderId : 0;
         }
+    }
+
+    public class CreatePaymentRequest
+    {
+        [Required]
+        public int OrderId { get; set; }
+        public decimal? Amount { get; set; }
+    }
+
+    public class CreatePaymentLinkRequest
+    {
+        public int OrderId { get; set; }
+        public decimal? Amount { get; set; }
     }
 
     public class CreateQrPaymentRequest
     {
+        public int OrderId { get; set; }
         public decimal Amount { get; set; }
         public string OrderInfo { get; set; } = string.Empty;
+    }
+
+    public class CreatePaymentResponse
+    {
+        public bool Success { get; set; }
+        public string VaNumber { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string BankName { get; set; } = string.Empty;
+        public string BankAccount { get; set; } = string.Empty;
+        public string AccountName { get; set; } = string.Empty;
+        public string TransferContent { get; set; } = string.Empty;
+        public string QrCode { get; set; } = string.Empty;
+        public DateTime ExpiredAt { get; set; }
+    }
+
+    public class PaymentStatusResponse
+    {
+        public string Status { get; set; } = "Pending";
+        public string PaymentStatus { get; set; } = "Pending";
+        public string OrderStatus { get; set; } = string.Empty;
+        public int RemainingSeconds { get; set; }
+        public bool IsExpired { get; set; }
+        public string? VaNumber { get; set; }
+        public string? TransactionId { get; set; }
     }
 
     public class ConfirmPaymentRequest
@@ -445,5 +646,28 @@ var qrUrl =
         public int OrderId { get; set; }
         public string? TransactionCode { get; set; }
         public string? Note { get; set; }
+    }
+
+    public class PagedPaymentTransactionsResponse
+    {
+        public List<PaymentTransactionDto> Items { get; set; } = new();
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int Total { get; set; }
+    }
+
+    public class PaymentTransactionDto
+    {
+        public int Id { get; set; }
+        public int OrderId { get; set; }
+        public decimal Amount { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? VaNumber { get; set; }
+        public string? TransactionId { get; set; }
+        public string PaymentProvider { get; set; } = string.Empty;
+        public DateTime? PaidAt { get; set; }
+        public string? FailureReason { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
     }
 }

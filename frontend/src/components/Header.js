@@ -52,6 +52,7 @@ export default function Header() {
 
         const statusMap = {
           'Pending': 'Chờ xử lý',
+          'Paid': 'Đã thanh toán',
           'Processing': 'Đang xử lý',
           'Shipped': 'Đang giao hàng',
           'Delivered': 'Đã giao hàng',
@@ -88,7 +89,7 @@ export default function Header() {
   }, [token]);
 
   // Hide header on admin pages
-  const hideHeaderPages = ['/login', '/register', '/admin', '/admin/products', '/admin/categories', '/admin/orders', '/admin/users', '/admin/profile', '/admin/settings'];
+  const hideHeaderPages = ['/login', '/register', '/admin', '/admin/products', '/admin/categories', '/admin/orders', '/admin/payments', '/admin/users', '/admin/profile', '/admin/settings'];
   if (hideHeaderPages.some(page => location.pathname.startsWith(page))) {
     return null;
   }

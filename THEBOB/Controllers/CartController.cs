@@ -108,6 +108,100 @@ namespace THEBOB.Controllers
             return Ok();
         }
 
+        // POST: api/cart/sync
+        [HttpPost("sync")]
+        public async Task<IActionResult> SyncCart([FromBody] SyncCartRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+                return Unauthorized();
+
+            var requestedItems = request.Items
+                .Where(item => item.VariantId > 0 && item.Quantity > 0)
+                .GroupBy(item => item.VariantId)
+                .Select(group => new SyncCartItemRequest
+                {
+                    VariantId = group.Key,
+                    Quantity = group.Sum(item => item.Quantity)
+                })
+                .ToList();
+
+            if (!requestedItems.Any())
+                return BadRequest(new { message = "Cart is empty" });
+
+            var variantIds = requestedItems.Select(item => item.VariantId).ToList();
+            var variants = await _context.ProductVariants
+                .Include(v => v.Product)
+                .Where(v => variantIds.Contains(v.Id))
+                .ToDictionaryAsync(v => v.Id);
+
+            foreach (var item in requestedItems)
+            {
+                if (!variants.TryGetValue(item.VariantId, out var variant))
+                {
+                    return BadRequest(new { message = $"Product variant {item.VariantId} not found" });
+                }
+
+                if (!variant.IsAvailable)
+                {
+                    return BadRequest(new { message = $"Variant {variant.Sku} is not available" });
+                }
+
+                if (variant.Stock < item.Quantity)
+                {
+                    var productName = variant.Product?.Name ?? variant.Sku;
+                    return BadRequest(new
+                    {
+                        message = $"Insufficient stock for {productName} - {variant.Sku}. Available: {variant.Stock}, requested: {item.Quantity}",
+                        variantId = variant.Id,
+                        availableStock = variant.Stock,
+                        requestedQuantity = item.Quantity
+                    });
+                }
+            }
+
+            await _context.ExecuteInTransactionAsync(async () =>
+            {
+                var cart = await _context.Carts
+                    .Include(c => c.CartItems)
+                    .FirstOrDefaultAsync(c => c.UserId == userId);
+
+                if (cart == null)
+                {
+                    cart = new Cart
+                    {
+                        UserId = userId.Value,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.Carts.Add(cart);
+                    await _context.SaveChangesAsync();
+                }
+                else
+                {
+                    _context.CartItems.RemoveRange(cart.CartItems);
+                }
+
+                foreach (var item in requestedItems)
+                {
+                    _context.CartItems.Add(new CartItem
+                    {
+                        CartId = cart.Id,
+                        VariantId = item.VariantId,
+                        Quantity = item.Quantity,
+                        AddedAt = DateTime.UtcNow
+                    });
+                }
+
+                cart.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            });
+
+            return Ok(new { message = "Cart synced" });
+        }
+
         // PUT: api/cart/items/{itemId}
         [HttpPut("items/{itemId}")]
         public async Task<IActionResult> UpdateCartItem(int itemId, [FromBody] UpdateCartItemRequest request)
@@ -205,6 +299,17 @@ namespace THEBOB.Controllers
 
     public class UpdateCartItemRequest
     {
+        public int Quantity { get; set; }
+    }
+
+    public class SyncCartRequest
+    {
+        public List<SyncCartItemRequest> Items { get; set; } = new();
+    }
+
+    public class SyncCartItemRequest
+    {
+        public int VariantId { get; set; }
         public int Quantity { get; set; }
     }
 }

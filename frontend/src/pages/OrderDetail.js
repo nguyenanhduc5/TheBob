@@ -103,6 +103,11 @@ export default function OrderDetail() {
     return statusMap[status] || status;
   };
 
+  const formatDateTime = (value) => {
+    if (!value) return 'Chua co';
+    return new Date(value).toLocaleString('vi-VN');
+  };
+
   return (
     <div className="order-detail-page">
       <div className="order-header">
@@ -151,6 +156,40 @@ export default function OrderDetail() {
             <h2>Phương Thức Thanh Toán</h2>
             <p>{order.paymentMethod || 'Chưa xác định'}</p>
           </div>
+
+          {isAdmin() && (
+            <div className="info-card">
+              <h2>Doi Soat Thanh Toan</h2>
+              <div className="info-row">
+                <span className="label">Payment Provider:</span>
+                <span className="value">{order.paymentProvider || order.paymentGateway || 'SePay'}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">VA Number:</span>
+                <span className="value mono-value">{order.vaNumber || 'Chua ghi nhan'}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">TransactionId:</span>
+                <span className="value mono-value">{order.transactionId || 'Chua ghi nhan'}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Transaction Code:</span>
+                <span className="value mono-value">{order.transactionCode || 'Chua ghi nhan'}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Webhook Time:</span>
+                <span className="value">{formatDateTime(order.webhookTime)}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">PaidAt:</span>
+                <span className="value">{formatDateTime(order.paidAt)}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Failure Reason:</span>
+                <span className="value">{order.failureReason || 'Khong co'}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="order-items-section">
