@@ -131,14 +131,22 @@ namespace THEBOB.Services
                     ?? GetRequiredConfig("SePay:ApiToken");
             var authorization = request.Headers.Authorization.ToString();
 
-            if (string.IsNullOrWhiteSpace(authorization) ||
-                !authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            {
-                error = "Missing Authorization Bearer token.";
-                return false;
-            }
+           if (string.IsNullOrWhiteSpace(authorization))
+{
+    error = "Missing Authorization Bearer token.";
+    return false;
+}
 
-            var actualToken = authorization["Bearer ".Length..].Trim();
+string actualToken;
+if (authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+    actualToken = authorization["Bearer ".Length..].Trim();
+else if (authorization.StartsWith("Apikey ", StringComparison.OrdinalIgnoreCase))
+    actualToken = authorization["Apikey ".Length..].Trim();
+else
+{
+    error = "Missing Authorization Bearer token.";
+    return false;
+}
             if (!string.Equals(actualToken, expectedToken, StringComparison.Ordinal))
             {
                 error = "Invalid SePay webhook token.";
