@@ -70,7 +70,11 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", builder =>
     {
-        builder.WithOrigins("http://localhost:3000", "http://127.0.0.1:3000")
+        builder.WithOrigins(
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://thebobb.netlify.app"
+)
                .AllowAnyHeader()
                .AllowAnyMethod()
                .AllowCredentials();
@@ -86,9 +90,26 @@ builder.Services.AddSwaggerGen();
 // Add DbContext with MySQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ThebobDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
+    options.UseMySql(
+        connectionString, 
+        ServerVersion.AutoDetect(connectionString),
+        mysqlOptions => mysqlOptions.EnableRetryOnFailure()
+    )
     .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning))
 );
+// Register services
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+// ✅ THÊM VÀO ĐÂY
+builder.Services.AddHttpClient<SepayService>(client =>
+{
+    client.BaseAddress = new Uri("https://userapi.sepay.vn/v2/");
+    client.DefaultRequestHeaders.Add(
+        "Authorization",
+        $"Bearer {builder.Configuration["SePay:ApiToken"]}"
+    );
+});
+builder.Services.AddScoped<SepayService>();
 
 var app = builder.Build();
 
@@ -202,3 +223,4 @@ record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
+
