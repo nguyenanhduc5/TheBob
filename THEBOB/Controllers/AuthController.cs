@@ -15,11 +15,65 @@ namespace THEBOB.Controllers
     {
         private readonly ThebobDbContext _context;
         private readonly IAuthService _authService;
+        private readonly IEmailService _emailService;
 
-        public AuthController(ThebobDbContext context, IAuthService authService)
+        public AuthController(ThebobDbContext context, IAuthService authService, IEmailService emailService)
         {
             _context = context;
             _authService = authService;
+            _emailService = emailService;
+        }
+
+        [HttpPost("send-otp")]
+        public async Task<ActionResult<object>> SendOtp([FromBody] SendOtpRequest request)
+        {
+            var email = (request.Email ?? string.Empty).Trim().ToLowerInvariant();
+
+            if (string.IsNullOrEmpty(email))
+                return BadRequest(new { success = false, message = "Email là bắt buộc" });
+
+            if (!new EmailAddressAttribute().IsValid(email))
+                return BadRequest(new { success = false, message = "Định dạng email không hợp lệ" });
+
+            var existingUser = await _context.Users.AnyAsync(u => u.Email.ToLower() == email);
+            if (existingUser)
+                return BadRequest(new { success = false, message = "Email đã được sử dụng" });
+
+            var otpCode = Random.Shared.Next(100000, 999999).ToString();
+
+            var otpVerification = new OtpVerification
+            {
+                Email = email,
+                OtpCode = otpCode,
+                ExpiredAt = DateTime.UtcNow.AddMinutes(5),
+                IsUsed = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.OtpVerifications.Add(otpVerification);
+            await _context.SaveChangesAsync();
+
+            var subject = "Mã OTP xác thực tài khoản THEBOB";
+            var content = $@"
+                <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+                    <h2 style='color: #333; text-align: center;'>Xác thực đăng ký tài khoản THEBOB</h2>
+                    <p>Xin chào,</p>
+                    <p>Bạn đang đăng ký tài khoản tại <strong>THEBOB Store</strong>. Dưới đây là mã OTP xác thực của bạn:</p>
+                    <div style='text-align: center; margin: 30px 0;'>
+                        <span style='font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4F46E5; background-color: #F3F4F6; padding: 10px 20px; border-radius: 5px;'>{otpCode}</span>
+                    </div>
+                    <p style='color: #666;'>Mã OTP này có hiệu lực trong vòng <strong>5 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+                    <hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;' />
+                    <p style='font-size: 12px; color: #999; text-align: center;'>Đây là email tự động, vui lòng không phản hồi email này.</p>
+                </div>";
+
+            var emailSent = await _emailService.SendEmailAsync(email, subject, content);
+            if (!emailSent)
+            {
+                return BadRequest(new { success = false, message = "Không thể gửi OTP đến email này. Vui lòng kiểm tra lại." });
+            }
+
+            return Ok(new { success = true, message = "Mã OTP đã được gửi đến email của bạn" });
         }
 
         [HttpPost("register")]
@@ -30,9 +84,13 @@ namespace THEBOB.Controllers
             var name = (request.Name ?? string.Empty).Trim();
             var phone = (request.Phone ?? string.Empty).Trim();
             var address = request.Address?.Trim() ?? string.Empty;
+            var otpCode = (request.OtpCode ?? string.Empty).Trim();
 
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(request.Password) || string.IsNullOrEmpty(phone))
                 return BadRequest(new { success = false, message = "Username, email, password và số điện thoại là bắt buộc" });
+
+            if (string.IsNullOrEmpty(otpCode))
+                return BadRequest(new { success = false, message = "Mã xác thực OTP là bắt buộc" });
 
             if (username.Length < 3)
                 return BadRequest(new { success = false, message = "Tên đăng nhập phải có ít nhất 3 ký tự" });
@@ -49,6 +107,19 @@ namespace THEBOB.Controllers
             var existingUser = _context.Users.FirstOrDefault(u => u.Email.ToLower() == email);
             if (existingUser != null)
                 return BadRequest(new { success = false, message = "Email đã được sử dụng" });
+
+            var latestOtp = await _context.OtpVerifications
+                .Where(o => o.Email.ToLower() == email && !o.IsUsed && o.ExpiredAt > DateTime.UtcNow)
+                .OrderByDescending(o => o.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (latestOtp == null || latestOtp.OtpCode != otpCode)
+            {
+                return BadRequest(new { success = false, message = "Mã OTP không chính xác hoặc đã hết hạn" });
+            }
+
+            latestOtp.IsUsed = true;
+            _context.OtpVerifications.Update(latestOtp);
 
             var userRole = _context.Roles.FirstOrDefault(r => r.RoleName == "User");
             if (userRole == null)
@@ -233,6 +304,12 @@ namespace THEBOB.Controllers
         public string Name { get; set; } = string.Empty;
         public string Phone { get; set; } = string.Empty;
         public string? Address { get; set; }
+        public string OtpCode { get; set; } = string.Empty;
+    }
+
+    public class SendOtpRequest
+    {
+        public string Email { get; set; } = string.Empty;
     }
 
     public class LoginRequest

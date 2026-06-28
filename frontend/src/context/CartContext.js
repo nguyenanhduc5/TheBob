@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
+import { useNotification } from './NotificationContext';
+import { cartAPI } from '../api/app';
 
 const CartContext = createContext();
 
@@ -13,22 +15,87 @@ export const useCart = () => {
 
 export const CartProvider = ({ children }) => {
   const { user } = useAuth();
+  const { addNotification } = useNotification();
   const [cartData, setCartData] = useState({ userId: null, items: [] });
+  const isSyncingGuestCartRef = useRef(false);
 
-  // When user changes, load their cart from local storage. If they logged out (user is null), reset cart to empty array.
-  useEffect(() => {
-    if (!user) {
-      setCartData({ userId: 'guest', items: [] });
-    } else {
+  const mapBackendCartToFrontend = (backendCart) => {
+    if (!backendCart || !backendCart.cartItems) return [];
+    return backendCart.cartItems.map(item => {
+      const variant = item.variant || {};
+      const product = variant.product || {};
+      const size = variant.size || {};
+      const color = variant.color || {};
+      
+      return {
+        id: item.id, // ID of cart item in DB
+        variantId: item.variantId,
+        productId: product.id,
+        name: product.name || 'Sản phẩm',
+        sku: variant.sku || '',
+        mainImageUrl: product.mainImageUrl || '',
+        price: variant.price || 0,
+        stock: variant.stock || 0,
+        selectedSize: size.name || '',
+        selectedColor: color.name || '',
+        quantity: item.quantity
+      };
+    });
+  };
+
+  const loadDbCart = useCallback(async () => {
+    if (!user) return;
+    try {
+      const backendCart = await cartAPI.getCart();
+      const items = mapBackendCartToFrontend(backendCart);
       const userId = user.id || user.email;
-      const key = `thebob-cart-${userId}`;
-      const savedCart = localStorage.getItem(key);
-      const items = savedCart ? JSON.parse(savedCart) : [];
       setCartData({ userId, items });
+    } catch (err) {
+      console.error('Failed to load cart from DB:', err);
     }
   }, [user]);
 
-  // Save cart to local storage when cartData changes, but only if it matches current user
+  // Sync / Load cart when user logs in/out
+  useEffect(() => {
+    if (!user) {
+      setCartData({ userId: 'guest', items: [] });
+      return;
+    }
+
+    let cancelled = false;
+
+    const initCart = async () => {
+      if (isSyncingGuestCartRef.current) return;
+      isSyncingGuestCartRef.current = true;
+
+      try {
+        const guestSaved = localStorage.getItem('thebob-cart');
+        const guestItems = guestSaved ? JSON.parse(guestSaved) : [];
+        if (guestItems.length > 0) {
+          await cartAPI.syncCart(
+            guestItems.map(item => ({ variantId: item.variantId, quantity: item.quantity }))
+          );
+          localStorage.removeItem('thebob-cart');
+        }
+      } catch (err) {
+        console.error('Failed to sync guest cart to DB:', err);
+      } finally {
+        isSyncingGuestCartRef.current = false;
+      }
+
+      if (!cancelled) {
+        await loadDbCart();
+      }
+    };
+
+    initCart();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, loadDbCart]);
+
+  // Save cart to local storage when cartData changes (mainly for guest caching)
   useEffect(() => {
     const currentUserId = user ? (user.id || user.email) : 'guest';
     if (cartData.userId === currentUserId) {
@@ -39,46 +106,101 @@ export const CartProvider = ({ children }) => {
 
   const getItemKey = (item) => item.variantId ?? item.id;
 
-  const addToCart = (product, quantity = 1) => {
-    setCartData(prev => {
-      const productKey = getItemKey(product);
-      const existing = prev.items.find(item => getItemKey(item) === productKey);
-      let newItems;
-      if (existing) {
-        newItems = prev.items.map(item =>
-          getItemKey(item) === productKey
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      } else {
-        newItems = [...prev.items, { ...product, quantity }];
-      }
-      return { ...prev, items: newItems };
-    });
-  };
-
-  const removeFromCart = (itemKey) => {
-    setCartData(prev => ({
-      ...prev,
-      items: prev.items.filter(item => getItemKey(item) !== itemKey)
-    }));
-  };
-
-  const updateQuantity = (itemKey, quantity) => {
-    if (quantity <= 0) {
-      removeFromCart(itemKey);
+  const addToCart = async (product, quantity = 1) => {
+    if (!user) {
+      // Guest local storage logic
+      setCartData(prev => {
+        const productKey = getItemKey(product);
+        const existing = prev.items.find(item => getItemKey(item) === productKey);
+        let newItems;
+        if (existing) {
+          newItems = prev.items.map(item =>
+            getItemKey(item) === productKey
+              ? { ...item, quantity: item.quantity + quantity }
+              : item
+          );
+        } else {
+          newItems = [...prev.items, { ...product, quantity }];
+        }
+        return { ...prev, items: newItems };
+      });
       return;
     }
-    setCartData(prev => ({
-      ...prev,
-      items: prev.items.map(item =>
-        getItemKey(item) === itemKey ? { ...item, quantity } : item
-      )
-    }));
+
+    try {
+      await cartAPI.addItem(product.variantId, quantity);
+      await loadDbCart();
+    } catch (err) {
+      console.error('Failed to add to cart:', err);
+      addNotification(err.message || 'Không thể thêm vào giỏ hàng', 'error');
+      throw err;
+    }
   };
 
-  const clearCart = () => {
-    setCartData(prev => ({ ...prev, items: [] }));
+  const removeFromCart = async (itemKey) => {
+    if (!user) {
+      // Guest local storage logic
+      setCartData(prev => ({
+        ...prev,
+        items: prev.items.filter(item => getItemKey(item) !== itemKey)
+      }));
+      return;
+    }
+
+    try {
+      const targetItem = cartData.items.find(item => getItemKey(item) === itemKey);
+      if (targetItem) {
+        await cartAPI.removeItem(targetItem.id);
+        await loadDbCart();
+      }
+    } catch (err) {
+      console.error('Failed to remove from cart:', err);
+      addNotification(err.message || 'Không thể xóa sản phẩm khỏi giỏ hàng', 'error');
+    }
+  };
+
+  const updateQuantity = async (itemKey, quantity) => {
+    if (quantity <= 0) {
+      await removeFromCart(itemKey);
+      return;
+    }
+
+    if (!user) {
+      // Guest local storage logic
+      setCartData(prev => ({
+        ...prev,
+        items: prev.items.map(item =>
+          getItemKey(item) === itemKey ? { ...item, quantity } : item
+        )
+      }));
+      return;
+    }
+
+    try {
+      const targetItem = cartData.items.find(item => getItemKey(item) === itemKey);
+      if (targetItem) {
+        await cartAPI.updateItem(targetItem.id, quantity);
+        await loadDbCart();
+      }
+    } catch (err) {
+      console.error('Failed to update quantity:', err);
+      addNotification(err.message || 'Không thể cập nhật số lượng sản phẩm', 'error');
+    }
+  };
+
+  const clearCart = async () => {
+    if (!user) {
+      setCartData(prev => ({ ...prev, items: [] }));
+      return;
+    }
+
+    try {
+      await cartAPI.clearCart();
+      await loadDbCart();
+    } catch (err) {
+      console.error('Failed to clear cart:', err);
+      addNotification(err.message || 'Không thể xóa giỏ hàng', 'error');
+    }
   };
 
   const getTotalItems = () => {
@@ -97,6 +219,7 @@ export const CartProvider = ({ children }) => {
     clearCart,
     getTotalItems,
     getTotalPrice,
+    loadDbCart
   };
 
   return (

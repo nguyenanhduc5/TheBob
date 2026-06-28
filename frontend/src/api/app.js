@@ -253,12 +253,13 @@ export const productsAPI = {
 };
 
 export const ordersAPI = {
-  async getAllOrders() {
-    return safeArray(
-      await apiClient('/orders/admin/all', {
-        auth: true
-      })
-    );
+  async getAllOrders(params = {}) {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    ).toString();
+    return await apiClient(`/admin/orders?${query}`, {
+      auth: true
+    });
   },
 
   async getUserOrders() {
@@ -302,10 +303,30 @@ export const ordersAPI = {
       method: 'PUT',
       auth: true
     });
+  },
+
+  confirmOrder(id) {
+    return apiClient(`/admin/orders/${id}/confirm`, {
+      method: 'PATCH',
+      auth: true
+    });
+  },
+
+  cancelAdminOrder(id) {
+    return apiClient(`/admin/orders/${id}/cancel`, {
+      method: 'PATCH',
+      auth: true
+    });
   }
 };
 
 export const cartAPI = {
+  getCart() {
+    return apiClient('/cart', {
+      auth: true
+    });
+  },
+
   clearCart() {
     return apiClient('/cart', {
       method: 'DELETE',
@@ -321,14 +342,39 @@ export const cartAPI = {
     });
   },
 
-  syncCart(items) {
+  updateItem(itemId, quantity) {
+    return apiClient(`/cart/items/${itemId}`, {
+      method: 'PUT',
+      auth: true,
+      body: { quantity }
+    });
+  },
+
+  removeItem(itemId) {
+    return apiClient(`/cart/items/${itemId}`, {
+      method: 'DELETE',
+      auth: true
+    });
+  },
+
+  sync(body) {
     return apiClient('/cart/sync', {
       method: 'POST',
       auth: true,
-      body: { items }
+      body
     });
+  },
+
+  syncCart(items) {
+    const payload = { items };
+    syncCartQueue = syncCartQueue
+      .then(() => this.sync(payload))
+      .catch(() => this.sync(payload));
+    return syncCartQueue;
   }
 };
+
+let syncCartQueue = Promise.resolve();
 
 
 export const couponsAPI = {

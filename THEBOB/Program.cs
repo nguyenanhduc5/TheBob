@@ -83,6 +83,8 @@ builder.Services.AddCors(options =>
 
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddHttpClient<IGhnService, GhnService>();
 
 // Add Swagger
 builder.Services.AddSwaggerGen();

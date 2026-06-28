@@ -162,32 +162,62 @@ namespace THEBOB.Controllers
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
+                await _context.LockUserForCartMutationAsync(userId.Value);
+
                 var cart = await _context.Carts
-                    .Include(c => c.CartItems)
-                    .ThenInclude(ci => ci.Variant)
-                    .ThenInclude(v => v.Product)
-                    .Include(c => c.CartItems)
-                    .ThenInclude(ci => ci.Variant)
-                    .ThenInclude(v => v.Size)
-                    .Include(c => c.CartItems)
-                    .ThenInclude(ci => ci.Variant)
-                    .ThenInclude(v => v.Color)
-                    .FirstOrDefaultAsync(c => c.UserId == userId);
+                    .FirstOrDefaultAsync(c => c.UserId == userId.Value);
+
+                if (cart != null)
+                {
+                    await _context.Entry(cart)
+                        .Collection(c => c.CartItems)
+                        .Query()
+                        .Include(ci => ci.Variant)
+                        .ThenInclude(v => v!.Product)
+                        .Include(ci => ci.Variant)
+                        .ThenInclude(v => v!.Size)
+                        .Include(ci => ci.Variant)
+                        .ThenInclude(v => v!.Color)
+                        .LoadAsync();
+                }
 
                 if (cart == null || !cart.CartItems.Any())
                     return BadRequest(new { message = "Cart is empty" });
 
                 // Validate stock availability
+                var hasStockIssue = false;
+                var stockInfoList = new List<object>();
+
                 foreach (var item in cart.CartItems)
                 {
                     if (item.Variant?.Product == null || item.Variant.Size == null || item.Variant.Color == null)
-                        return BadRequest(new { message = "Invalid cart item structure" });
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest(new { success = false, message = "Cấu trúc sản phẩm trong giỏ hàng không hợp lệ." });
+                    }
 
-                    if (!item.Variant.IsAvailable)
-                        return BadRequest(new { message = $"Variant {item.Variant.Sku} is not available" });
+                    var isAvailable = item.Variant.IsAvailable && item.Variant.Stock >= item.Quantity;
+                    if (!isAvailable)
+                    {
+                        hasStockIssue = true;
+                    }
 
-                    if (item.Variant.Stock < item.Quantity)
-                        return BadRequest(new { message = $"Insufficient stock for {item.Variant.Product.Name} - {item.Variant.Sku}" });
+                    stockInfoList.Add(new
+                    {
+                        variantId = item.VariantId,
+                        availableStock = item.Variant.Stock
+                    });
+                }
+
+                if (hasStockIssue)
+                {
+                    await transaction.RollbackAsync();
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Một số sản phẩm trong giỏ hàng đã thay đổi tồn kho. Vui lòng cập nhật lại giỏ hàng trước khi thanh toán.",
+                        stockInfo = stockInfoList
+                    });
                 }
 
                 // Generate unique order number
@@ -273,8 +303,10 @@ namespace THEBOB.Controllers
 
                 if (isCod)
                 {
-                    // Clear cart items and cart
-                    _context.CartItems.RemoveRange(cart.CartItems);
+                    CartMutationExtensions.DetachTrackedCartItems(_context, cart.Id);
+                    await _context.CartItems
+                        .Where(ci => ci.CartId == cart.Id)
+                        .ExecuteDeleteAsync();
                     _context.Carts.Remove(cart);
                 }
 
@@ -337,6 +369,112 @@ namespace THEBOB.Controllers
                 .ToListAsync();
 
             return Ok(orders.Select(ToOrderDto));
+        }
+
+        // GET: api/admin/orders (admin only, paginated & filtered & search)
+        [HttpGet("/api/admin/orders")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAdminOrdersPaginated(
+            [FromQuery] string? search,
+            [FromQuery] string? status,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            await AutoCancelExpiredOrdersAsync();
+
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var baseQuery = _context.Orders.AsQueryable();
+
+            // Apply search filter if present
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.Trim().ToLower();
+                baseQuery = baseQuery.Where(o =>
+                    o.OrderNumber.ToLower().Contains(searchLower) ||
+                    (o.User != null && o.User.FullName != null && o.User.FullName.ToLower().Contains(searchLower)) ||
+                    (o.User != null && o.User.Email != null && o.User.Email.ToLower().Contains(searchLower))
+                );
+            }
+
+            // Get counts based on search query before pagination
+            var counts = await baseQuery
+                .GroupBy(o => 1)
+                .Select(g => new
+                {
+                    All = g.Count(),
+                    Pending = g.Count(o => o.PaymentStatus != "Paid" && o.PaymentStatus != "Expired" && o.PaymentStatus != "Cancelled" && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
+                    Paid = g.Count(o => o.PaymentStatus == "Paid" || o.Status == OrderStatus.Paid || o.Status == OrderStatus.Processing || o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Delivered),
+                    Cancelled = g.Count(o => (o.PaymentStatus == "Cancelled" || o.Status == OrderStatus.Cancelled) && o.PaymentStatus != "Expired"),
+                    Expired = g.Count(o => o.PaymentStatus == "Expired")
+                })
+                .FirstOrDefaultAsync();
+
+            int allCount = counts?.All ?? 0;
+            int pendingCount = counts?.Pending ?? 0;
+            int paidCount = counts?.Paid ?? 0;
+            int cancelledCount = counts?.Cancelled ?? 0;
+            int expiredCount = counts?.Expired ?? 0;
+
+            // Apply status filter if present
+            var filteredQuery = baseQuery;
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                if (status.Equals("pending", StringComparison.OrdinalIgnoreCase))
+                {
+                    filteredQuery = filteredQuery.Where(o => o.PaymentStatus != "Paid" && o.PaymentStatus != "Expired" && o.PaymentStatus != "Cancelled" && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered);
+                }
+                else if (status.Equals("paid", StringComparison.OrdinalIgnoreCase))
+                {
+                    filteredQuery = filteredQuery.Where(o => o.PaymentStatus == "Paid" || o.Status == OrderStatus.Paid || o.Status == OrderStatus.Processing || o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Delivered);
+                }
+                else if (status.Equals("cancelled", StringComparison.OrdinalIgnoreCase))
+                {
+                    filteredQuery = filteredQuery.Where(o => (o.PaymentStatus == "Cancelled" || o.Status == OrderStatus.Cancelled) && o.PaymentStatus != "Expired");
+                }
+                else if (status.Equals("expired", StringComparison.OrdinalIgnoreCase))
+                {
+                    filteredQuery = filteredQuery.Where(o => o.PaymentStatus == "Expired");
+                }
+            }
+
+            int totalItems = await filteredQuery.CountAsync();
+
+            var orders = await filteredQuery
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Product!)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Size!)
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.Variant!)
+                .ThenInclude(v => v.Color!)
+                .Include(o => o.PaymentTransactions)
+                .Include(o => o.User)
+                .OrderByDescending(o => o.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .AsSplitQuery()
+                .ToListAsync();
+
+            return Ok(new
+            {
+                items = orders.Select(ToOrderDto),
+                total = totalItems,
+                page,
+                pageSize,
+                totalPages = (int)Math.Ceiling((double)totalItems / pageSize),
+                counts = new
+                {
+                    all = allCount,
+                    pending = pendingCount,
+                    paid = paidCount,
+                    cancelled = cancelledCount,
+                    expired = expiredCount
+                }
+            });
         }
 
         // PUT: api/orders/{id}/status (admin only)
@@ -488,6 +626,246 @@ namespace THEBOB.Controllers
                 await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Lỗi khi hủy đơn hàng", error = ex.Message });
             }
+            });
+        }
+
+        // PATCH: /api/admin/orders/{id}/confirm (admin only)
+        [HttpPatch("/api/admin/orders/{id}/confirm")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ConfirmOrderManual(int id)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    var now = DateTime.UtcNow;
+
+                    var order = await _context.Orders
+                        .FromSqlRaw("SELECT * FROM Orders WHERE Id = {0} FOR UPDATE", id)
+                        .AsTracking()
+                        .Include(o => o.OrderItems)
+                        .ThenInclude(oi => oi.Variant)
+                        .FirstOrDefaultAsync();
+
+                    if (order == null)
+                    {
+                        await transaction.RollbackAsync();
+                        return NotFound(new { message = "Không tìm thấy đơn hàng" });
+                    }
+
+                    // Validate: only Pending (PendingPayment or Pending) can be confirmed
+                    if (order.Status != OrderStatus.PendingPayment && order.Status != OrderStatus.Pending)
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest(new { message = "Chỉ đơn hàng chờ thanh toán hoặc chờ xử lý mới được xác nhận thanh toán." });
+                    }
+
+                    if (order.PaymentStatus == "Paid")
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest(new { message = "Đơn hàng đã được thanh toán trước đó." });
+                    }
+
+                    // Deduct stock if it was online payment (PendingPayment) since stock was not reduced at checkout
+                    if (order.Status == OrderStatus.PendingPayment)
+                    {
+                        var orderItems = await _context.OrderItems
+                            .FromSqlRaw("SELECT * FROM OrderItems WHERE OrderId = {0} FOR UPDATE", id)
+                            .AsTracking()
+                            .ToListAsync();
+
+                        foreach (var item in orderItems)
+                        {
+                            if (!item.VariantId.HasValue)
+                                throw new InvalidOperationException($"Sản phẩm đơn hàng {item.Id} thiếu VariantId.");
+
+                            var variant = await _context.ProductVariants
+                                .FromSqlRaw("SELECT * FROM ProductVariants WHERE Id = {0} FOR UPDATE", item.VariantId.Value)
+                                .AsTracking()
+                                .FirstOrDefaultAsync();
+
+                            if (variant == null)
+                                throw new InvalidOperationException($"Không tìm thấy thuộc tính sản phẩm {item.VariantId.Value}.");
+
+                            if (variant.Stock < item.Quantity)
+                                throw new InvalidOperationException($"Số lượng tồn kho không đủ cho sản phẩm {item.ProductName} - {item.Sku}.");
+
+                            variant.Stock -= item.Quantity;
+                            variant.UpdatedAt = now;
+                            _context.InventoryLogs.Add(new InventoryLog
+                            {
+                                VariantId = variant.Id,
+                                ChangeType = InventoryChangeType.Sold,
+                                QuantityChanged = -item.Quantity,
+                                Reason = $"Order {order.OrderNumber} paid (Manually Confirmed by Admin)",
+                                UserId = order.UserId
+                            });
+                        }
+                    }
+
+                    order.PaymentStatus = "Paid";
+                    order.Status = OrderStatus.Processing;
+                    order.UpdatedAt = now;
+
+                    var paymentTx = await _context.PaymentTransactions
+                        .FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending");
+
+                    if (paymentTx == null)
+                    {
+                        paymentTx = new PaymentTransaction
+                        {
+                            OrderId = order.Id,
+                            Amount = order.TotalAmount,
+                            CreatedAt = now
+                        };
+                        _context.PaymentTransactions.Add(paymentTx);
+                    }
+
+                    paymentTx.Status = "Paid";
+                    paymentTx.PaidAt = now;
+                    paymentTx.Gateway = paymentTx.Gateway ?? order.PaymentMethod;
+                    paymentTx.PaymentProvider = paymentTx.PaymentProvider ?? paymentTx.Gateway ?? order.PaymentMethod;
+                    paymentTx.TransactionCode = paymentTx.TransactionCode ?? $"MANUAL_{order.Id}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                    paymentTx.UpdatedAt = now;
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    // Notify customer via SignalR
+                    try
+                    {
+                        await _hubContext.Clients.User(order.UserId.ToString())
+                            .SendAsync("ReceiveOrderUpdate", order.Id, order.Status.ToString());
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[SignalR Notification Warning] Failed to notify user {order.UserId}: {ex.Message}");
+                    }
+
+                    // Reload complete order payload to return correct DTO
+                    var completeOrder = await _context.Orders
+                        .Include(o => o.OrderItems)
+                        .ThenInclude(oi => oi.Variant!)
+                        .ThenInclude(v => v.Product!)
+                        .Include(o => o.OrderItems)
+                        .ThenInclude(oi => oi.Variant!)
+                        .ThenInclude(v => v.Size!)
+                        .Include(o => o.OrderItems)
+                        .ThenInclude(oi => oi.Variant!)
+                        .ThenInclude(v => v.Color!)
+                        .Include(o => o.PaymentTransactions)
+                        .Include(o => o.User)
+                        .AsSplitQuery()
+                        .FirstAsync(o => o.Id == order.Id);
+
+                    return Ok(ToOrderDto(completeOrder));
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    return StatusCode(500, new { message = "Lỗi khi xác nhận thanh toán đơn hàng", error = ex.Message });
+                }
+            });
+        }
+
+        // PATCH: /api/admin/orders/{id}/cancel (admin only)
+        [HttpPatch("/api/admin/orders/{id}/cancel")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CancelOrderManual(int id)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    var order = await _context.Orders
+                        .FromSqlRaw("SELECT * FROM Orders WHERE Id = {0} FOR UPDATE", id)
+                        .AsTracking()
+                        .Include(o => o.OrderItems)
+                        .ThenInclude(oi => oi.Variant)
+                        .FirstOrDefaultAsync();
+
+                    if (order == null)
+                    {
+                        await transaction.RollbackAsync();
+                        return NotFound(new { message = "Không tìm thấy đơn hàng" });
+                    }
+
+                    // Validate: only Pending (PendingPayment, Pending) or Expired can be cancelled
+                    bool isPending = order.Status == OrderStatus.PendingPayment || order.Status == OrderStatus.Pending;
+                    bool isExpired = order.PaymentStatus == "Expired";
+
+                    if (!isPending && !isExpired)
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest(new { message = "Chỉ đơn hàng chờ thanh toán, chờ xử lý hoặc đã hết hạn mới được phép hủy." });
+                    }
+
+                    if (order.Status == OrderStatus.Cancelled && !isExpired)
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest(new { message = "Đơn hàng đã được hủy trước đó." });
+                    }
+
+                    // Restore stock if it was COD or Paid (and not Expired or PendingPayment)
+                    if (order.PaymentStatus != "Expired")
+                    {
+                        RestoreOrderStock(order, $"Admin cancelled order {order.OrderNumber}", GetCurrentUserId());
+                    }
+
+                    order.Status = OrderStatus.Cancelled;
+                    order.PaymentStatus = "Cancelled";
+                    order.UpdatedAt = DateTime.UtcNow;
+
+                    var paymentTx = await _context.PaymentTransactions
+                        .FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending");
+                    if (paymentTx != null)
+                    {
+                        paymentTx.Status = "Cancelled";
+                        paymentTx.FailureReason = "Cancelled by Admin";
+                        paymentTx.UpdatedAt = DateTime.UtcNow;
+                    }
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    // Notify customer via SignalR
+                    try
+                    {
+                        await _hubContext.Clients.User(order.UserId.ToString())
+                            .SendAsync("ReceiveOrderUpdate", order.Id, order.Status.ToString());
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[SignalR Notification Warning] Failed to notify user {order.UserId}: {ex.Message}");
+                    }
+
+                    // Reload complete order payload
+                    var completeOrder = await _context.Orders
+                        .Include(o => o.OrderItems)
+                        .ThenInclude(oi => oi.Variant!)
+                        .ThenInclude(v => v.Product!)
+                        .Include(o => o.OrderItems)
+                        .ThenInclude(oi => oi.Variant!)
+                        .ThenInclude(v => v.Size!)
+                        .Include(o => o.OrderItems)
+                        .ThenInclude(oi => oi.Variant!)
+                        .ThenInclude(v => v.Color!)
+                        .Include(o => o.PaymentTransactions)
+                        .Include(o => o.User)
+                        .AsSplitQuery()
+                        .FirstAsync(o => o.Id == order.Id);
+
+                    return Ok(ToOrderDto(completeOrder));
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    return StatusCode(500, new { message = "Lỗi khi hủy đơn hàng", error = ex.Message });
+                }
             });
         }
 

@@ -90,3 +90,49 @@
     font-size: 1.75rem;
   }
 }
+
+/* OTP Styling */
+.otp-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 1.5rem 0;
+}
+
+.otp-input {
+  width: 48px;
+  height: 52px;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  transition: all var(--transition);
+}
+
+.otp-input:focus {
+  outline: none;
+  border-color: rgba(17, 17, 17, 0.18);
+  box-shadow: 0 0 0 6px rgba(17, 17, 17, 0.08);
+}
+
+.otp-timer {
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin-bottom: 1.5rem;
+}
+
+.otp-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 1.5rem;
+}
+
+.otp-actions button {
+  font-size: 0.95rem;
+}
+

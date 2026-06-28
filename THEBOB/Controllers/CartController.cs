@@ -55,153 +55,187 @@ namespace THEBOB.Controllers
             if (!userId.HasValue)
                 return Unauthorized();
 
-            var variant = await _context.ProductVariants.FindAsync(request.VariantId);
-
-            if (variant == null)
-                return NotFound("Product variant not found");
-
-            if (request.Quantity <= 0)
-                return BadRequest("Quantity must be greater than zero");
-
-            if (variant.Stock < request.Quantity)
-                return BadRequest("Insufficient stock");
-
-            // Get or create cart
-            var cart = await _context.Carts
-                .Include(c => c.CartItems)
-                .FirstOrDefaultAsync(c => c.UserId == userId);
-
-            if (cart == null)
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
             {
-                cart = new Cart { UserId = userId.Value };
-                _context.Carts.Add(cart);
-                await _context.SaveChangesAsync();
-            }
+                using var transaction = await _context.Database.BeginTransactionAsync();
 
-            // Check if product already in cart
-            var existingItem = cart.CartItems.FirstOrDefault(ci => ci.VariantId == request.VariantId);
-
-            if (existingItem != null)
-            {
-                if (variant.Stock < existingItem.Quantity + request.Quantity)
-                    return BadRequest("Insufficient stock");
-
-                // Update quantity
-                existingItem.Quantity += request.Quantity;
-                existingItem.AddedAt = DateTime.UtcNow;
-            }
-            else
-            {
-                // Add new item
-                var cartItem = new CartItem
+                try
                 {
-                    CartId = cart.Id,
-                    VariantId = request.VariantId,
-                    Quantity = request.Quantity
-                };
-                _context.CartItems.Add(cartItem);
-            }
+                    await _context.LockUserForCartMutationAsync(userId.Value);
 
-            cart.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+                    var variant = await _context.ProductVariants
+                        .FromSqlRaw("SELECT * FROM ProductVariants WHERE Id = {0} FOR UPDATE", request.VariantId)
+                        .AsTracking()
+                        .FirstOrDefaultAsync();
 
-            return Ok();
+                    if (variant == null)
+                        return NotFound(new { success = false, message = "Không tìm thấy biến thể sản phẩm." });
+
+                    if (request.Quantity <= 0)
+                        return BadRequest(new { success = false, message = "Số lượng phải lớn hơn 0." });
+
+                    var cart = await _context.GetOrCreateCartAsync(userId.Value);
+                    await _context.LoadCartItemsAsync(cart);
+
+                    var existingItem = cart.CartItems.FirstOrDefault(ci => ci.VariantId == request.VariantId);
+                    int currentCartQty = existingItem?.Quantity ?? 0;
+
+                    if (variant.Stock < currentCartQty + request.Quantity)
+                    {
+                        await transaction.RollbackAsync();
+                        string msg = request.Quantity == 1 
+                            ? "Bạn đã thêm tối đa số lượng còn trong kho." 
+                            : $"Chỉ còn {variant.Stock} sản phẩm trong kho.";
+                        return BadRequest(new
+                        {
+                            success = false,
+                            message = msg,
+                            availableStock = variant.Stock
+                        });
+                    }
+
+                    if (existingItem != null)
+                    {
+                        existingItem.Quantity += request.Quantity;
+                        existingItem.AddedAt = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        _context.CartItems.Add(new CartItem
+                        {
+                            CartId = cart.Id,
+                            VariantId = request.VariantId,
+                            Quantity = request.Quantity,
+                            AddedAt = DateTime.UtcNow
+                        });
+                    }
+
+                    cart.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    return Ok(new { success = true, message = "Đã thêm sản phẩm vào giỏ hàng." });
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    return StatusCode(500, new { success = false, message = "Lỗi khi thêm sản phẩm vào giỏ hàng.", detail = ex.Message });
+                }
+            });
         }
 
-        // POST: api/cart/sync
-        [HttpPost("sync")]
-        public async Task<IActionResult> SyncCart([FromBody] SyncCartRequest request)
+     // POST: api/cart/sync
+[HttpPost("sync")]
+public async Task<IActionResult> SyncCart([FromBody] SyncCartRequest request)
+{
+    if (!ModelState.IsValid)
+        return BadRequest(ModelState);
+
+    var userId = GetCurrentUserId();
+    if (!userId.HasValue)
+        return Unauthorized();
+
+    var requestedItems = request.Items
+        .Where(item => item.VariantId > 0 && item.Quantity > 0)
+        .GroupBy(item => item.VariantId)
+        .Select(group => new SyncCartItemRequest
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            VariantId = group.Key,
+            Quantity = group.Sum(item => item.Quantity)
+        })
+        .ToList();
 
-            var userId = GetCurrentUserId();
-            if (!userId.HasValue)
-                return Unauthorized();
+    if (!requestedItems.Any())
+        return BadRequest(new { message = "Cart is empty" });
 
-            var requestedItems = request.Items
-                .Where(item => item.VariantId > 0 && item.Quantity > 0)
-                .GroupBy(item => item.VariantId)
-                .Select(group => new SyncCartItemRequest
-                {
-                    VariantId = group.Key,
-                    Quantity = group.Sum(item => item.Quantity)
-                })
-                .ToList();
+    var variantIds = requestedItems.Select(item => item.VariantId).ToList();
+    var variants = await _context.ProductVariants
+        .Include(v => v.Product)
+        .Where(v => variantIds.Contains(v.Id))
+        .ToDictionaryAsync(v => v.Id);
 
-            if (!requestedItems.Any())
-                return BadRequest(new { message = "Cart is empty" });
+    // ✅ THAY ĐỔI: Không return 400 nữa
+    // Gom tất cả cảnh báo lại
+    var warnings = new List<object>();
 
-            var variantIds = requestedItems.Select(item => item.VariantId).ToList();
-            var variants = await _context.ProductVariants
-                .Include(v => v.Product)
-                .Where(v => variantIds.Contains(v.Id))
-                .ToDictionaryAsync(v => v.Id);
-
-            foreach (var item in requestedItems)
+    foreach (var item in requestedItems)
+    {
+        if (!variants.TryGetValue(item.VariantId, out var variant))
+        {
+            // Variant không tồn tại → bỏ qua item này
+            warnings.Add(new
             {
-                if (!variants.TryGetValue(item.VariantId, out var variant))
-                {
-                    return BadRequest(new { message = $"Product variant {item.VariantId} not found" });
-                }
+                variantId = item.VariantId,
+                type = "NOT_FOUND",
+                message = $"Sản phẩm không còn tồn tại"
+            });
+            continue;
+        }
 
-                if (!variant.IsAvailable)
-                {
-                    return BadRequest(new { message = $"Variant {variant.Sku} is not available" });
-                }
-
-                if (variant.Stock < item.Quantity)
-                {
-                    var productName = variant.Product?.Name ?? variant.Sku;
-                    return BadRequest(new
-                    {
-                        message = $"Insufficient stock for {productName} - {variant.Sku}. Available: {variant.Stock}, requested: {item.Quantity}",
-                        variantId = variant.Id,
-                        availableStock = variant.Stock,
-                        requestedQuantity = item.Quantity
-                    });
-                }
-            }
-
-            await _context.ExecuteInTransactionAsync(async () =>
+        if (!variant.IsAvailable || variant.Stock == 0)
+        {
+            // Hết hàng → cảnh báo nhưng vẫn lưu giỏ
+            warnings.Add(new
             {
-                var cart = await _context.Carts
-                    .Include(c => c.CartItems)
-                    .FirstOrDefaultAsync(c => c.UserId == userId);
-
-                if (cart == null)
-                {
-                    cart = new Cart
-                    {
-                        UserId = userId.Value,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    _context.Carts.Add(cart);
-                    await _context.SaveChangesAsync();
-                }
-                else
-                {
-                    _context.CartItems.RemoveRange(cart.CartItems);
-                }
-
-                foreach (var item in requestedItems)
-                {
-                    _context.CartItems.Add(new CartItem
-                    {
-                        CartId = cart.Id,
-                        VariantId = item.VariantId,
-                        Quantity = item.Quantity,
-                        AddedAt = DateTime.UtcNow
-                    });
-                }
-
-                cart.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                variantId = variant.Id,
+                sku = variant.Sku,
+                productName = variant.Product?.Name,
+                type = "OUT_OF_STOCK",
+                message = $"{variant.Product?.Name} - {variant.Sku} đã hết hàng",
+                availableStock = 0,
+                requestedQuantity = item.Quantity
+            });
+        }
+        else if (variant.Stock < item.Quantity)
+        {
+            // Không đủ số lượng → cảnh báo + tự điều chỉnh
+            warnings.Add(new
+            {
+                variantId = variant.Id,
+                sku = variant.Sku,
+                productName = variant.Product?.Name,
+                type = "INSUFFICIENT_STOCK",
+                message = $"{variant.Product?.Name} chỉ còn {variant.Stock} sản phẩm",
+                availableStock = variant.Stock,
+                requestedQuantity = item.Quantity
             });
 
-            return Ok(new { message = "Cart synced" });
+            // ✅ Tự giảm quantity về đúng stock
+            item.Quantity = variant.Stock;
         }
+    }
 
+    // ✅ Lọc bỏ các item không tìm thấy variant
+    var validItems = requestedItems
+        .Where(item => variants.ContainsKey(item.VariantId))
+        .ToList();
+
+    var syncItems = validItems
+        .Select(item => (item.VariantId, item.Quantity))
+        .ToList();
+
+    await _context.ExecuteCartMutationAsync(userId.Value, async (context, cart) =>
+    {
+        await context.ReplaceCartItemsAsync(cart.Id, syncItems);
+        cart.UpdatedAt = DateTime.UtcNow;
+    });
+
+    // ✅ Trả về 200 kèm warnings thay vì 400
+    return Ok(new
+    {
+        message = "Cart synced",
+        hasWarnings = warnings.Any(),
+        warnings,
+        // Trả về stock hiện tại để FE cập nhật UI
+        stockInfo = variants.Values.Select(v => new
+        {
+            variantId = v.Id,
+            availableStock = v.Stock,
+            isOutOfStock = v.Stock == 0 || !v.IsAvailable
+        })
+    });
+}
         // PUT: api/cart/items/{itemId}
         [HttpPut("items/{itemId}")]
         public async Task<IActionResult> UpdateCartItem(int itemId, [FromBody] UpdateCartItemRequest request)
@@ -213,31 +247,67 @@ namespace THEBOB.Controllers
             if (!userId.HasValue)
                 return Unauthorized();
 
-            var cartItem = await _context.CartItems
-                .Include(ci => ci.Cart)
-                .Include(ci => ci.Variant)
-                .FirstOrDefaultAsync(ci => ci.Id == itemId && ci.Cart.UserId == userId);
-
-            if (cartItem == null)
-                return NotFound();
-
-            if (request.Quantity <= 0)
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
             {
-                // Remove item
-                _context.CartItems.Remove(cartItem);
-            }
-            else
-            {
-                if (cartItem.Variant.Stock < request.Quantity)
-                    return BadRequest("Insufficient stock");
+                using var transaction = await _context.Database.BeginTransactionAsync();
 
-                cartItem.Quantity = request.Quantity;
-            }
+                try
+                {
+                    await _context.LockUserForCartMutationAsync(userId.Value);
 
-            cartItem.Cart.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+                    var cart = await _context.GetOrCreateCartAsync(userId.Value);
+                    await _context.LoadCartItemsAsync(cart);
 
-            return Ok();
+                    var cartItem = cart.CartItems.FirstOrDefault(ci => ci.Id == itemId);
+                    if (cartItem == null)
+                        return NotFound(new { success = false, message = "Không tìm thấy sản phẩm trong giỏ." });
+
+                    if (request.Quantity <= 0)
+                    {
+                        _context.CartItems.Remove(cartItem);
+                        cart.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+                        return Ok(new { success = true, message = "Đã xóa sản phẩm khỏi giỏ hàng." });
+                    }
+
+                    var variant = await _context.ProductVariants
+                        .FromSqlRaw("SELECT * FROM ProductVariants WHERE Id = {0} FOR UPDATE", cartItem.VariantId)
+                        .AsTracking()
+                        .FirstOrDefaultAsync();
+
+                    if (variant == null)
+                        return NotFound(new { success = false, message = "Biến thể sản phẩm không tồn tại." });
+
+                    if (variant.Stock < request.Quantity)
+                    {
+                        await transaction.RollbackAsync();
+                        string msg = request.Quantity == cartItem.Quantity + 1
+                            ? "Bạn đã thêm tối đa số lượng còn trong kho."
+                            : $"Chỉ còn {variant.Stock} sản phẩm trong kho.";
+                        
+                        return BadRequest(new
+                        {
+                            success = false,
+                            message = msg,
+                            availableStock = variant.Stock
+                        });
+                    }
+
+                    cartItem.Quantity = request.Quantity;
+                    cart.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    return Ok(new { success = true, message = "Đã cập nhật số lượng thành công." });
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    return StatusCode(500, new { success = false, message = "Lỗi khi cập nhật giỏ hàng.", detail = ex.Message });
+                }
+            });
         }
 
         // DELETE: api/cart/items/{itemId}
@@ -248,18 +318,50 @@ namespace THEBOB.Controllers
             if (!userId.HasValue)
                 return Unauthorized();
 
-            var cartItem = await _context.CartItems
-                .Include(ci => ci.Cart)
-                .FirstOrDefaultAsync(ci => ci.Id == itemId && ci.Cart.UserId == userId);
+            IActionResult? actionResult = null;
+            var strategy = _context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                using var transaction = await _context.Database.BeginTransactionAsync();
 
-            if (cartItem == null)
-                return NotFound();
+                try
+                {
+                    await _context.LockUserForCartMutationAsync(userId.Value);
 
-            _context.CartItems.Remove(cartItem);
-            cartItem.Cart.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+                    var cart = await _context.Carts
+                        .FirstOrDefaultAsync(c => c.UserId == userId.Value);
 
-            return Ok();
+                    if (cart == null)
+                    {
+                        actionResult = NotFound();
+                        await transaction.RollbackAsync();
+                        return;
+                    }
+
+                    await _context.LoadCartItemsAsync(cart);
+
+                    var cartItem = cart.CartItems.FirstOrDefault(ci => ci.Id == itemId);
+                    if (cartItem == null)
+                    {
+                        actionResult = NotFound();
+                        await transaction.RollbackAsync();
+                        return;
+                    }
+
+                    _context.CartItems.Remove(cartItem);
+                    cart.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                    actionResult = Ok();
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    actionResult = StatusCode(500, new { message = "Lỗi khi xóa sản phẩm khỏi giỏ hàng.", detail = ex.Message });
+                }
+            });
+
+            return actionResult ?? StatusCode(500, new { message = "Lỗi khi xóa sản phẩm khỏi giỏ hàng." });
         }
 
         // DELETE: api/cart
@@ -270,16 +372,38 @@ namespace THEBOB.Controllers
             if (!userId.HasValue)
                 return Unauthorized();
 
-            var cart = await _context.Carts
-                .Include(c => c.CartItems)
-                .FirstOrDefaultAsync(c => c.UserId == userId);
-
-            if (cart != null)
+            var strategy = _context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
             {
-                _context.CartItems.RemoveRange(cart.CartItems);
-                _context.Carts.Remove(cart);
-                await _context.SaveChangesAsync();
-            }
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+
+                try
+                {
+                    await _context.LockUserForCartMutationAsync(userId.Value);
+
+                    var cart = await _context.Carts
+                        .FirstOrDefaultAsync(c => c.UserId == userId.Value);
+
+                    if (cart == null)
+                    {
+                        await transaction.CommitAsync();
+                        return;
+                    }
+
+                    CartMutationExtensions.DetachTrackedCartItems(_context, cart.Id);
+                    await _context.CartItems
+                        .Where(ci => ci.CartId == cart.Id)
+                        .ExecuteDeleteAsync();
+                    _context.Carts.Remove(cart);
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
+            });
 
             return Ok();
         }
