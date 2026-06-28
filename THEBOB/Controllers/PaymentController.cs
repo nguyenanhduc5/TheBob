@@ -23,17 +23,19 @@ namespace THEBOB.Controllers
         private readonly IHubContext<OrderHub> _hubContext;
         private readonly ILogger<PaymentController> _logger;
 
-        public PaymentController(
-            ThebobDbContext context,
-            SepayService sepayService,
-            IHubContext<OrderHub> hubContext,
-            ILogger<PaymentController> logger)
-        {
-            _context = context;
-            _sepayService = sepayService;
-            _hubContext = hubContext;
-            _logger = logger;
-        }
+      public PaymentController(
+    ThebobDbContext context,
+    SepayService sepayService,
+    IHubContext<OrderHub> hubContext,
+    IGhnService ghnService,        // ← mới
+    ILogger<PaymentController> logger)
+{
+    _context = context;
+    _sepayService = sepayService;
+    _hubContext = hubContext;
+    _ghnService = ghnService;       // ← mới
+    _logger = logger;
+}
 
         [HttpPost("create")]
         [Authorize]
@@ -232,6 +234,9 @@ namespace THEBOB.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<ApiResponse<object>>> Webhook([FromBody] JsonElement payload)
         {
+           
+    _logger.LogInformation("SePay webhook received: {Payload}", payload.GetRawText());
+    
             if (!_sepayService.VerifyWebhook(Request, out var verifyError))
             {
                 _logger.LogWarning("Rejected SePay webhook: {Reason}", verifyError);
@@ -416,7 +421,58 @@ namespace THEBOB.Controllers
                 order.PaymentStatus = "Paid";
                 order.Status = OrderStatus.Processing;
                 order.UpdatedAt = now;
+                await _context.SaveChangesAsync();
+await transaction.CommitAsync();
 
+// ─── Tạo đơn GHN thật sau khi thanh toán SePay thành công ───
+if (order.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(order.GhnWardCode)
+    && string.IsNullOrWhiteSpace(order.GhnOrderCode)) // tránh tạo trùng nếu webhook gọi lại
+{
+    try
+    {
+        var orderItemsForGhn = await _context.OrderItems
+            .Include(oi => oi.Variant).ThenInclude(v => v!.Product)
+            .Where(oi => oi.OrderId == order.Id)
+            .ToListAsync();
+
+        var ghnResult = await _ghnService.CreateShippingOrderAsync(new GhnCreateOrderRequest
+        {
+            PaymentTypeId = "1", // 1 = shop trả ship vì khách đã thanh toán online rồi
+            Note = $"Đơn hàng {order.OrderNumber}",
+            RequiredNote = "KHONGCHOXEMHANG",
+            ToPhone = order.User?.Phone ?? "",
+            ToAddress = order.ShippingAddress,
+            ToWardCode = order.GhnWardCode,
+            ToDistrictId = order.GhnDistrictId.Value,
+            Weight = orderItemsForGhn.Sum(i => i.Quantity * 500),
+            Length = 20, Width = 20, Height = 10,
+            InsuranceValue = order.TotalAmount,
+            ServiceTypeId = 2,
+            Items = orderItemsForGhn.Select(i => new GhnOrderItem
+            {
+                Name = i.ProductName, Code = i.Sku, Quantity = i.Quantity,
+                Price = (int)i.PricePerItem, Length = 20, Width = 20, Height = 10, Weight = 500
+            }).ToList()
+        });
+
+        order.GhnOrderCode = ghnResult.OrderCode;
+        order.ShippingStatus = "ready_to_pick";
+        await _context.SaveChangesAsync();
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Tạo đơn GHN thất bại sau thanh toán cho order #{OrderId}", order.Id);
+        // Không fail cả webhook — admin có thể tạo tay qua ShippingController.CreateShipment
+    }
+}
+
+await _hubContext.Clients.User(order.UserId.ToString())
+    .SendAsync("ReceivePaymentSuccess", order.Id, "Thanh toan thanh cong");
+
+// Báo Admin
+await NotifyAdminNewOrder(order, _hubContext);
+
+return Ok(ApiResponse<object>.Ok(new { orderId = order.Id }, "Payment confirmed."));
                 var paymentTx = await _context.PaymentTransactions
                     .FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending");
 

@@ -7,6 +7,7 @@ using THEBOB.Models;
 using THEBOB.Hubs;
 using System.Security.Claims;
 using System.ComponentModel.DataAnnotations;
+using THEBOB.Services;
 
 namespace THEBOB.Controllers
 {
@@ -18,11 +19,20 @@ namespace THEBOB.Controllers
         private readonly ThebobDbContext _context;
         private readonly IHubContext<OrderHub> _hubContext;
 
-        public OrdersController(ThebobDbContext context, IHubContext<OrderHub> hubContext)
-        {
-            _context = context;
-            _hubContext = hubContext;
-        }
+        private readonly IGhnService _ghnService;
+private readonly ILogger<OrdersController> _logger;
+
+public OrdersController(
+    ThebobDbContext context,
+    IHubContext<OrderHub> hubContext,
+    IGhnService ghnService,
+    ILogger<OrdersController> logger)
+{
+    _context = context;
+    _hubContext = hubContext;
+    _ghnService = ghnService;
+    _logger = logger;
+}
 
         // GET: api/orders (user's orders)
         [HttpGet]
@@ -224,9 +234,36 @@ namespace THEBOB.Controllers
                 var orderNumber = GenerateOrderNumber();
 
                 // Calculate total
-                var subtotal = cart.CartItems.Sum(ci => ci.Variant.Price * ci.Quantity);
-                var shippingAmount = subtotal > 500000 ? 0 : 30000;
-                var totalAmount = subtotal + shippingAmount;
+                // THAY DÒNG NÀY:
+// var subtotal = cart.CartItems.Sum(ci => ci.Variant.Price * ci.Quantity);
+// var shippingAmount = subtotal > 500000 ? 0 : 30000;
+
+// BẰNG:
+var subtotal = cart.CartItems.Sum(ci => ci.Variant.Price * ci.Quantity);
+var totalWeight = cart.CartItems.Sum(ci => ci.Quantity * 500); // 500g/sp mặc định
+
+decimal shippingAmount = 30000; // fallback nếu GHN lỗi (sandbox đôi khi down)
+if (request.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(request.GhnWardCode))
+{
+    try
+    {
+        var feeResult = await _ghnService.CalculateFeeAsync(new GhnFeeRequest
+        {
+            ToDistrictId = request.GhnDistrictId.Value,
+            ToWardCode = request.GhnWardCode,
+            Weight = totalWeight,
+            InsuranceValue = (int)subtotal,
+            ServiceTypeId = 2
+        });
+        shippingAmount = feeResult.Total;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogWarning(ex, "GHN fee calculation failed, dùng phí fallback 30000");
+    }
+}
+
+var totalAmount = subtotal + shippingAmount;
 
                 bool isCod = request.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase);
 
@@ -234,17 +271,21 @@ namespace THEBOB.Controllers
                 var shippingAddress = BuildShippingAddress(request);
 
                 var order = new Order
-                {
-                    OrderNumber = orderNumber,
-                    UserId = userId.Value,
-                    Status = isCod ? OrderStatus.Pending : OrderStatus.PendingPayment,
-                    TotalAmount = totalAmount,
-                    ShippingAddress = shippingAddress,
-                    PaymentMethod = request.PaymentMethod,
-                    PaymentStatus = "Pending",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
+{
+    OrderNumber = orderNumber,
+    UserId = userId.Value,
+    Status = isCod ? OrderStatus.Pending : OrderStatus.PendingPayment,
+    TotalAmount = totalAmount,
+    ShippingFee = shippingAmount,          // ← mới
+    ShippingAddress = shippingAddress,
+    PaymentMethod = request.PaymentMethod,
+    PaymentStatus = "Pending",
+    GhnProvinceId = request.GhnProvinceId, // ← mới
+    GhnDistrictId = request.GhnDistrictId, // ← mới
+    GhnWardCode = request.GhnWardCode,     // ← mới
+    CreatedAt = DateTime.UtcNow,
+    UpdatedAt = DateTime.UtcNow
+};
 
                 _context.Orders.Add(order);
                 await _context.SaveChangesAsync();
@@ -301,17 +342,60 @@ namespace THEBOB.Controllers
                     }
                 }
 
-                if (isCod)
-                {
-                    CartMutationExtensions.DetachTrackedCartItems(_context, cart.Id);
-                    await _context.CartItems
-                        .Where(ci => ci.CartId == cart.Id)
-                        .ExecuteDeleteAsync();
-                    _context.Carts.Remove(cart);
-                }
 
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
+              if (isCod)
+{
+    _context.CartItems.RemoveRange(cart.CartItems);
+    _context.Carts.Remove(cart);
+}
+
+await _context.SaveChangesAsync();
+await transaction.CommitAsync();
+
+// ─── Tạo đơn GHN thật ngay cho COD (sau khi commit để đơn đã chắc chắn lưu) ───
+if (isCod && order.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(order.GhnWardCode))
+{
+    try
+    {
+        var ghnResult = await _ghnService.CreateShippingOrderAsync(new GhnCreateOrderRequest
+        {
+            PaymentTypeId = "2", // 2 = người nhận trả ship (COD), 1 = shop trả
+            Note = $"Đơn hàng {order.OrderNumber}",
+            RequiredNote = "KHONGCHOXEMHANG",
+            ToName = request.Email, // hoặc tên người nhận nếu bạn có field riêng
+            ToPhone = request.Phone,
+            ToAddress = request.SpecificAddress,
+            ToWardCode = order.GhnWardCode,
+            ToDistrictId = order.GhnDistrictId.Value,
+            Weight = totalWeight,
+            Length = 20, Width = 20, Height = 10, // mặc định, chỉnh theo SP thật nếu cần
+            InsuranceValue = totalAmount,
+            ServiceTypeId = 2,
+            Items = cart.CartItems.Select(ci => new GhnOrderItem
+            {
+                Name = ci.Variant.Product!.Name,
+                Code = ci.Variant.Sku,
+                Quantity = ci.Quantity,
+                Price = (int)ci.Variant.Price,
+                Length = 20, Width = 20, Height = 10, Weight = 500
+            }).ToList()
+        });
+
+        order.GhnOrderCode = ghnResult.OrderCode;
+        order.ShippingStatus = "ready_to_pick";
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Đã tạo đơn GHN {Code} cho order COD #{OrderId}", ghnResult.OrderCode, order.Id);
+    }
+    catch (Exception ex)
+    {
+        // Không rollback đơn hàng nếu GHN lỗi — chỉ log để admin tạo tay sau (đã có UI sẵn ở ShippingController)
+        _logger.LogError(ex, "Tạo đơn GHN thất bại cho order COD #{OrderId}, admin cần tạo tay", order.Id);
+    }
+}
+
+// Báo Admin (xem Bước 7)
+await NotifyAdminNewOrder(order, _hubContext);
 
                 // Fetch complete order payload to return
                 var completeOrder = await _context.Orders
@@ -889,59 +973,93 @@ namespace THEBOB.Controllers
             };
         }
 
-        private static object ToOrderDto(Order order)
-        {
-            var subtotal = order.OrderItems != null ? order.OrderItems.Sum(item => item.PricePerItem * item.Quantity) : 0;
-            var shippingAmount = subtotal > 500000 ? 0 : 30000;
-            var latestTransaction = order.PaymentTransactions?
-                .OrderByDescending(t => t.PaidAt ?? t.UpdatedAt)
-                .FirstOrDefault();
+    private static object ToOrderDto(Order order)
+{
+    var subtotal = order.OrderItems != null
+        ? order.OrderItems.Sum(item => item.PricePerItem * item.Quantity)
+        : 0;
 
-            return new
+    // Dùng phí ship thực tế đã lưu trong Order
+    var shippingAmount = order.ShippingFee;
+
+    var latestTransaction = order.PaymentTransactions?
+        .OrderByDescending(t => t.PaidAt ?? t.UpdatedAt)
+        .FirstOrDefault();
+
+    return new
+    {
+        order.Id,
+        order.OrderNumber,
+        order.UserId,
+
+        CustomerName = order.User?.FullName ?? order.User?.Email,
+        CustomerEmail = order.User?.Email ?? string.Empty,
+        CustomerPhone = order.User?.Phone ?? string.Empty,
+
+        Status = order.Status.ToString(),
+        order.TotalAmount,
+
+        order.ShippingAddress,
+        order.PaymentMethod,
+        order.PaymentStatus,
+        order.CouponId,
+
+        Subtotal = subtotal,
+        ShippingAmount = shippingAmount,
+
+        // Thông tin GHN
+        GhnOrderCode = order.GhnOrderCode,
+        ShippingStatus = order.ShippingStatus,
+
+        // Thông tin thanh toán
+        TransactionCode = latestTransaction?.TransactionCode ?? string.Empty,
+        TransactionId = latestTransaction?.TransactionId ?? string.Empty,
+        VaNumber = latestTransaction?.VaNumber ?? string.Empty,
+        PaymentGateway = latestTransaction?.Gateway ?? order.PaymentMethod,
+        PaymentProvider = latestTransaction?.PaymentProvider
+                          ?? latestTransaction?.Gateway
+                          ?? order.PaymentMethod,
+        PaidAt = latestTransaction?.PaidAt,
+        WebhookTime = latestTransaction?.UpdatedAt,
+        FailureReason = latestTransaction?.FailureReason ?? string.Empty,
+
+        order.CreatedAt,
+        order.UpdatedAt,
+
+        Items = order.OrderItems != null
+            ? order.OrderItems.Select(item => new
             {
-                order.Id,
-                order.OrderNumber,
-                order.UserId,
-                CustomerName = order.User?.FullName ?? order.User?.Email,
-                CustomerEmail = order.User?.Email ?? string.Empty,
-                CustomerPhone = order.User?.Phone ?? string.Empty,
-                Status = order.Status.ToString(),
-                order.TotalAmount,
-                order.ShippingAddress,
-                order.PaymentMethod,
-                order.PaymentStatus,
-                order.CouponId,
-                Subtotal = subtotal,
-                ShippingAmount = shippingAmount,
-                TransactionCode = latestTransaction?.TransactionCode ?? string.Empty,
-                TransactionId = latestTransaction?.TransactionId ?? string.Empty,
-                VaNumber = latestTransaction?.VaNumber ?? string.Empty,
-                PaymentGateway = latestTransaction?.Gateway ?? order.PaymentMethod,
-                PaymentProvider = latestTransaction?.PaymentProvider ?? latestTransaction?.Gateway ?? order.PaymentMethod,
-                PaidAt = latestTransaction?.PaidAt,
-                WebhookTime = latestTransaction?.UpdatedAt,
-                FailureReason = latestTransaction?.FailureReason ?? string.Empty,
-                order.CreatedAt,
-                order.UpdatedAt,
-                Items = order.OrderItems != null ? order.OrderItems.Select(item => new
-                {
-                    item.Id,
-                    item.VariantId,
-                    ProductId = item.Variant?.ProductId,
-                    ProductName = string.IsNullOrWhiteSpace(item.ProductName)
-                        ? item.Variant?.Product?.Name ?? string.Empty
-                        : item.ProductName,
-                    Sku = string.IsNullOrWhiteSpace(item.Sku) ? item.Variant?.Sku ?? string.Empty : item.Sku,
-                    Size = string.IsNullOrWhiteSpace(item.Size) ? item.Variant?.Size?.Name ?? string.Empty : item.Size,
-                    Color = string.IsNullOrWhiteSpace(item.Color) ? item.Variant?.Color?.Name ?? string.Empty : item.Color,
-                    Price = item.PricePerItem,
-                    item.Quantity,
-                    ImageUrl = string.IsNullOrWhiteSpace(item.ProductImage)
-                        ? item.Variant?.Product?.MainImageUrl ?? string.Empty
-                        : item.ProductImage
-                }) : Enumerable.Empty<object>()
-            };
-        }
+                item.Id,
+                item.VariantId,
+
+                ProductId = item.Variant?.ProductId,
+
+                ProductName = string.IsNullOrWhiteSpace(item.ProductName)
+                    ? item.Variant?.Product?.Name ?? string.Empty
+                    : item.ProductName,
+
+                Sku = string.IsNullOrWhiteSpace(item.Sku)
+                    ? item.Variant?.Sku ?? string.Empty
+                    : item.Sku,
+
+                Size = string.IsNullOrWhiteSpace(item.Size)
+                    ? item.Variant?.Size?.Name ?? string.Empty
+                    : item.Size,
+
+                Color = string.IsNullOrWhiteSpace(item.Color)
+                    ? item.Variant?.Color?.Name ?? string.Empty
+                    : item.Color,
+
+                Price = item.PricePerItem,
+                item.Quantity,
+
+                ImageUrl = string.IsNullOrWhiteSpace(item.ProductImage)
+                    ? item.Variant?.Product?.MainImageUrl ?? string.Empty
+                    : item.ProductImage
+            })
+            : Enumerable.Empty<object>()
+    };
+}
 
         private static string BuildShippingAddress(CreateOrderRequest request)
         {
@@ -1060,6 +1178,9 @@ namespace THEBOB.Controllers
 
         public string? TransactionCode { get; set; }
         public string? RawPaymentResponse { get; set; }
+        public int? GhnProvinceId { get; set; }
+        public int? GhnDistrictId { get; set; }
+        public string? GhnWardCode { get; set; }
     }
 
     public class UpdateOrderStatusRequest
