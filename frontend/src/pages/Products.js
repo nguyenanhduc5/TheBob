@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useNotification } from '../context/NotificationContext';
 import '../styles/Products.css';
@@ -7,6 +7,13 @@ export default function Products() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { addNotification } = useNotification();
+
+  // ✅ FIX: Dùng ref để dùng addNotification trong useCallback mà không cần đưa vào deps
+  // Trước đây: addNotification trong deps → fetchProducts thay đổi mỗi render → fetch liên tục
+  const addNotificationRef = useRef(addNotification);
+  useEffect(() => {
+    addNotificationRef.current = addNotification;
+  }, [addNotification]);
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -19,11 +26,10 @@ export default function Products() {
     maxPrice: searchParams.get('maxPrice') || '',
   });
   const [sortBy, setSortBy] = useState('newest');
-
-  // Thêm State quản lý phân trang
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 8; // Hiển thị 8 sản phẩm/trang (vừa khít 2 hàng x 4 cột)
+  const productsPerPage = 8;
 
+  // ✅ FIX: fetchCategories không có deps → chỉ tạo 1 lần, không bao giờ thay đổi
   const fetchCategories = useCallback(async () => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/products/categories`);
@@ -34,8 +40,9 @@ export default function Products() {
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     }
-  }, []);
+  }, []); // ✅ không deps → stable, chỉ fetch 1 lần
 
+  // ✅ FIX: bỏ addNotification khỏi deps, dùng addNotificationRef thay thế
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
@@ -49,8 +56,7 @@ export default function Products() {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/products/search?${params}`);
       if (response.ok) {
         let data = await response.json();
-        
-        // Sắp xếp sản phẩm an toàn bằng cách kiểm tra sự tồn tại của thuộc tính price
+
         if (sortBy === 'price-low') {
           data.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
         } else if (sortBy === 'price-high') {
@@ -58,32 +64,37 @@ export default function Products() {
         } else if (sortBy === 'rating') {
           data.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
         }
-        
+
         setProducts(data);
-        setCurrentPage(1); // Reset về trang 1 mỗi khi đổi bộ lọc hoặc sắp xếp
+        setCurrentPage(1);
       }
     } catch (error) {
       console.error('Failed to fetch products:', error);
-      addNotification('Lỗi khi tải sản phẩm', 'error');
+      addNotificationRef.current('Lỗi khi tải sản phẩm', 'error'); // ✅ dùng ref
     } finally {
       setLoading(false);
     }
-  }, [filters, sortBy, addNotification]);
+  }, [filters, sortBy]); // ✅ chỉ giữ filters và sortBy — đúng deps thực sự cần
 
+  // ✅ FIX: tách 2 useEffect riêng biệt
+  // fetchCategories chỉ chạy 1 lần lúc mount
   useEffect(() => {
     fetchCategories();
+  }, [fetchCategories]);
+
+  // fetchProducts chạy lại khi filters hoặc sortBy thay đổi
+  useEffect(() => {
     fetchProducts();
-  }, [fetchCategories, fetchProducts]);
+  }, [fetchProducts]);
 
   const handleFilterChange = (field, value) => {
-    setFilters({ ...filters, [field]: value });
+    setFilters(prev => ({ ...prev, [field]: value }));
   };
 
   const handleProductClick = (productId) => {
     navigate(`/products/${productId}`);
   };
 
-  // Tính toán logic chia dữ liệu cho trang hiện tại
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
   const currentProducts = products.slice(indexOfFirstProduct, indexOfLastProduct);
@@ -91,7 +102,6 @@ export default function Products() {
 
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
-    // Cuộn mượt lên vị trí lưới sản phẩm để người dùng tiện theo dõi loạt hàng mới
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -201,7 +211,6 @@ export default function Products() {
             <div className="no-products">Không tìm thấy sản phẩm nào.</div>
           ) : (
             <>
-              {/* Chỉ map mảng currentProducts đã qua xử lý phân trang */}
               <div className="products-grid">
                 {currentProducts.map((product) => (
                   <div key={product.id} className="product-card">
@@ -243,11 +252,10 @@ export default function Products() {
                 ))}
               </div>
 
-              {/* Khối giao diện phân trang hiển thị khi tổng số trang lớn hơn 1 */}
               {totalPages > 1 && (
                 <div className="bob-pagination">
-                  <button 
-                    onClick={() => handlePageChange(currentPage - 1)} 
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
                     className="pagination-arrow"
                   >
@@ -264,8 +272,8 @@ export default function Products() {
                     </button>
                   ))}
 
-                  <button 
-                    onClick={() => handlePageChange(currentPage + 1)} 
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
                     className="pagination-arrow"
                   >
