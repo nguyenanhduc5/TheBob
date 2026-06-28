@@ -534,96 +534,150 @@
   }
 }
 
-.shipping-panel {
-  padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  margin-top: 4px;
-}
+/* ─── Timeline ───────────────────────────────────────────────────────────────── */
 
-.shipping-panel h3 {
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #6b7280;
-}
-
-.shipping-panel-header {
+.modal-timeline {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  align-items: flex-start;
+  gap: 0;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  overflow-x: auto;
 }
 
-.shipping-panel-header h3 {
-  margin: 0;
-}
-
-.shipping-code {
-  font-size: 13px;
-  color: #374151;
-  background: #f3f4f6;
-  padding: 4px 10px;
-  border-radius: 4px;
-}
-
-.shipping-error {
-  color: #b91c1c;
-  font-size: 13px;
-  margin: 0 0 10px;
-}
-
-.shipping-loading {
-  color: #6b7280;
-  font-size: 13px;
-}
-
-.tracking-status {
+.timeline-step {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  position: relative;
+  flex: 1;
+  min-width: 80px;
 }
 
-.tracking-date {
-  font-size: 13px;
-  color: #6b7280;
+.timeline-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d1d5db;
+  border: 2px solid #d1d5db;
+  z-index: 1;
+  flex-shrink: 0;
 }
 
-.tracking-logs {
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  overflow: hidden;
-  margin-bottom: 12px;
-  max-height: 200px;
-  overflow-y: auto;
+.timeline-step.done .timeline-dot {
+  background: #10b981;
+  border-color: #10b981;
 }
 
-.tracking-log-item {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 12px;
-  padding: 9px 14px;
-  border-bottom: 1px solid #f3f4f6;
-  font-size: 12px;
+.timeline-step.current .timeline-dot {
+  background: #fff;
+  border-color: #111827;
+  border-width: 3px;
+  box-shadow: 0 0 0 3px rgba(17,24,39,0.12);
 }
 
-.tracking-log-item:last-child {
-  border-bottom: none;
+.timeline-step.cancelled .timeline-dot {
+  background: #ef4444;
+  border-color: #ef4444;
 }
 
-.log-time {
+.timeline-label {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
   color: #9ca3af;
+  text-align: center;
   white-space: nowrap;
 }
 
-.log-desc {
-  color: #374151;
+.timeline-step.done .timeline-label    { color: #10b981; }
+.timeline-step.current .timeline-label { color: #111827; font-weight: 700; }
+.timeline-step.cancelled .timeline-label { color: #ef4444; }
+
+.timeline-line {
+  position: absolute;
+  top: 7px;
+  left: calc(50% + 8px);
+  right: calc(-50% + 8px);
+  height: 2px;
+  background: #d1d5db;
 }
 
-.shipping-actions {
+.timeline-step.done .timeline-line { background: #10b981; }
+
+/* ─── Modal extras ────────────────────────────────────────────────────────────── */
+
+.modal-order-number {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 2px 0 0;
+  font-family: monospace;
+}
+
+.modal-header-right {
   display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-section-padded {
+  padding: 16px 24px;
+}
+
+.modal-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0 0;
+  font-size: 15px;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 8px;
+}
+
+/* ─── Action buttons ──────────────────────────────────────────────────────────── */
+
+.btn-ship {
+  padding: 7px 12px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.btn-ship:hover:not(:disabled) { opacity: 0.88; }
+.btn-ship:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-deliver {
+  padding: 7px 12px;
+  background: #10b981;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.btn-deliver:hover:not(:disabled) { opacity: 0.88; }
+.btn-deliver:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Status pill thêm shipped ────────────────────────────────────────────────── */
+
+.status-pill.status-shipped {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.status-pill.status-processing {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
 }

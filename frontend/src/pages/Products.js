@@ -215,16 +215,22 @@ export default function Products() {
                 {currentProducts.map((product) => (
                   <div key={product.id} className="product-card">
                     <div
-                      className="product-image-container"
-                      onClick={() => handleProductClick(product.id)}
-                    >
-                      <img
-                        src={product.mainImageUrl || '/placeholder.jpg'}
-                        alt={product.name}
-                        className="product-image"
-                      />
-                      {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
-                    </div>
+  className="product-image-container"
+  onClick={() => handleProductClick(product.id)}
+>
+  <img
+    src={product.mainImageUrl || '/placeholder.jpg'}
+    alt={product.name}
+    className="product-image"
+  />
+  {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
+  {/* Chỉ giữ chữ Hết Hàng, bỏ SOLD OUT */}
+  {(product.productVariants ?? []).reduce(
+    (sum, v) => sum + (Number(v.stock ?? v.Stock) || 0), 0
+  ) === 0 && (
+    <span className="badge-sold-out">Hết Hàng</span>
+  )}
+</div>
                     <div className="product-info">
                       <h3 className="product-name" onClick={() => handleProductClick(product.id)}>
                         {product.name}

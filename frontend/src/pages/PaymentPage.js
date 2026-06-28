@@ -199,14 +199,14 @@ export default function PaymentPage() {
   };
 
   const handleCancelPayment = async () => {
-    if (!window.confirm('Ban muon huy thanh toan don hang nay?')) return;
+    if (!window.confirm('Bạn muốn hủy thanh toán đơn hàng này?')) return;
 
     setLoading(true);
     try {
       await paymentAPI.cancelPayment(orderId);
       goFailed('/payment/failed');
     } catch (err) {
-      addNotification(err?.message || 'Loi khi huy thanh toan.', 'error');
+      addNotification(err?.message || 'Lỗi khi hủy thanh toán.', 'error');
       setLoading(false);
     }
   };
@@ -215,7 +215,7 @@ export default function PaymentPage() {
     return (
       <div className="payment-loading-container">
         <div className="spinner"></div>
-        <p>Dang tai thong tin thanh toan...</p>
+        <p>Đang tải thông tin thanh toán...</p>
       </div>
     );
   }
@@ -230,8 +230,8 @@ export default function PaymentPage() {
             </svg>
           </div>
           <h1>Thanh toan thanh cong!</h1>
-          <p>Don hang cua ban da duoc SePay xac nhan va dang duoc xu ly.</p>
-        </div>
+<p>Đơn hàng của bạn đã được SePay xác nhận và đang được xử lý.</p>        
+</div>
       </div>
     );
   }
@@ -241,9 +241,9 @@ export default function PaymentPage() {
       <div className="payment-error-container">
         <div className="error-card">
           <div className="error-icon">x</div>
-          <h2>Loi thanh toan</h2>
+          <h2>Lỗi thanh toán</h2>
           <p>{error}</p>
-          <button onClick={() => navigate('/checkout')} className="btn-retry">Quay lai thanh toan</button>
+          <button onClick={() => navigate('/checkout')} className="btn-retry">Quay lại thanh toán</button>
         </div>
       </div>
     );
@@ -253,43 +253,43 @@ export default function PaymentPage() {
     <div className="payment-page-wrapper">
       <div className="payment-card-container">
         <div className="payment-info-box">
-          <h2>Thanh Toan SePay</h2>
+          <h2>Thanh Toán Đơn Hàng</h2>
           <div className="timer-display">
-            Thuc hien thanh toan trong: <span className="countdown">{formatTime(timer)}</span>
+            Thực hiện thanh toán trong: <span className="countdown">{formatTime(timer)}</span>
           </div>
 
           <div className="info-fields">
             <div className="info-row">
-              <span className="info-label">Ngan hang</span>
+              <span className="info-label">Ngân hàng</span>
               <span className="info-value highlight">{paymentInfo?.bankName}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">So tai khoan</span>
+              <span className="info-label">Số tài khoản</span>
               <span className="info-value copyable">
                 {paymentInfo?.bankAccount}
-                <button className="btn-copy" onClick={() => copy(paymentInfo?.bankAccount, 'Da sao chep so tai khoan')}>Sao chep</button>
+                <button className="btn-copy" onClick={() => copy(paymentInfo?.bankAccount, 'Đã sao chép số tài khoản')}>Sao chép</button>
               </span>
             </div>
             <div className="info-row">
               <span className="info-label">Virtual Account</span>
               <span className="info-value copyable">
                 {paymentInfo?.vaNumber}
-                <button className="btn-copy" onClick={() => copy(paymentInfo?.vaNumber, 'Da sao chep VA')}>Sao chep</button>
+                <button className="btn-copy" onClick={() => copy(paymentInfo?.vaNumber, 'Đã sao chép VA')}>Sao chép</button>
               </span>
             </div>
             <div className="info-row">
-              <span className="info-label">Chu tai khoan</span>
+              <span className="info-label">Chủ tài khoản</span>
               <span className="info-value">{paymentInfo?.accountName}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Noi dung CK</span>
+              <span className="info-label">Nộidung chuyển khoản</span>
               <span className="info-value copyable content-highlight">
                 {paymentInfo?.transferContent}
                 <button className="btn-copy" onClick={() => copy(paymentInfo?.transferContent, 'Da sao chep noi dung')}>Sao chep</button>
               </span>
             </div>
             <div className="info-row">
-              <span className="info-label">So tien</span>
+              <span className="info-label">Số tiền</span>
               <span className="info-value price-highlight">
                 {paymentInfo?.amount?.toLocaleString('vi-VN')} VND
               </span>
@@ -297,24 +297,24 @@ export default function PaymentPage() {
           </div>
 
           <div className="payment-note-box">
-            <p><strong>Luu y:</strong> Chuyen dung so tien va noi dung. SePay se tu dong gui webhook sau khi ngan hang ghi nhan giao dich.</p>
+            <p><strong>Lưu ý:</strong> Chuyển đúng số tiền và nội dung. SePay sẽ tự động gửi webhook sau khi ngân hàng ghi nhận giao dịch.</p>
           </div>
 
           <div style={{ marginTop: '20px' }}>
             <button onClick={handleCancelPayment} className="btn-retry" style={{ backgroundColor: '#e53e3e', width: '100%' }}>
-              Huy thanh toan
+              Hủy thanh toán
             </button>
           </div>
         </div>
 
         <div className="payment-qr-box">
-          <h3>Quet ma de thanh toan</h3>
+          <h3>Quét mã để thanh toán</h3>
           <div className="qr-image-wrapper">
             <img src={paymentInfo?.qrCode} alt="SePay VietQR Code" className="viet-qr-img" />
           </div>
           <div className="payment-status-indicator">
             <span className="pulse-dot"></span>
-            Dang cho SePay xac nhan giao dich...
+            Đang cho SePay xác nhận giao dịch...
           </div>
         </div>
       </div>

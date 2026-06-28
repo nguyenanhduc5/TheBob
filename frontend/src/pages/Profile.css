@@ -1,125 +1,205 @@
-
 /* ==========================================================================
-   THEBOB - PROFILE & ACCOUNT PAGE STYLES (MINIMALISM CONCEPT)
+   THEBOB — PROFILE PAGE (REDESIGN)
+   Concept: Editorial wardrobe card. Black ink on white linen.
+   Signature: A thick left-border accent track that follows the active tab.
    ========================================================================== */
 
-* {
-  box-sizing: border-box;
+/* ── Reset ────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ── Tokens ───────────────────────────────────────────────────────────────── */
+:root {
+  --ink:        #0d0d0d;
+  --ink-mid:    #4a4a4a;
+  --ink-faint:  #9a9a9a;
+  --paper:      #ffffff;
+  --paper-warm: #f7f6f4;
+  --rule:       #e8e6e2;
+  --accent:     #c8102e;   /* TheBob red */
+  --accent-bg:  #fff0f2;
+  --success:    #15803d;
+  --success-bg: #dcfce7;
+  --warn-bg:    #fef9c3;
+  --warn:       #92400e;
+  --radius:     0px;       /* square corners throughout */
+  --shadow:     0 2px 12px rgba(0,0,0,.08);
 }
 
-/* ==========================================================================
-   1. GIAO DIỆN USER (MEMBER)
-   ========================================================================== */
-
-/* Container bọc toàn bộ trang cá nhân */
+/* ── Page shell ───────────────────────────────────────────────────────────── */
 .account-page-container {
-  max-width: 1200px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 40px 20px 80px;
-  background: #ffffff;
+  padding: 48px 24px 96px;
+  background: var(--paper);
 }
 
-/* Khung phân tách Sidebar và Nội dung chính */
 .account-page {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 40px;
+  grid-template-columns: 240px 1fr;
+  gap: 0;
   align-items: start;
+  border: 1.5px solid var(--ink);
 }
 
-/* --- SIDEBAR MENU TRÁI --- */
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
 .account-sidebar {
-  border: 1px solid #000000;
-  padding: 24px 16px;
-  background: #ffffff;
+  border-right: 1.5px solid var(--ink);
+  background: var(--paper);
+  padding: 0;
+  min-height: 560px;
 }
 
 .sidebar-header {
-  font-size: 1.1rem;
-  font-weight: bold;
-  letter-spacing: 0.15em;
+  padding: 20px 24px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  padding-bottom: 16px;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #000000;
-  text-align: center;
+  color: var(--ink-faint);
+  border-bottom: 1.5px solid var(--ink);
+  background: var(--paper-warm);
 }
 
-.sidebar-menu {
+.sidebar-avatar {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  padding: 28px 16px 20px;
+  border-bottom: 1px solid var(--rule);
   gap: 8px;
 }
 
-/* Nút điều hướng */
+.avatar-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.avatar-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.avatar-email {
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  text-align: center;
+  word-break: break-all;
+}
+
+/* Signature element: thick left border track for active item */
+.sidebar-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+  gap: 2px;
+}
+
 .menu-item {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 14px 16px;
+  padding: 13px 20px;
   background: transparent;
-  border: 1px solid transparent;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #333333;
+  border: none;
+  border-left: 3px solid transparent;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-mid);
   cursor: pointer;
   text-align: left;
-  transition: all 0.2s ease-in-out;
+  transition: color .15s, border-color .15s, background .15s;
+  text-transform: uppercase;
 }
 
 .menu-icon {
-  font-size: 1.1rem;
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
-.menu-item:hover,
+.menu-item:hover {
+  color: var(--ink);
+  background: var(--paper-warm);
+  border-left-color: var(--rule);
+}
+
 .menu-item.active {
-  background: #000000;
-  color: #ffffff;
-  border-color: #000000;
+  color: var(--ink);
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+  font-weight: 800;
 }
 
-/* Nút đăng xuất đặc biệt */
 .menu-item.logout {
-  margin-top: 12px;
-  border-top: 1px dashed #cccccc;
-}
-.menu-item.logout:hover {
-  background: #cf2222;
-  color: #ffffff;
-  border-color: #cf2222;
+  margin-top: 8px;
+  padding-top: 13px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-faint);
 }
 
-/* --- VÙNG NỘI DUNG CHÍNH (MAIN CONTENT) --- */
+.menu-item.logout:hover {
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+}
+
+/* ── Main content area ────────────────────────────────────────────────────── */
 .account-main {
-  min-width: 0; /* Khóa layout chống tràn ngang */
+  min-width: 0;
+  padding: 0;
+}
+
+.account-section {
+  padding: 36px 40px 48px;
+}
+
+.account-section-title {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 4px 0;
 }
 
 .account-section h2 {
-  font-size: 1.4rem;
-  font-weight: 400;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin: 0 0 28px 0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e2e8f0;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  margin: 0 0 32px 0;
+  padding-bottom: 20px;
+  border-bottom: 1.5px solid var(--ink);
+  line-height: 1.1;
 }
 
-/* --- FORM NHẬP LIỆU CHUNG --- */
+/* ── Form ─────────────────────────────────────────────────────────────────── */
 .account-form {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-width: 760px;
+  max-width: 680px;
 }
 
-.form-row {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
+.form-row { display: flex; flex-direction: column; gap: 20px; }
 
-/* Layout 2 cột trên PC */
 .form-row.two-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -129,250 +209,323 @@
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .form-group label {
-  font-size: 0.85rem;
-  font-weight: bold;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #000000;
+  color: var(--ink);
 }
 
-/* Ô input & textarea phong cách BOB vuông vắn */
 .account-form input[type="text"],
 .account-form input[type="email"],
 .account-form input[type="tel"],
 .account-form input[type="password"],
 .account-form textarea {
   width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #000000;
-  border-radius: 0; 
-  font-size: 0.95rem;
+  padding: 11px 14px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
   font-family: inherit;
-  background: #ffffff;
+  background: var(--paper);
+  color: var(--ink);
   outline: none;
-  transition: all 0.2s ease;
+  transition: background .15s, border-color .15s;
+  -webkit-appearance: none;
 }
 
 .account-form input:focus,
 .account-form textarea:focus {
-  background: #fafafa;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-color: var(--ink);
+  background: var(--paper-warm);
 }
 
-/* Input bị khóa (Email) */
 .account-form input.disabled-input {
-  background: #f5f5f5;
-  border-color: #dddddd;
-  color: #777777;
+  background: var(--paper-warm);
+  border-color: var(--rule);
+  color: var(--ink-faint);
   cursor: not-allowed;
 }
 
 .account-form textarea {
   resize: vertical;
+  min-height: 88px;
 }
 
-.address-group small {
-  display: block;
-  margin-top: 4px;
-  font-size: 0.8rem;
-  color: #666666;
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  margin-top: 2px;
 }
 
-/* Text nhắc nhở bắt buộc nhập */
-.form-error {
-  font-size: 0.85rem;
-  color: #cf2222;
-  font-style: italic;
-}
-
-/* Nút Submit cập nhật */
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btn-update {
   align-self: flex-start;
-  padding: 14px 32px;
-  background: #000000;
-  color: #ffffff;
-  border: 1px solid #000000;
-  border-radius: 0;
-  font-size: 0.9rem;
-  font-weight: bold;
+  padding: 13px 36px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background .15s, color .15s;
+  margin-top: 8px;
 }
 
 .btn-update:hover:not(:disabled) {
-  background: #ffffff;
-  color: #000000;
+  background: var(--paper);
+  color: var(--ink);
 }
 
 .btn-update:disabled {
-  background: #999999;
-  border-color: #999999;
+  background: var(--ink-faint);
+  border-color: var(--ink-faint);
   cursor: not-allowed;
 }
 
-/* Thông báo trạng thái nhanh */
+/* ── Alerts ───────────────────────────────────────────────────────────────── */
 .success-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 12px 16px;
-  background: #e6f7ed;
-  color: #1f8b4c;
-  border-left: 4px solid #1f8b4c;
-  font-size: 0.9rem;
-  margin-bottom: 20px;
+  background: var(--success-bg);
+  color: var(--success);
+  border-left: 4px solid var(--success);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 24px;
 }
 
-/* --- DANH SÁCH LỊCH SỬ ĐƠN HÀNG (.orders-history-list) --- */
+/* ── Orders list ──────────────────────────────────────────────────────────── */
 .orders-history-list {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
+}
+
+.orders-empty-state {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--ink-faint);
+}
+
+.orders-empty-state .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.orders-empty-state p {
+  font-size: 0.95rem;
+  margin: 0 0 24px;
+}
+
+.btn-shop-now {
+  display: inline-block;
+  padding: 12px 32px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1.5px solid var(--ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+.btn-shop-now:hover {
+  background: var(--paper);
+  color: var(--ink);
 }
 
 .order-history-card {
-  border: 1px solid #000000;
-  background: #ffffff;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
 }
 
-/* Header đơn hàng */
 .order-history-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 14px 20px;
-  background: #fafafa;
-  border-bottom: 1px solid #000000;
+  background: var(--paper-warm);
+  border-bottom: 1.5px solid var(--ink);
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .order-header-info {
-  font-size: 0.9rem;
-  color: #333333;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-/* Các nhãn trạng thái (Status Badges) */
+.order-id {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.order-date {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+
+/* Status badges */
 .status-badge {
   padding: 4px 12px;
-  font-size: 0.8rem;
-  font-weight: bold;
+  font-size: 0.68rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
 }
-.status-badge.pendingpayment { background: #fef3c7; color: #d97706; } /* Vàng */
-.status-badge.pending { background: #edf2f7; color: #4a5568; }        /* Xám bợt */
-.status-badge.processing { background: #e0f2fe; color: #0369a1; }     /* Xanh dương */
-.status-badge.shipped { background: #f3e8ff; color: #6b21a8; }        /* Tím */
-.status-badge.delivered { background: #dcfce7; color: #15803d; }      /* Xanh lá */
-.status-badge.cancelled { background: #fee2e2; color: #b91c1c; }      /* Đỏ */
 
-/* Bảng hiển thị sản phẩm trong đơn */
+.status-badge.pendingpayment { background: var(--warn-bg); color: var(--warn); }
+.status-badge.pending        { background: #f1f5f9; color: #475569; }
+.status-badge.processing     { background: #e0f2fe; color: #0369a1; }
+.status-badge.shipped        { background: #f3e8ff; color: #6b21a8; }
+.status-badge.delivered      { background: var(--success-bg); color: var(--success); }
+.status-badge.cancelled      { background: var(--accent-bg); color: var(--accent); }
+
+/* Order items table */
 .order-history-items-container {
   width: 100%;
-  overflow-x: auto; /* Cuộn ngang mượt nếu hiển thị trên màn hình quá nhỏ */
+  overflow-x: auto;
 }
 
 .order-history-items-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 600px; /* Đảm bảo cấu trúc bảng không méo mó */
+  min-width: 560px;
 }
 
 .order-history-items-table th {
-  background: #ffffff;
-  padding: 12px 20px;
-  font-size: 0.8rem;
-  font-weight: bold;
+  padding: 10px 20px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  border-bottom: 1px solid #eeeeee;
+  color: var(--ink-faint);
+  border-bottom: 1px solid var(--rule);
   text-align: left;
+  background: var(--paper);
 }
 
 .order-history-items-table td {
-  padding: 16px 20px;
-  font-size: 0.9rem;
-  border-bottom: 1px solid #eeeeee;
+  padding: 14px 20px;
+  font-size: 0.85rem;
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
   vertical-align: middle;
 }
 
-/* Cột thông tin sản phẩm (Ảnh + Tên) */
+.order-history-items-table tr:last-child td {
+  border-bottom: none;
+}
+
 .order-item-prod-cell {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .order-item-thumb {
-  width: 50px;
-  height: 60px;
+  width: 44px;
+  height: 54px;
   object-fit: cover;
-  border: 1px solid #eeeeee;
-  background: #f9f9f9;
+  border: 1px solid var(--rule);
+  background: var(--paper-warm);
+  flex-shrink: 0;
 }
 
 .order-item-name {
-  font-weight: 500;
-  color: #000000;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
 }
 
-/* Footer đơn hàng (Tổng tiền + Nút Chi tiết) */
+.order-item-meta-cell {
+  color: var(--ink-mid);
+  font-size: 0.8rem;
+}
+
+/* Order footer */
 .order-history-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  background: #fafafa;
-  border-top: 1px solid #eeeeee;
+  background: var(--paper-warm);
+  border-top: 1.5px solid var(--ink);
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .order-footer-summary {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 0.85rem;
-  color: #666666;
+  gap: 3px;
+}
+
+.order-shipping-label {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
 }
 
 .order-footer-total {
-  font-size: 1.05rem;
-  color: #000000;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
 }
+
 .order-footer-total strong {
-  font-size: 1.15rem;
-  color: #cf2222;
+  font-size: 1rem;
+  color: var(--accent);
+  font-weight: 800;
 }
 
 .btn-view-detail {
-  padding: 10px 20px;
-  background: #ffffff;
-  color: #000000;
-  border: 1px solid #000000;
-  border-radius: 0;
-  font-size: 0.8rem;
-  font-weight: bold;
+  padding: 10px 22px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
 }
 
 .btn-view-detail:hover {
-  background: #000000;
-  color: #ffffff;
+  background: var(--ink);
+  color: var(--paper);
 }
 
-
-/* ==========================================================================
-   2. GIAO DIỆN ADMIN PROFILE (.admin-profile-section)
-   ========================================================================== */
-
-.admin-profile-section {
-  padding: 20px 0;
-  font-family: inherit;
+/* ── Password tab ─────────────────────────────────────────────────────────── */
+.password-section-note {
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  margin-bottom: 28px;
+  padding: 12px 16px;
+  background: var(--paper-warm);
+  border-left: 3px solid var(--rule);
 }
 
-/* Kế thừa form chung nhưng ghi đè các định dạng bo góc, shadow nhẹ theo file mẫu JSX */
+/* ── Admin profile section ────────────────────────────────────────────────── */
+.admin-profile-section { padding: 20px 0; }
+
 .admin-profile-section .account-form input {
   border-radius: 8px !important;
   border: 1px solid #cbd5e0 !important;
@@ -385,88 +538,74 @@
   padding: 12px 24px;
 }
 
-
-/* ==========================================================================
-   3. RESPONSIVE LAYER (MÀN HÌNH ĐIỆN THOẠI & TABLET)
-   ========================================================================== */
-
-/* Cho máy tính bảng / màn hình vừa */
-@media (max-width: 992px) {
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
   .account-page {
-    grid-template-columns: 1fr; /* Chuyển thành bố cục 1 cột dọc */
-    gap: 30px;
+    grid-template-columns: 1fr;
+    border: 1.5px solid var(--ink);
   }
 
   .account-sidebar {
-    padding: 16px;
+    border-right: none;
+    border-bottom: 1.5px solid var(--ink);
+    min-height: unset;
   }
 
-  /* Biến menu dọc thành các thẻ tab nằm ngang cuộn ngang được */
+  .sidebar-avatar { padding: 20px 16px 16px; }
+
   .sidebar-menu {
     flex-direction: row;
     overflow-x: auto;
-    white-space: nowrap;
-    gap: 8px;
+    padding: 8px 12px;
+    gap: 4px;
     -webkit-overflow-scrolling: touch;
   }
 
   .menu-item {
     width: auto;
     flex-shrink: 0;
-    padding: 10px 16px;
-    border: 1px solid #eeeeee;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    padding: 10px 14px;
+    font-size: 0.72rem;
   }
-  
+
+  .menu-item:hover,
+  .menu-item.active {
+    border-left-color: transparent;
+    border-bottom-color: var(--accent);
+  }
+
   .menu-item.logout {
     margin-top: 0;
-    border-top: 1px solid #eeeeee;
+    border-top: none;
+    border-left: none;
+    border-bottom: 3px solid transparent;
   }
+
+  .account-section { padding: 28px 24px 40px; }
 }
 
-/* Cho điện thoại nhỏ (Chống bể form triệt để) */
 @media (max-width: 576px) {
-  .account-page-container {
-    padding: 20px 10px 40px;
-  }
+  .account-page-container { padding: 20px 12px 48px; }
 
-  .account-section h2 {
-    font-size: 1.15rem;
-    margin-bottom: 20px;
-  }
-
-  /* Bẻ đôi 2 cột nhập liệu thành hàng dọc */
   .form-row.two-cols {
     grid-template-columns: 1fr;
-    gap: 15px;
-  }
-  .form-row two-dienthoai{
-    grid-template-columns: 1fr;
-    gap: 15px;
- }
-
-  .btn-update {
-    width: 100%; /* Bung rộng nút gửi trên điện thoại */
-    text-align: center;
+    gap: 16px;
   }
 
-  /* Responsive gọn lại card đơn hàng */
-  .order-history-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
+  .account-section { padding: 24px 16px 32px; }
+
+  .account-section h2 { font-size: 1.25rem; }
+
+  .btn-update { width: 100%; text-align: center; }
+
+  .order-history-header { flex-direction: column; align-items: flex-start; }
 
   .order-history-footer {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
   }
 
-  .btn-view-detail {
-    width: 100%;
-    text-align: center;
-    padding: 12px;
-  }
+  .btn-view-detail { width: 100%; text-align: center; padding: 12px; }
 }
-
-

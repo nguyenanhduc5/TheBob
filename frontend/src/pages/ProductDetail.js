@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';import { useParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useNotification } from '../context/NotificationContext';
@@ -73,6 +72,9 @@ export default function ProductDetail() {
   const { addToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addNotification } = useNotification();
+  // FIX: Giữ addNotification stable để tránh re-render vô hạn
+const addNotificationRef = useRef(addNotification);
+useEffect(() => { addNotificationRef.current = addNotification; }, [addNotification]);
   const { token } = useAuth();
 
   const [product, setProduct] = useState(null);
@@ -102,27 +104,26 @@ export default function ProductDetail() {
   }, [id]);
 
   const fetchProduct = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/products/${id}`);
-      if (!response.ok) {
-        addNotification('Sản phẩm không tồn tại', 'error');
-        navigate('/products');
-        return;
-      }
-
-      setProduct(await response.json());
-      setSelectedColorId('');
-      setSelectedSizeId('');
-      setActiveImageIndex(0);
-      setQuantity(1);
-    } catch (error) {
-      console.error('Failed to fetch product:', error);
-      addNotification('Lỗi khi tải sản phẩm', 'error');
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    const response = await fetch(`${API_BASE_URL}/products/${id}`);
+    if (!response.ok) {
+      addNotificationRef.current('Sản phẩm không tồn tại', 'error');
+      navigate('/products');
+      return;
     }
-  }, [addNotification, id, navigate]);
+    setProduct(await response.json());
+    setSelectedColorId('');
+    setSelectedSizeId('');
+    setActiveImageIndex(0);
+    setQuantity(1);
+  } catch (error) {
+    console.error('Failed to fetch product:', error);
+    addNotificationRef.current('Lỗi khi tải sản phẩm', 'error');
+  } finally {
+    setLoading(false);
+  }
+}, [id, navigate]); // ✅ Bỏ addNotification khỏi deps
 
   useEffect(() => {
     fetchProduct();
@@ -286,8 +287,8 @@ try {
   );
   // ✅ Chỉ hiện success khi KHÔNG có lỗi
   addNotification(`${product.name} đã được thêm vào giỏ hàng! 🛒`, 'success');
-
-} catch (error) {
+}
+ catch (error) {
   // ✅ Bắt lỗi → hiện toast thay vì crash
   addNotification(
     error?.message || 'Không thể thêm vào giỏ hàng. Vui lòng thử lại.',
@@ -418,9 +419,13 @@ try {
             <div className="price-display">
               {productPrice.toLocaleString('vi-VN')} VND
             </div>
-            <div className={`stock-badge ${displayStock > 0 ? 'in-stock' : 'out-of-stock'}`}>
-              {selectedVariant ? (displayStock > 0 ? `Còn ${displayStock} sản phẩm` : 'Hết hàng') : `Tổng kho: ${totalStock}`}
-            </div>
+          <div className={`stock-badge ${displayStock > 0 ? 'in-stock' : 'out-of-stock'}`}>
+  {selectedVariant
+    ? (displayStock > 0 ? `Còn ${displayStock} sản phẩm` : '🚫 Hết hàng')
+    : totalStock === 0
+      ? '🚫 Sản phẩm đã hết hàng'
+      : `Tổng kho: ${totalStock}`}
+</div>
           </div>
 
           <div className="product-description">
