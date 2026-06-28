@@ -33,15 +33,18 @@ import AdminCoupons from './pages/AdminCoupons';
 import './App.css';
 
 function AppLayout() {
-  const location = useLocation();
+const location = useLocation();
 
-  // Đảm bảo body luôn có thể cuộn khi chuyển trang, tránh việc bị kẹt bởi Mobile Menu hoặc Modal
   React.useEffect(() => {
-    // Giải phóng hoàn toàn scroll cho cả html và body
+    // ✅ Chỉ reset overflow, KHÔNG scroll về đầu ở đây
     document.body.style.overflow = 'auto';
     document.documentElement.style.overflow = 'auto';
-    window.scrollTo(0, 0);
   }, [location]);
+
+  // ✅ Scroll về đầu CHỈ khi pathname thay đổi (chuyển trang thật sự)
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]); // ← Chỉ theo dõi pathname, không phải toàn bộ location
 
   return (
     <>

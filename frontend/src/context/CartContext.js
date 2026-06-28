@@ -106,36 +106,40 @@ export const CartProvider = ({ children }) => {
 
   const getItemKey = (item) => item.variantId ?? item.id;
 
-  const addToCart = async (product, quantity = 1) => {
-    if (!user) {
-      // Guest local storage logic
-      setCartData(prev => {
-        const productKey = getItemKey(product);
-        const existing = prev.items.find(item => getItemKey(item) === productKey);
-        let newItems;
-        if (existing) {
-          newItems = prev.items.map(item =>
-            getItemKey(item) === productKey
-              ? { ...item, quantity: item.quantity + quantity }
-              : item
-          );
-        } else {
-          newItems = [...prev.items, { ...product, quantity }];
-        }
-        return { ...prev, items: newItems };
-      });
-      return;
-    }
+  // ✅ THAY VÀO
+const addToCart = (product, quantity = 1) => {
+  const stock = product.stock ?? 999;
+  const productKey = getItemKey(product);
+  const existing = cartData.items.find(item => getItemKey(item) === productKey);
 
-    try {
-      await cartAPI.addItem(product.variantId, quantity);
-      await loadDbCart();
-    } catch (err) {
-      console.error('Failed to add to cart:', err);
-      addNotification(err.message || 'Không thể thêm vào giỏ hàng', 'error');
-      throw err;
+  if (existing) {
+    const newQty = existing.quantity + quantity;
+    if (newQty > stock) {
+      throw new Error(
+        `Bạn đã có ${existing.quantity} sản phẩm trong giỏ. Chỉ còn ${stock} sản phẩm trong kho!`
+      );
     }
-  };
+  } else {
+    if (quantity > stock) {
+      throw new Error(`Chỉ còn ${stock} sản phẩm trong kho!`);
+    }
+  }
+
+  setCartData(prev => {
+    const ex = prev.items.find(item => getItemKey(item) === productKey);
+    if (ex) {
+      return {
+        ...prev,
+        items: prev.items.map(item =>
+          getItemKey(item) === productKey
+            ? { ...item, quantity: ex.quantity + quantity }
+            : item
+        )
+      };
+    }
+    return { ...prev, items: [...prev.items, { ...product, quantity }] };
+  });
+};
 
   const removeFromCart = async (itemKey) => {
     if (!user) {

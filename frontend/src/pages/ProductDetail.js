@@ -265,25 +265,35 @@ export default function ProductDetail() {
       return;
     }
 
-    addToCart(
-      {
-        id: product.id,
-        variantId: selectedVariant.id,
-        productId: product.id,
-        colorId: selectedVariant.colorId,
-        sizeId: selectedVariant.sizeId,
-        name: product.name,
-        sku: selectedVariant.sku || product.sku,
-        mainImageUrl: productImages[0],
-        price: productPrice,
-        stock: selectedVariant.stock,
-        selectedSize: selectedSizeName,
-        selectedColor: selectedColorName,
-      },
-      quantity
-    );
+  // ✅ SAU KHI FIX
+try {
+  addToCart(
+    {
+      id: product.id,
+      variantId: selectedVariant.id,
+      productId: product.id,
+      colorId: selectedVariant.colorId,
+      sizeId: selectedVariant.sizeId,
+      name: product.name,
+      sku: selectedVariant.sku || product.sku,
+      mainImageUrl: productImages[0],
+      price: productPrice,
+      stock: selectedVariant.stock,
+      selectedSize: selectedSizeName,
+      selectedColor: selectedColorName,
+    },
+    quantity
+  );
+  // ✅ Chỉ hiện success khi KHÔNG có lỗi
+  addNotification(`${product.name} đã được thêm vào giỏ hàng! 🛒`, 'success');
 
-    addNotification(`${product.name} đã được thêm vào giỏ hàng!`, 'success');
+} catch (error) {
+  // ✅ Bắt lỗi → hiện toast thay vì crash
+  addNotification(
+    error?.message || 'Không thể thêm vào giỏ hàng. Vui lòng thử lại.',
+    'warning'
+  );
+}
   };
 
   const handleWishlistToggle = () => {
