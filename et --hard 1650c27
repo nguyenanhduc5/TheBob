@@ -1,0 +1,30 @@
+[33m842557a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m BUG
+[33mbf46b70[m Sanitize appsettings.Example.json to remove exposed production values.
+[33m1650c27[m TRY
+[33m5434d4a[m PRODUCT
+[33mf9afdca[m CHECKOUT
+[33m98d699b[m SHIPPING, CART LOGIC
+[33m3a6cb30[m Fix webhook verify support Apikey header from SePay
+[33m8ecc4f1[m Fix Dockerfile path for Railway root directory
+[33m0af3f41[m Fix gitignore and add all missing files
+[33mba5d1d1[m Add SepayService.cs
+[33m37141c6[m Fix CORS add Netlify domain, remove duplicate service
+[33m3712a06[m Remove obj and bin folders from git
+[33m0f6b6ed[m Nef
+[33m4190f00[m 2106real
+[33mb6981ba[m ANH
+[33m2d49ace[m Thanh toan them anh
+[33meadfaf0[m 2106
+[33mf620cd3[m 2006
+[33m2313bb3[m Admin
+[33md504701[m W PRO
+[33madec073[m SIZECOLOR
+[33m73191e3[m CAP NHAT PRODUCTADMIN
+[33mae99b02[m Backup before product module refactor
+[33m6b0aac6[m MOINHAT
+[33mc560cb4[m MOI
+[33mecb28c4[m frontend: apply monochrome theme, use .env for API URL, update .gitignore and .env.example
+[33m6fd1a2f[m nhap
+[33ma56383d[m fix: resolve ESLint errors for Netlify build
+[33mfbe6fe3[m W 3 6
+[33mef0da62[m Dang Ky Dang Nhap Profile Phan Quyen

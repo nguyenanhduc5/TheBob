@@ -69,7 +69,7 @@ const uniqueById = (items) => {
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToCart } = useCart();
+ const { addToCart, cartItems } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addNotification } = useNotification();
   // FIX: Giữ addNotification stable để tránh re-render vô hạn
@@ -261,10 +261,14 @@ useEffect(() => { addNotificationRef.current = addNotification; }, [addNotificat
       return;
     }
 
-    if (selectedVariant.stock < quantity) {
-      addNotification('Số lượng chọn vượt quá tồn kho', 'warning');
-      return;
-    }
+  const alreadyInCart = cartItems.find(
+  i => i.variantId === selectedVariant.id
+)?.quantity ?? 0;
+const totalQty = alreadyInCart + quantity;
+if (totalQty > selectedVariant.stock) {
+  addNotification(`Chỉ còn ${selectedVariant.stock} sản phẩm trong kho`, 'warning');
+  return;
+}
 
   // ✅ SAU KHI FIX
 try {

@@ -20,6 +20,7 @@ namespace THEBOB.Controllers
 
         private readonly ThebobDbContext _context;
         private readonly SepayService _sepayService;
+        private readonly IGhnService _ghnService;
         private readonly IHubContext<OrderHub> _hubContext;
         private readonly ILogger<PaymentController> _logger;
 
@@ -436,24 +437,27 @@ if (order.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(order.GhnWardCode
             .ToListAsync();
 
         var ghnResult = await _ghnService.CreateShippingOrderAsync(new GhnCreateOrderRequest
-        {
-            PaymentTypeId = "1", // 1 = shop trả ship vì khách đã thanh toán online rồi
-            Note = $"Đơn hàng {order.OrderNumber}",
-            RequiredNote = "KHONGCHOXEMHANG",
-            ToPhone = order.User?.Phone ?? "",
-            ToAddress = order.ShippingAddress,
-            ToWardCode = order.GhnWardCode,
-            ToDistrictId = order.GhnDistrictId.Value,
-            Weight = orderItemsForGhn.Sum(i => i.Quantity * 500),
-            Length = 20, Width = 20, Height = 10,
-            InsuranceValue = order.TotalAmount,
-            ServiceTypeId = 2,
-            Items = orderItemsForGhn.Select(i => new GhnOrderItem
-            {
-                Name = i.ProductName, Code = i.Sku, Quantity = i.Quantity,
-                Price = (int)i.PricePerItem, Length = 20, Width = 20, Height = 10, Weight = 500
-            }).ToList()
-        });
+{
+    PaymentTypeId = "1",                        // ✅ string — đúng rồi, giữ nguyên
+    Note = $"Đơn hàng {order.OrderNumber}",
+    RequiredNote = "KHONGCHOXEMHANG",
+    ToPhone = order.User?.Phone ?? "",
+    ToAddress = order.ShippingAddress,
+    ToWardCode = order.GhnWardCode,
+    ToDistrictId = order.GhnDistrictId.Value,
+    Weight = orderItemsForGhn.Sum(i => i.Quantity * 500),
+    Length = 20, Width = 20, Height = 10,
+    InsuranceValue = (long)order.TotalAmount,   // ✅ cast decimal → long
+    ServiceTypeId = 2,
+    Items = orderItemsForGhn.Select(i => new GhnOrderItem
+    {
+        Name = i.ProductName,
+        Code = 0,                               // ✅ int — dùng 0 thay vì i.Sku (string)
+        Quantity = i.Quantity,
+        Price = (int)i.PricePerItem,
+        Length = 20, Width = 20, Height = 10, Weight = 500
+    }).ToList()
+});
 
         order.GhnOrderCode = ghnResult.OrderCode;
         order.ShippingStatus = "ready_to_pick";
@@ -610,7 +614,7 @@ return Ok(ApiResponse<object>.Ok(new { orderId = order.Id }, "Payment confirmed.
                 BankAccount = tx.VaNumber ?? string.Empty,
                 AccountName = "THEBOB",
                 TransferContent = content,
-                QrCode = $"https://img.vietqr.io/image/{_sepayService.GetBankBin()}-{Uri.EscapeDataString(tx.VaNumber ?? string.Empty)}-compact.png?amount={decimal.ToInt64(tx.Amount)}&addInfo={Uri.EscapeDataString(content)}&accountName=THEBOB",
+                QrCode = $"https://img.vietqr.io/image/{_sepayService.GetBankBin()}-{Uri.EscapeDataString(tx.VaNumber ?? string.Empty)}-compact.png?amount={(long)tx.Amount}&addInfo={Uri.EscapeDataString(content)}&accountName=THEBOB",
                 ExpiredAt = DateTime.UtcNow.AddSeconds(Math.Max(0, remainingSeconds))
             };
         }
@@ -642,7 +646,26 @@ return Ok(ApiResponse<object>.Ok(new { orderId = order.Id }, "Payment confirmed.
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return userIdClaim != null ? int.Parse(userIdClaim) : null;
         }
-
+        // Thêm vào cuối class OrdersController và PaymentController
+private async Task NotifyAdminNewOrder(Order order, IHubContext<OrderHub> hubContext)
+{
+    try
+    {
+        await hubContext.Clients.Group("Admins")
+            .SendAsync("ReceiveNewOrder", new
+            {
+                orderId = order.Id,
+                orderNumber = order.OrderNumber,
+                totalAmount = order.TotalAmount,
+                paymentMethod = order.PaymentMethod,
+                createdAt = order.CreatedAt
+            });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogWarning(ex, "NotifyAdminNewOrder failed for order #{OrderId}", order.Id);
+    }
+}
         private static int ExtractOrderId(string orderInfo)
         {
             if (string.IsNullOrWhiteSpace(orderInfo))

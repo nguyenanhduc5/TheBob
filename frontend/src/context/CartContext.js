@@ -45,12 +45,16 @@ export const CartProvider = ({ children }) => {
       const productKey = product.variantId ?? product.id;
       const existing = prev.items.find(item => (item.variantId ?? item.id) === productKey);
       let newItems;
-      if (existing) {
-        newItems = prev.items.map(item =>
-          (item.variantId ?? item.id) === productKey
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
+    if (existing) {
+  const newQty = existing.quantity + quantity;
+  if (newQty > existing.stock) {
+    throw new Error(`Chỉ còn ${existing.stock} sản phẩm trong kho`);
+  }
+  newItems = prev.items.map(item =>
+    (item.variantId ?? item.id) === productKey
+      ? { ...item, quantity: newQty }
+      : item
+  );
       } else {
         newItems = [...prev.items, { ...product, quantity }];
       }

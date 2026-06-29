@@ -357,30 +357,41 @@ if (isCod && order.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(order.Gh
 {
     try
     {
-        var ghnResult = await _ghnService.CreateShippingOrderAsync(new GhnCreateOrderRequest
-        {
-            PaymentTypeId = "2", // 2 = người nhận trả ship (COD), 1 = shop trả
-            Note = $"Đơn hàng {order.OrderNumber}",
-            RequiredNote = "KHONGCHOXEMHANG",
-            ToName = request.Email, // hoặc tên người nhận nếu bạn có field riêng
-            ToPhone = request.Phone,
-            ToAddress = request.SpecificAddress,
-            ToWardCode = order.GhnWardCode,
-            ToDistrictId = order.GhnDistrictId.Value,
-            Weight = totalWeight,
-            Length = 20, Width = 20, Height = 10, // mặc định, chỉnh theo SP thật nếu cần
-            InsuranceValue = totalAmount,
-            ServiceTypeId = 2,
-            Items = cart.CartItems.Select(ci => new GhnOrderItem
-            {
-                Name = ci.Variant.Product!.Name,
-                Code = ci.Variant.Sku,
-                Quantity = ci.Quantity,
-                Price = (int)ci.Variant.Price,
-                Length = 20, Width = 20, Height = 10, Weight = 500
-            }).ToList()
-        });
+        // ── Tạo đơn GHN cho COD ──
+var ghnResult = await _ghnService.CreateShippingOrderAsync(new GhnCreateOrderRequest
+{
+    PaymentTypeId = "2",                        // ✅ string — đúng rồi, giữ nguyên
+    Note = $"Đơn hàng {order.OrderNumber}",
+    RequiredNote = "KHONGCHOXEMHANG",
+    ToName = request.Email,
+    ToPhone = request.Phone,
+    ToAddress = request.SpecificAddress,
+    ToWardCode = order.GhnWardCode,
+    ToDistrictId = order.GhnDistrictId.Value,
+    Weight = totalWeight,
+    Length = 20, Width = 20, Height = 10,
+    InsuranceValue = (long)totalAmount,         // ✅ cast decimal → long
+    ServiceTypeId = 2,
+    Items = cart.CartItems.Select(ci => new GhnOrderItem
+    {
+        Name = ci.Variant.Product!.Name,
+        Code = 0,                               // ✅ int — Sku là string nên dùng 0 hoặc hash
+        Quantity = ci.Quantity,
+        Price = (int)ci.Variant.Price,
+        Length = 20, Width = 20, Height = 10, Weight = 500
+    }).ToList()
+});
 
+// ── Tính phí GHN ──
+var feeResult = await _ghnService.CalculateFeeAsync(new GhnFeeRequest
+{
+    ToDistrictId = request.GhnDistrictId.Value,
+    ToWardCode = request.GhnWardCode,
+    Weight = totalWeight,
+    InsuranceValue = (long)subtotal,            // ✅ cast decimal → long
+    ServiceTypeId = 2
+});
+shippingAmount = feeResult.Total;
         order.GhnOrderCode = ghnResult.OrderCode;
         order.ShippingStatus = "ready_to_pick";
         await _context.SaveChangesAsync();
@@ -1118,7 +1129,26 @@ await NotifyAdminNewOrder(order, _hubContext);
         {
             return User.IsInRole("Admin");
         }
-
+// Thêm vào cuối class OrdersController và PaymentController
+private async Task NotifyAdminNewOrder(Order order, IHubContext<OrderHub> hubContext)
+{
+    try
+    {
+        await hubContext.Clients.Group("Admins")
+            .SendAsync("ReceiveNewOrder", new
+            {
+                orderId = order.Id,
+                orderNumber = order.OrderNumber,
+                totalAmount = order.TotalAmount,
+                paymentMethod = order.PaymentMethod,
+                createdAt = order.CreatedAt
+            });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogWarning(ex, "NotifyAdminNewOrder failed for order #{OrderId}", order.Id);
+    }
+}
         private async Task AutoCancelExpiredOrdersAsync()
         {
             var expiryTime = DateTime.UtcNow.AddMinutes(-15);
@@ -1187,4 +1217,5 @@ await NotifyAdminNewOrder(order, _hubContext);
     {
         public OrderStatus Status { get; set; }
     }
+    
 }
