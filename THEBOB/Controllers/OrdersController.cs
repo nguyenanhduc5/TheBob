@@ -348,8 +348,12 @@ var totalAmount = subtotal + shippingAmount;
     _context.CartItems.RemoveRange(cart.CartItems);
     _context.Carts.Remove(cart);
 }
-
+_context.Orders.Add(order);
 await _context.SaveChangesAsync();
+// ── SNAPSHOT trước khi xóa cart ──
+var cartItemsSnapshot = cart.CartItems.ToList();
+
+
 await transaction.CommitAsync();
 
 // ─── Tạo đơn GHN thật ngay cho COD (sau khi commit để đơn đã chắc chắn lưu) ───
@@ -357,6 +361,7 @@ if (isCod && order.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(order.Gh
 {
     try
     {
+        
         // ── Tạo đơn GHN cho COD ──
 var ghnResult = await _ghnService.CreateShippingOrderAsync(new GhnCreateOrderRequest
 {
@@ -375,12 +380,13 @@ var ghnResult = await _ghnService.CreateShippingOrderAsync(new GhnCreateOrderReq
     Items = cart.CartItems.Select(ci => new GhnOrderItem
     {
         Name = ci.Variant.Product!.Name,
-        Code = 0,                               // ✅ int — Sku là string nên dùng 0 hoặc hash
+        Code = ci.Variant.Id, // GhnOrderItem.Code là int, dùng VariantId thay cho Sku (string)                       // ✅ int — Sku là string nên dùng 0 hoặc hash
         Quantity = ci.Quantity,
         Price = (int)ci.Variant.Price,
         Length = 20, Width = 20, Height = 10, Weight = 500
     }).ToList()
 });
+
 
 // ── Tính phí GHN ──
 var feeResult = await _ghnService.CalculateFeeAsync(new GhnFeeRequest
