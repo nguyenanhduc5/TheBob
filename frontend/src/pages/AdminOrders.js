@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as signalR from '@microsoft/signalr';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { ordersAPI, ORDER_HUB_URL } from '../api/app';
+import { ordersAPI, ORDER_HUB_URL, shippingAPI } from '../api/app';
 import '../styles/AdminOrders.css';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
@@ -46,6 +46,34 @@ const STATUS_PILL = {
   Shipped:        'status-shipped',
   Delivered:      'status-paid',
   Cancelled:      'status-cancelled',
+};
+
+const PAYMENT_METHOD_LABEL = {
+  cod: 'Thanh toán khi nhận hàng (COD)',
+  bank_transfer: 'Chuyển khoản QR Banking',
+  qr: 'Thanh toán qua mã QR Code',
+};
+
+const SHIPPING_STATUS_LABEL = {
+  ready_to_pick: 'Sẵn sàng lấy hàng',
+  picking: 'Đang lấy hàng',
+  money_collect_picking: 'Đang thu tiền người gửi',
+  picked: 'Đã lấy hàng',
+  storing: 'Đang lưu kho',
+  transporting: 'Đang trung chuyển',
+  sorting: 'Đang phân loại',
+  delivering: 'Đang giao hàng',
+  money_collect_delivering: 'Đang thu tiền người nhận (COD)',
+  delivered: 'Giao thành công',
+  delivery_fail: 'Giao thất bại',
+  waiting_to_return: 'Chờ trả hàng',
+  return: 'Trả hàng',
+  return_transporting: 'Đang luân chuyển hàng trả',
+  return_sorting: 'Đang phân loại hàng trả',
+  returning: 'Đang đi trả hàng',
+  return_fail: 'Trả hàng thất bại',
+  returned: 'Đã trả hàng',
+  cancel: 'Đã hủy đơn vận chuyển',
 };
 
 // Hành động tiếp theo theo workflow
@@ -97,7 +125,7 @@ function StatusPill({ status }) {
 
 // ─── OrderModal ───────────────────────────────────────────────────────────────
 
-function OrderModal({ order, onClose, onUpdateStatus, actionLoading }) {
+function OrderModal({ order, onClose, onUpdateStatus, onConfirmPayment, onCreateShipment, onCancelShipment, actionLoading }) {
   const action    = NEXT_ACTION[order.status];
   const canCancel = !['Delivered', 'Cancelled', 'Shipped'].includes(order.status);
   const busy      = actionLoading === order.id;
@@ -149,12 +177,40 @@ function OrderModal({ order, onClose, onUpdateStatus, actionLoading }) {
             <p><strong>Điện thoại:</strong> {order.customerPhone || 'Chưa có'}</p>
             <p><strong>Email:</strong> {order.customerEmail || 'Chưa có'}</p>
             <p><strong>Địa chỉ:</strong> {order.shippingAddress || 'Chưa có'}</p>
-            <p><strong>Thanh toán:</strong> {order.paymentMethod || 'Chưa có'}</p>
+            <p><strong>Thanh toán:</strong> {PAYMENT_METHOD_LABEL[order.paymentMethod] || order.paymentMethod || 'Chưa có'}</p>
+          </div>
+
+          <div className="modal-section">
+            <h3>Vận chuyển (GHN)</h3>
+            <p><strong>Mã vận đơn:</strong> {order.ghnOrderCode || 'Chưa tạo'}</p>
+            <p><strong>Trạng thái vận chuyển:</strong> {SHIPPING_STATUS_LABEL[order.shippingStatus] || order.shippingStatus || 'Chưa có'}</p>
+            {order.status === 'Processing' && !order.ghnOrderCode && (
+              <button
+                type="button"
+                className="btn-ship"
+                style={{ marginTop: '10px', width: '100%', padding: '8px' }}
+                disabled={busy}
+                onClick={() => onCreateShipment(order.id)}
+              >
+                {busy ? 'Đang xử lý…' : '🚚 Tạo vận đơn GHN'}
+              </button>
+            )}
+            {order.ghnOrderCode && order.status === 'Shipped' && (
+              <button
+                type="button"
+                className="btn-cancel"
+                style={{ marginTop: '10px', width: '100%', padding: '8px' }}
+                disabled={busy}
+                onClick={() => onCancelShipment(order.id, order.ghnOrderCode)}
+              >
+                {busy ? 'Đang xử lý…' : '✕ Hủy vận đơn GHN'}
+              </button>
+            )}
           </div>
 
           <div className="modal-section">
             <h3>Đối soát thanh toán</h3>
-            <p><strong>Cổng:</strong> {order.paymentGateway || order.paymentMethod || 'SePay'}</p>
+            <p><strong>Cổng:</strong> {PAYMENT_METHOD_LABEL[order.paymentMethod] || order.paymentGateway || order.paymentMethod || 'SePay'}</p>
             <p><strong>Mã giao dịch:</strong> {order.transactionCode || 'Chưa ghi nhận'}</p>
             <p><strong>VA Number:</strong> {order.vaNumber || 'Chưa ghi nhận'}</p>
             <p><strong>Transaction ID:</strong> {order.transactionId || 'Chưa ghi nhận'}</p>
@@ -187,8 +243,18 @@ function OrderModal({ order, onClose, onUpdateStatus, actionLoading }) {
         </div>
 
         {/* Footer */}
-        {(action || canCancel) && (
+        {(action || canCancel || order.status === 'PendingPayment') && (
           <div className="modal-footer">
+            {order.status === 'PendingPayment' && (
+              <button
+                type="button"
+                className="btn-ship"
+                disabled={busy}
+                onClick={() => onConfirmPayment(order.id)}
+              >
+                {busy ? 'Đang xử lý…' : '✅ Xác nhận thanh toán'}
+              </button>
+            )}
             {action && (
               <button
                 type="button"
@@ -233,9 +299,9 @@ export default function AdminOrders() {
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const data = await ordersAPI.getAllOrders();
       data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setOrders(data);
@@ -243,7 +309,7 @@ export default function AdminOrders() {
       console.error('Failed to fetch orders:', err);
       addNotification('Lỗi khi tải đơn hàng', 'error');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [addNotification]);
 
@@ -255,13 +321,12 @@ export default function AdminOrders() {
   // ── SignalR ────────────────────────────────────────────────────────────────
 
   const applyRealtimeUpdate = useCallback((rawId) => {
-    const id    = String(rawId);
-    const patch = { paymentStatus: 'Paid', status: 'Processing' };
-    setOrders(prev => prev.map(o => String(o.id) === id ? { ...o, ...patch } : o));
-    setSelectedOrder(prev => prev && String(prev.id) === id ? { ...prev, ...patch } : prev);
+    const id = String(rawId);
+    fetchOrders(false).catch(() => {});
+    setSelectedOrder(prev => prev && String(prev.id) === id ? { ...prev, paymentStatus: 'Paid', status: 'Processing' } : prev);
     playTingTing();
     addNotification(`Đơn hàng #${id} đã thanh toán thành công qua SePay.`, 'success');
-  }, [addNotification]);
+  }, [addNotification, fetchOrders]);
 
   useEffect(() => {
     if (!isAdmin()) return;
@@ -274,6 +339,9 @@ export default function AdminOrders() {
       .build();
 
     conn.on('ReceiveOrderUpdate',    (id, status) => { if (status === 'Success') applyRealtimeUpdate(id); });
+    conn.on('ReceiveNewOrder', () => {
+      fetchOrders(false).catch(() => {});
+    });
     conn.on('ReceivePaymentSuccess', applyRealtimeUpdate);
     conn.on('ReceiveStatusUpdate',   (id, status) => {
       const sid = String(id);
@@ -286,12 +354,13 @@ export default function AdminOrders() {
 
     return () => {
       conn.off('ReceiveOrderUpdate');
+      conn.off('ReceiveNewOrder');
       conn.off('ReceivePaymentSuccess');
       conn.off('ReceiveStatusUpdate');
       conn.stop().catch(() => {});
       connectionRef.current = null;
     };
-  }, [isAdmin, applyRealtimeUpdate]);
+  }, [isAdmin, applyRealtimeUpdate, fetchOrders]);
 
   // ── Search + Filter (frontend) ─────────────────────────────────────────────
 
@@ -350,6 +419,81 @@ export default function AdminOrders() {
     } catch (err) {
       console.error('Update status failed:', err);
       addNotification(err.message || 'Cập nhật trạng thái thất bại', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [addNotification]);
+
+  const handleConfirmPayment = useCallback(async (orderId) => {
+    if (!window.confirm(`Xác nhận thanh toán cho đơn hàng #${orderId}?`)) return;
+
+    setActionLoading(orderId);
+    try {
+      const updated = await ordersAPI.confirmOrderManual(orderId);
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updated } : o));
+      setSelectedOrder(prev => prev?.id === orderId ? { ...prev, ...updated } : prev);
+      addNotification(`Đã xác nhận thanh toán đơn #${orderId}. Đơn hàng chuyển sang trạng thái Đang xử lý.`, 'success');
+    } catch (err) {
+      console.error('Confirm payment manual failed:', err);
+      addNotification(err.message || 'Xác nhận thanh toán thất bại', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [addNotification]);
+
+  const handleCreateShipment = useCallback(async (orderId) => {
+    if (!window.confirm(`Xác nhận tạo đơn giao hàng GHN cho đơn hàng #${orderId}?`)) return;
+
+    setActionLoading(orderId);
+    try {
+      const result = await shippingAPI.createShipment(orderId, null);
+      addNotification(result.message || `Đã tạo vận đơn GHN thành công!`, 'success');
+      
+      setOrders(prev => prev.map(o => o.id === orderId ? { 
+        ...o, 
+        ghnOrderCode: result.ghnOrderCode, 
+        shippingStatus: result.shippingStatus,
+        status: result.orderStatus 
+      } : o));
+      
+      setSelectedOrder(prev => prev?.id === orderId ? { 
+        ...prev, 
+        ghnOrderCode: result.ghnOrderCode, 
+        shippingStatus: result.shippingStatus,
+        status: result.orderStatus 
+      } : prev);
+    } catch (err) {
+      console.error('Create shipment failed:', err);
+      addNotification(err.message || 'Tạo vận đơn thất bại', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [addNotification]);
+
+  const handleCancelShipment = useCallback(async (orderId, ghnOrderCode) => {
+    if (!window.confirm(`Xác nhận hủy vận đơn GHN ${ghnOrderCode}?`)) return;
+
+    setActionLoading(orderId);
+    try {
+      const result = await shippingAPI.cancelShipment(orderId, ghnOrderCode);
+      addNotification(result.message || `Đã hủy vận đơn thành công!`, 'success');
+      
+      setOrders(prev => prev.map(o => o.id === orderId ? { 
+        ...o, 
+        ghnOrderCode: null, 
+        shippingStatus: 'cancel',
+        status: 'Processing' 
+      } : o));
+      
+      setSelectedOrder(prev => prev?.id === orderId ? { 
+        ...prev, 
+        ghnOrderCode: null, 
+        shippingStatus: 'cancel',
+        status: 'Processing' 
+      } : prev);
+    } catch (err) {
+      console.error('Cancel shipment failed:', err);
+      addNotification(err.message || 'Hủy vận đơn thất bại', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -426,7 +570,7 @@ export default function AdminOrders() {
                     {order.customerName || order.customerEmail || 'Không xác định'}
                   </div>
                   <div className="payment-method-badge">
-                    {order.paymentGateway || order.paymentMethod || 'SePay'}
+                    {PAYMENT_METHOD_LABEL[order.paymentMethod] || order.paymentGateway || order.paymentMethod || 'SePay'}
                   </div>
                 </span>
 
@@ -482,6 +626,9 @@ export default function AdminOrders() {
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
           onUpdateStatus={handleUpdateStatus}
+          onConfirmPayment={handleConfirmPayment}
+          onCreateShipment={handleCreateShipment}
+          onCancelShipment={handleCancelShipment}
           actionLoading={actionLoading}
         />
       )}

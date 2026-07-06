@@ -5,6 +5,34 @@ import { useNotification } from '../context/NotificationContext';
 import { ordersAPI } from '../api/app';
 import '../styles/OrderDetail.css';
 
+const PAYMENT_METHOD_LABEL = {
+  cod: 'Thanh toán khi nhận hàng (COD)',
+  bank_transfer: 'Chuyển khoản QR Banking',
+  qr: 'Thanh toán qua mã QR Code',
+};
+
+const SHIPPING_STATUS_LABEL = {
+  ready_to_pick: 'Sẵn sàng lấy hàng',
+  picking: 'Đang lấy hàng',
+  money_collect_picking: 'Đang thu tiền người gửi',
+  picked: 'Đã lấy hàng',
+  storing: 'Đang lưu kho',
+  transporting: 'Đang trung chuyển',
+  sorting: 'Đang phân loại',
+  delivering: 'Đang giao hàng',
+  money_collect_delivering: 'Đang thu tiền người nhận (COD)',
+  delivered: 'Giao thành công',
+  delivery_fail: 'Giao thất bại',
+  waiting_to_return: 'Chờ trả hàng',
+  return: 'Trả hàng',
+  return_transporting: 'Đang luân chuyển hàng trả',
+  return_sorting: 'Đang phân loại hàng trả',
+  returning: 'Đang đi trả hàng',
+  return_fail: 'Trả hàng thất bại',
+  returned: 'Đã trả hàng',
+  cancel: 'Đã hủy đơn vận chuyển',
+};
+
 export default function OrderDetail() {
   const { orderId } = useParams();
   const navigate = useNavigate();
@@ -154,15 +182,29 @@ export default function OrderDetail() {
 
           <div className="info-card">
             <h2>Phương Thức Thanh Toán</h2>
-            <p>{order.paymentMethod || 'Chưa xác định'}</p>
+            <p>{PAYMENT_METHOD_LABEL[order.paymentMethod] || order.paymentMethod || 'Chưa xác định'}</p>
           </div>
+
+          {(order.ghnOrderCode || order.shippingStatus) && (
+            <div className="info-card">
+              <h2>Thông Tin Vận Chuyển (GHN)</h2>
+              <div className="info-row">
+                <span className="label">Mã vận đơn:</span>
+                <span className="value mono-value">{order.ghnOrderCode || 'Chưa có'}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Trạng thái vận chuyển:</span>
+                <span className="value">{SHIPPING_STATUS_LABEL[order.shippingStatus] || order.shippingStatus || 'Chờ cập nhật'}</span>
+              </div>
+            </div>
+          )}
 
           {isAdmin() && (
             <div className="info-card">
               <h2>Doi Soat Thanh Toan</h2>
               <div className="info-row">
                 <span className="label">Payment Provider:</span>
-                <span className="value">{order.paymentProvider || order.paymentGateway || 'SePay'}</span>
+                <span className="value">{PAYMENT_METHOD_LABEL[order.paymentProvider] || order.paymentProvider || order.paymentGateway || 'SePay'}</span>
               </div>
               <div className="info-row">
                 <span className="label">VA Number:</span>
@@ -246,11 +288,6 @@ export default function OrderDetail() {
         <button onClick={() => navigate('/products')} className="btn-continue-shopping">
           Tiếp Tục Mua Sắm
         </button>
-        {order.status === 'Delivered' && (
-          <button className="btn-review">
-            Đánh Giá Sản Phẩm
-          </button>
-        )}
         {!isAdmin() && (order.status === 'Pending' || order.status === 'Processing') && (
           <button className="btn-cancel" onClick={handleCancelOrder} disabled={cancelling}>
             {cancelling ? 'Đang hủy...' : 'Hủy Đơn Hàng'}

@@ -171,6 +171,7 @@ export const ordersAPI = {
   },
 
   cancelOrder: (id) => apiClient(`/orders/${id}/cancel`, { method: 'PUT', auth: true }),
+  confirmOrderManual: (id) => apiClient(`/admin/orders/${id}/confirm`, { method: 'PATCH', auth: true }),
 };
 
 // ─── Cart ─────────────────────────────────────────────────────────────────────
@@ -249,6 +250,18 @@ export const shippingAPI = {
 
   cancelShipment: (orderId, ghnOrderCode) =>
     apiClient(`/shipping/orders/${orderId}/shipment/${ghnOrderCode}`, { method: 'DELETE', auth: true }),
+};
+
+// ─── Recommendation & Tracking ────────────────────────────────────────────────
+
+export const recommendationAPI = {
+  getRelated: (productId, limit = 5) => apiClient(`/recommendations/related?productId=${productId}&limit=${limit}`),
+  getFrequentlyBought: (productIds, limit = 3) => apiClient(`/recommendations/frequently-bought?productIds=${productIds}&limit=${limit}`),
+  getPersonalized: (limit = 10) => apiClient(`/recommendations/personalized?limit=${limit}`, { auth: true }),
+  getTrending: (limit = 8) => apiClient(`/recommendations/trending?limit=${limit}`),
+  trackView: (productId, sessionId, durationSeconds = 0) => apiClient('/tracking/view', { method: 'POST', body: { productId, sessionId, durationSeconds } }),
+  trackSearch: (query, sessionId) => apiClient('/tracking/search', { method: 'POST', body: { query, sessionId } }),
+  trackCart: (productId, action, quantity, sessionId) => apiClient('/tracking/cart', { method: 'POST', body: { productId, action, quantity, sessionId } }),
 };
 
 // ─── SignalR hub URL ──────────────────────────────────────────────────────────

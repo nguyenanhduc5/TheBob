@@ -179,6 +179,88 @@
   color: #222;
 }
 
+.address-autocomplete-group {
+  position: relative;
+  min-height: 96px;
+  overflow: visible;
+}
+
+.address-autocomplete {
+  position: relative;
+}
+
+.address-autocomplete input {
+  padding-right: 104px;
+}
+
+.address-loading {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #777;
+  font-size: 0.75rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.address-predictions {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d8d8d8;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+}
+
+.address-prediction {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 13px;
+  border: 0;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  color: #222;
+  text-align: left;
+  cursor: pointer;
+}
+
+.address-prediction:last-child {
+  border-bottom: 0;
+}
+
+.address-prediction:hover,
+.address-prediction.active {
+  background: #f3f3f3;
+}
+
+.prediction-main {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #222;
+}
+
+.prediction-secondary {
+  font-size: 0.78rem;
+  color: #777;
+  line-height: 1.35;
+}
+
+.address-helper {
+  display: block;
+  color: #666;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
 /* ====================== PAYMENT OPTIONS ====================== */
 .payment-options {
   display: flex;

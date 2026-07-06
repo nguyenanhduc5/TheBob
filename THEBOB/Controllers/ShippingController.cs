@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using THEBOB.Data;
 using THEBOB.Hubs;
 using THEBOB.Models;
 using THEBOB.Services;
@@ -13,21 +15,24 @@ namespace THEBOB.Controllers;
 public class ShippingController : ControllerBase
 {
     private readonly IGhnService _ghn;
+    private readonly ThebobDbContext _context;
     private readonly ILogger<ShippingController> _logger;
-    // Inject thêm IOrderRepository nếu bạn cần lưu ghnOrderCode vào DB
-    // private readonly IOrderRepository _orders;
+    private readonly IHubContext<OrderHub> _hubContext;
 
     public ShippingController(
         IGhnService ghn,
-        ILogger<ShippingController> logger)
+        ThebobDbContext context,
+        ILogger<ShippingController> logger,
+        IHubContext<OrderHub> hubContext)
     {
-        _ghn    = ghn;
+        _ghn = ghn;
+        _context = context;
         _logger = logger;
+        _hubContext = hubContext;
     }
 
     // ── Địa chỉ ───────────────────────────────────────────────────────────────
 
-    /// <summary>Lấy danh sách tỉnh/thành — dùng cho dropdown chọn địa chỉ.</summary>
     [HttpGet("provinces")]
     public async Task<IActionResult> GetProvinces()
     {
@@ -51,10 +56,6 @@ public class ShippingController : ControllerBase
 
     // ── Tính phí ship ─────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Tính phí ship trước khi đặt hàng (gọi từ checkout).
-    /// Frontend gửi địa chỉ khách + thông số kiện hàng.
-    /// </summary>
     [HttpPost("fee")]
     public async Task<IActionResult> CalculateFee([FromBody] GhnFeeRequest request)
     {
@@ -71,29 +72,81 @@ public class ShippingController : ControllerBase
     }
 
     // ── Tạo đơn vận chuyển ────────────────────────────────────────────────────
+    // Route 1: /api/shipping/orders/{orderId}/create-shipment  (legacy)
+    // Route 2: /api/admin/orders/{id}/create-shipment          (alias rõ nghĩa hơn)
 
-    /// <summary>
-    /// Admin bấm "Tạo đơn vận chuyển" trong AdminOrders.
-    /// Trả về GHN order code để lưu vào DB và hiển thị tracking.
-    /// </summary>
     [Authorize(Roles = "Admin")]
     [HttpPost("orders/{orderId}/create-shipment")]
+    [HttpPost("/api/admin/orders/{orderId}/create-shipment")]
     public async Task<IActionResult> CreateShipment(
         int orderId,
-        [FromBody] GhnCreateOrderRequest request)
+        [FromBody] GhnCreateOrderRequest? request)
     {
         try
         {
-            var result = await _ghn.CreateShippingOrderAsync(request);
+            var order = await _context.Orders
+                .Include(o => o.User)
+                .Include(o => o.OrderItems)
+                .FirstOrDefaultAsync(o => o.Id == orderId);
 
-            // TODO: lưu result.OrderCode vào Order trong DB
-            // await _orders.UpdateGhnCodeAsync(orderId, result.OrderCode);
+            if (order == null)
+                return NotFound(new { message = "Không tìm thấy đơn hàng." });
+
+            // Chỉ tạo vận đơn khi đơn đang ở Processing
+            if (order.Status != OrderStatus.Processing)
+                return BadRequest(new
+                {
+                    message = $"Chỉ có thể tạo vận đơn khi đơn ở trạng thái 'Đang xử lý'. Trạng thái hiện tại: {order.Status}"
+                });
+
+            if (!string.IsNullOrWhiteSpace(order.GhnOrderCode))
+                return BadRequest(new { message = $"Đơn đã có mã GHN: {order.GhnOrderCode}" });
+
+            if (!order.GhnDistrictId.HasValue || string.IsNullOrWhiteSpace(order.GhnWardCode))
+                return BadRequest(new { message = "Đơn thiếu mã địa chỉ GHN (district/ward)." });
+
+            var ghnRequest = request ?? GhnOrderRequestBuilder.FromOrder(order, order.OrderItems);
+
+            if (string.IsNullOrWhiteSpace(ghnRequest.ToName))
+                ghnRequest.ToName = order.User?.FullName ?? order.User?.Email ?? "Khách hàng";
+
+            if (string.IsNullOrWhiteSpace(ghnRequest.ClientOrderCode))
+                ghnRequest.ClientOrderCode = order.OrderNumber;
+
+            if (ghnRequest.CodAmount == 0 && order.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase))
+                ghnRequest.CodAmount = (int)Math.Round(order.TotalAmount);
+
+            var result = await _ghn.CreateShippingOrderAsync(ghnRequest);
+
+            // Cập nhật đơn hàng: GHN code + Status → Shipped
+            order.GhnOrderCode = result.OrderCode;
+            order.ShippingStatus = "ready_to_pick";
+            order.Status = OrderStatus.Shipped;
+            order.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Đã tạo đơn GHN {GhnCode} cho đơn hàng #{OrderId}",
+                "Đã tạo đơn GHN {GhnCode} cho đơn hàng #{OrderId} → Shipped",
                 result.OrderCode, orderId);
 
-            return Ok(result);
+            // Notify khách hàng qua SignalR
+            try
+            {
+                await _hubContext.Clients.User(order.UserId.ToString())
+                    .SendAsync("ReceiveStatusUpdate", order.Id, OrderStatus.Shipped.ToString());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("SignalR notify failed for user {UserId}: {Message}", order.UserId, ex.Message);
+            }
+
+            return Ok(new
+            {
+                ghnOrderCode = result.OrderCode,
+                orderStatus = OrderStatus.Shipped.ToString(),
+                shippingStatus = "ready_to_pick",
+                message = $"Đã tạo vận đơn GHN thành công. Mã: {result.OrderCode}"
+            });
         }
         catch (InvalidOperationException ex)
         {
@@ -126,12 +179,28 @@ public class ShippingController : ControllerBase
     {
         try
         {
+            var order = await _context.Orders.FindAsync(orderId);
+            if (order == null)
+                return NotFound(new { message = "Không tìm thấy đơn hàng." });
+
             await _ghn.CancelShippingOrderAsync(ghnOrderCode);
 
-            // TODO: cập nhật trạng thái trong DB
-            // await _orders.ClearGhnCodeAsync(orderId);
+            // Rollback về Processing để admin có thể tạo lại vận đơn mới
+            order.GhnOrderCode = null;
+            order.ShippingStatus = "cancel";
+            order.Status = OrderStatus.Processing;
+            order.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
 
-            return Ok(new { message = $"Đã hủy đơn vận chuyển {ghnOrderCode}" });
+            // Notify khách hàng
+            try
+            {
+                await _hubContext.Clients.User(order.UserId.ToString())
+                    .SendAsync("ReceiveStatusUpdate", order.Id, OrderStatus.Processing.ToString());
+            }
+            catch { /* ignore SignalR errors */ }
+
+            return Ok(new { message = $"Đã hủy đơn vận chuyển {ghnOrderCode}. Đơn hàng trở về trạng thái Đang xử lý." });
         }
         catch (InvalidOperationException ex)
         {
@@ -141,35 +210,51 @@ public class ShippingController : ControllerBase
 
     // ── Webhook từ GHN ────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// GHN gọi endpoint này khi trạng thái đơn thay đổi (giao thành công, hoàn, v.v.)
-    /// URL này bạn đăng ký trong dashboard GHN → Cài đặt → Webhook.
-    /// KHÔNG đặt [Authorize] — GHN gọi không có Bearer token.
-    /// Bảo mật bằng secret token trong header X-GHN-Signature hoặc IP whitelist.
-    /// </summary>
     [HttpPost("webhook/ghn")]
     public async Task<IActionResult> GhnWebhook(
         [FromBody] GhnWebhookPayload payload,
-        [FromServices] IHubContext<OrderHub> hubContext) // SignalR push real-time
+        [FromServices] IHubContext<OrderHub> hubContext)
     {
-        // Bảo vệ webhook: xác minh token GHN gửi kèm (nếu bạn cấu hình)
-        // var secret = Request.Headers["X-GHN-Token"].ToString();
-        // if (secret != _config["GHN:WebhookSecret"]) return Unauthorized();
-
         _logger.LogInformation(
             "GHN Webhook: order {GhnCode} (client: {ClientCode}) → {Status}",
             payload.OrderCode, payload.ClientOrderCode, payload.Status);
 
-        // TODO: cập nhật trạng thái vào DB theo payload.ClientOrderCode (order ID của bạn)
-        // await _orders.UpdateShippingStatusAsync(payload.ClientOrderCode, payload.Status);
+        if (!string.IsNullOrWhiteSpace(payload.ClientOrderCode))
+        {
+            var order = await _context.Orders
+                .FirstOrDefaultAsync(o => o.OrderNumber == payload.ClientOrderCode);
 
-        // Push real-time qua SignalR xuống AdminOrders
+            if (order != null)
+            {
+                order.ShippingStatus = payload.Status;
+
+                // Tự động cập nhật OrderStatus khi GHN webhook delivered
+                if (payload.Status == "delivered" && order.Status == OrderStatus.Shipped)
+                {
+                    order.Status = OrderStatus.Delivered;
+                    if (order.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase))
+                        order.PaymentStatus = "Completed";
+                }
+
+                order.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                // Notify khách hàng
+                try
+                {
+                    await hubContext.Clients.User(order.UserId.ToString())
+                        .SendAsync("ReceiveStatusUpdate", order.Id, order.Status.ToString());
+                }
+                catch { /* ignore */ }
+            }
+        }
+
         await hubContext.Clients.All.SendAsync(
             "ReceiveShippingUpdate",
             payload.ClientOrderCode,
             payload.Status,
             payload.Description);
 
-        return Ok(); // GHN cần nhận 200 OK, nếu không nó retry
+        return Ok();
     }
 }

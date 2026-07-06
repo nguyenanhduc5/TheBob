@@ -14,7 +14,6 @@ namespace THEBOB.Data
         public DbSet<ProductImage> ProductImages { get; set; }
         public DbSet<ProductVariantImage> ProductVariantImages { get; set; }
         public DbSet<ProductVariant> ProductVariants { get; set; }
-        public DbSet<ProductReview> ProductReviews { get; set; }
         public DbSet<Role> Roles { get; set; }
         public DbSet<Address> Addresses { get; set; }
         public DbSet<Coupon> Coupons { get; set; }
@@ -29,12 +28,16 @@ namespace THEBOB.Data
         public DbSet<Color> Colors { get; set; }
         public DbSet<Brand> Brands { get; set; }
         public DbSet<PaymentTransaction> PaymentTransactions { get; set; }
-        public DbSet<Wishlist> Wishlists { get; set; }
-        public DbSet<WishlistItem> WishlistItems { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         // ThebobDbContext.cs
-public DbSet<OtpVerification> OtpVerifications { get; set; }
+        public DbSet<OtpVerification> OtpVerifications { get; set; }
+
+        public DbSet<CustomerBehavior> CustomerBehaviors { get; set; }
+        public DbSet<AssociationRuleEntity> AssociationRules { get; set; }
+        public DbSet<HighUtilityItemsetEntity> HighUtilityItemsets { get; set; }
+        public DbSet<RecommendationCache> Recommendations { get; set; }
+        public DbSet<RecommendationLog> RecommendationLogs { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

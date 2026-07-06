@@ -343,61 +343,37 @@ var totalAmount = subtotal + shippingAmount;
                 }
 
 
-              if (isCod)
-{
-    _context.CartItems.RemoveRange(cart.CartItems);
-    _context.Carts.Remove(cart);
-}
-_context.Orders.Add(order);
-await _context.SaveChangesAsync();
-// ── SNAPSHOT trước khi xóa cart ──
-var cartItemsSnapshot = cart.CartItems.ToList();
+                var cartItemsSnapshot = cart.CartItems.ToList();
 
+                if (isCod)
+                {
+                    CartMutationExtensions.DetachTrackedCartItems(_context, cart.Id);
+                    await _context.CartItems
+                        .Where(ci => ci.CartId == cart.Id)
+                        .ExecuteDeleteAsync();
+                    _context.Carts.Remove(cart);
+                }
 
-await transaction.CommitAsync();
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
 
 // ─── Tạo đơn GHN thật ngay cho COD (sau khi commit để đơn đã chắc chắn lưu) ───
 if (isCod && order.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(order.GhnWardCode))
 {
     try
     {
-        
-        // ── Tạo đơn GHN cho COD ──
-var ghnResult = await _ghnService.CreateShippingOrderAsync(new GhnCreateOrderRequest
-{
-    PaymentTypeId = "2",                        // ✅ string — đúng rồi, giữ nguyên
-    Note = $"Đơn hàng {order.OrderNumber}",
-    RequiredNote = "KHONGCHOXEMHANG",
-    ToName = request.Email,
-    ToPhone = request.Phone,
-    ToAddress = request.SpecificAddress,
-    ToWardCode = order.GhnWardCode,
-    ToDistrictId = order.GhnDistrictId.Value,
-    Weight = totalWeight,
-    Length = 20, Width = 20, Height = 10,
-    InsuranceValue = (long)totalAmount,         // ✅ cast decimal → long
-    ServiceTypeId = 2,
-    Items = cart.CartItems.Select(ci => new GhnOrderItem
-    {
-        Name = ci.Variant.Product!.Name,
-        Code = ci.Variant.Id, // GhnOrderItem.Code là int, dùng VariantId thay cho Sku (string)                       // ✅ int — Sku là string nên dùng 0 hoặc hash
-        Quantity = ci.Quantity,
-        Price = (int)ci.Variant.Price,
-        Length = 20, Width = 20, Height = 10, Weight = 500
-    }).ToList()
-});
+        var toName = string.IsNullOrWhiteSpace(request.FullName) ? request.Email : request.FullName.Trim();
+        var ghnRequest = GhnOrderRequestBuilder.FromCheckout(
+            order,
+            cartItemsSnapshot.Select(ci => (ci, 500)),
+            toName,
+            request.Phone,
+            request.SpecificAddress,
+            totalWeight);
 
+        var ghnResult = await _ghnService.CreateShippingOrderAsync(ghnRequest);
 
-// ── Tính phí GHN ──
-var feeResult = await _ghnService.CalculateFeeAsync(new GhnFeeRequest
-{
-    ToDistrictId = request.GhnDistrictId.Value,
-    ToWardCode = request.GhnWardCode,
-    Weight = totalWeight,
-    InsuranceValue = (long)subtotal,            // ✅ cast decimal → long
-    ServiceTypeId = 2
-});
-shippingAmount = feeResult.Total;
         order.GhnOrderCode = ghnResult.OrderCode;
         order.ShippingStatus = "ready_to_pick";
         await _context.SaveChangesAsync();
@@ -406,7 +382,6 @@ shippingAmount = feeResult.Total;
     }
     catch (Exception ex)
     {
-        // Không rollback đơn hàng nếu GHN lỗi — chỉ log để admin tạo tay sau (đã có UI sẵn ở ShippingController)
         _logger.LogError(ex, "Tạo đơn GHN thất bại cho order COD #{OrderId}, admin cần tạo tay", order.Id);
     }
 }
@@ -445,7 +420,7 @@ await NotifyAdminNewOrder(order, _hubContext);
             }
             });
         }
-
+        
         // GET: api/orders/admin/all (admin only)
         [HttpGet("admin/all")]
         [Authorize(Roles = "Admin")]
@@ -1192,6 +1167,9 @@ private async Task NotifyAdminNewOrder(Order order, IHubContext<OrderHub> hubCon
         [Required]
         [RegularExpression(@"^(0(3|5|7|8|9)\d{8}|\+84(3|5|7|8|9)\d{8})$", ErrorMessage = "Số điện thoại Việt Nam không hợp lệ.")]
         public string Phone { get; set; } = string.Empty;
+
+        [StringLength(255, MinimumLength = 2)]
+        public string? FullName { get; set; }
 
         [Required]
         [StringLength(255, MinimumLength = 2)]

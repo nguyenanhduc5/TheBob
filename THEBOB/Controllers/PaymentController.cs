@@ -347,215 +347,195 @@ namespace THEBOB.Controllers
             var strategy = _context.Database.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
             {
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var now = DateTime.UtcNow;
-                var duplicated = await _context.PaymentTransactions.AnyAsync(t =>
-                    t.TransactionId == webhook.TransactionId && t.Status == "Paid");
-
-                if (duplicated)
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    await transaction.RollbackAsync();
-                    return Ok(ApiResponse<object>.Ok(new { orderId }, "Transaction already processed."));
-                }
+                    var now = DateTime.UtcNow;
+                    var duplicated = await _context.PaymentTransactions.AnyAsync(t =>
+                        t.TransactionId == webhook.TransactionId && t.Status == "Paid");
 
-                var order = await _context.Orders
-                    .FromSqlRaw("SELECT * FROM Orders WHERE Id = {0} FOR UPDATE", orderId)
-                    .AsTracking()
-                    .FirstOrDefaultAsync();
+                    if (duplicated)
+                    {
+                        await transaction.RollbackAsync();
+                        return Ok(ApiResponse<object>.Ok(new { orderId }, "Transaction already processed."));
+                    }
 
-                if (order == null)
-                {
-                    await transaction.RollbackAsync();
-                    return NotFound(ApiResponse<object>.Fail("Order not found."));
-                }
-
-                if (order.PaymentStatus == "Paid")
-                {
-                    await transaction.RollbackAsync();
-                    return Ok(ApiResponse<object>.Ok(new { orderId }, "Order already paid."));
-                }
-
-                if (order.PaymentStatus is "Cancelled" or "Expired")
-                {
-                    await transaction.RollbackAsync();
-                    return BadRequest(ApiResponse<object>.Fail("Order is cancelled or expired."));
-                }
-
-                if (webhook.Amount > 0 && Math.Abs(order.TotalAmount - webhook.Amount) > 0.01m)
-                    throw new InvalidOperationException("Webhook amount does not match order total.");
-
-                var orderItems = await _context.OrderItems
-                    .FromSqlRaw("SELECT * FROM OrderItems WHERE OrderId = {0} FOR UPDATE", orderId)
-                    .AsTracking()
-                    .ToListAsync();
-
-                foreach (var item in orderItems)
-                {
-                    if (!item.VariantId.HasValue)
-                        throw new InvalidOperationException($"Order item {item.Id} missing VariantId.");
-
-                    var variant = await _context.ProductVariants
-                        .FromSqlRaw("SELECT * FROM ProductVariants WHERE Id = {0} FOR UPDATE", item.VariantId.Value)
+                    var order = await _context.Orders
+                        .FromSqlRaw("SELECT * FROM Orders WHERE Id = {0} FOR UPDATE", orderId)
                         .AsTracking()
                         .FirstOrDefaultAsync();
 
-                    if (variant == null)
-                        throw new InvalidOperationException($"Variant {item.VariantId.Value} not found.");
-
-                    if (variant.Stock < item.Quantity)
-                        throw new InvalidOperationException($"Insufficient stock for {item.ProductName} - {item.Sku}.");
-
-                    variant.Stock -= item.Quantity;
-                    variant.UpdatedAt = now;
-                    _context.InventoryLogs.Add(new InventoryLog
+                    if (order == null)
                     {
-                        VariantId = variant.Id,
-                        ChangeType = InventoryChangeType.Sold,
-                        QuantityChanged = -item.Quantity,
-                        Reason = $"Order {order.OrderNumber} paid via SePay",
-                        UserId = order.UserId
-                    });
-                }
+                        await transaction.RollbackAsync();
+                        return NotFound(ApiResponse<object>.Fail("Order not found."));
+                    }
 
-                order.PaymentStatus = "Paid";
-                order.Status = OrderStatus.Processing;
-                order.UpdatedAt = now;
-                await _context.SaveChangesAsync();
-await transaction.CommitAsync();
-
-// ─── Tạo đơn GHN thật sau khi thanh toán SePay thành công ───
-if (order.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(order.GhnWardCode)
-    && string.IsNullOrWhiteSpace(order.GhnOrderCode)) // tránh tạo trùng nếu webhook gọi lại
-{
-    try
-    {
-        var orderItemsForGhn = await _context.OrderItems
-            .Include(oi => oi.Variant).ThenInclude(v => v!.Product)
-            .Where(oi => oi.OrderId == order.Id)
-            .ToListAsync();
-
-        var ghnResult = await _ghnService.CreateShippingOrderAsync(new GhnCreateOrderRequest
-{
-    PaymentTypeId = "1",                        // ✅ string — đúng rồi, giữ nguyên
-    Note = $"Đơn hàng {order.OrderNumber}",
-    RequiredNote = "KHONGCHOXEMHANG",
-    ToPhone = order.User?.Phone ?? "",
-    ToAddress = order.ShippingAddress,
-    ToWardCode = order.GhnWardCode,
-    ToDistrictId = order.GhnDistrictId.Value,
-    Weight = orderItemsForGhn.Sum(i => i.Quantity * 500),
-    Length = 20, Width = 20, Height = 10,
-    InsuranceValue = (long)order.TotalAmount,   // ✅ cast decimal → long
-    ServiceTypeId = 2,
-    Items = orderItemsForGhn.Select(i => new GhnOrderItem
-    {
-        Name = i.ProductName,
-        Code = 0,                               // ✅ int — dùng 0 thay vì i.Sku (string)
-        Quantity = i.Quantity,
-        Price = (int)i.PricePerItem,
-        Length = 20, Width = 20, Height = 10, Weight = 500
-    }).ToList()
-});
-
-        order.GhnOrderCode = ghnResult.OrderCode;
-        order.ShippingStatus = "ready_to_pick";
-        await _context.SaveChangesAsync();
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Tạo đơn GHN thất bại sau thanh toán cho order #{OrderId}", order.Id);
-        // Không fail cả webhook — admin có thể tạo tay qua ShippingController.CreateShipment
-    }
-}
-
-await _hubContext.Clients.User(order.UserId.ToString())
-    .SendAsync("ReceivePaymentSuccess", order.Id, "Thanh toan thanh cong");
-
-// Báo Admin
-await NotifyAdminNewOrder(order, _hubContext);
-
-return Ok(ApiResponse<object>.Ok(new { orderId = order.Id }, "Payment confirmed."));
-                var paymentTx = await _context.PaymentTransactions
-                    .FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending");
-
-                if (paymentTx == null)
-                {
-                    paymentTx = new PaymentTransaction
+                    if (order.PaymentStatus == "Paid")
                     {
-                        OrderId = order.Id,
-                        Amount = order.TotalAmount,
-                        CreatedAt = now
-                    };
-                    _context.PaymentTransactions.Add(paymentTx);
-                }
+                        await transaction.RollbackAsync();
+                        return Ok(ApiResponse<object>.Ok(new { orderId }, "Order already paid."));
+                    }
 
-                paymentTx.Gateway = "SePay";
-                paymentTx.PaymentProvider = "SePay";
-                paymentTx.TransactionCode = webhook.TransactionId ?? paymentTx.TransactionCode;
-                paymentTx.TransactionId = webhook.TransactionId;
-                paymentTx.VaNumber = webhook.VaNumber ?? paymentTx.VaNumber;
-                paymentTx.Status = "Paid";
-                paymentTx.PaidAt = webhook.PaidAt;
-                paymentTx.Amount = order.TotalAmount;
-                paymentTx.WebhookPayload = rawPayload;
-                paymentTx.UpdatedAt = now;
-
-                if (order.CouponId.HasValue)
-                {
-                    var alreadyUsed = await _context.CouponUsages
-                        .AnyAsync(cu => cu.CouponId == order.CouponId.Value && cu.UserId == order.UserId);
-                    if (!alreadyUsed)
+                    if (order.PaymentStatus is "Cancelled" or "Expired")
                     {
-                        _context.CouponUsages.Add(new CouponUsage
+                        await transaction.RollbackAsync();
+                        return BadRequest(ApiResponse<object>.Fail("Order is cancelled or expired."));
+                    }
+
+                    if (webhook.Amount > 0 && Math.Abs(order.TotalAmount - webhook.Amount) > 0.01m)
+                        throw new InvalidOperationException("Webhook amount does not match order total.");
+
+                    var orderItems = await _context.OrderItems
+                        .FromSqlRaw("SELECT * FROM OrderItems WHERE OrderId = {0} FOR UPDATE", orderId)
+                        .AsTracking()
+                        .ToListAsync();
+
+                    foreach (var item in orderItems)
+                    {
+                        if (!item.VariantId.HasValue)
+                            throw new InvalidOperationException($"Order item {item.Id} missing VariantId.");
+
+                        var variant = await _context.ProductVariants
+                            .FromSqlRaw("SELECT * FROM ProductVariants WHERE Id = {0} FOR UPDATE", item.VariantId.Value)
+                            .AsTracking()
+                            .FirstOrDefaultAsync();
+
+                        if (variant == null)
+                            throw new InvalidOperationException($"Variant {item.VariantId.Value} not found.");
+
+                        if (variant.Stock < item.Quantity)
+                            throw new InvalidOperationException($"Insufficient stock for {item.ProductName} - {item.Sku}.");
+
+                        variant.Stock -= item.Quantity;
+                        variant.UpdatedAt = now;
+                        _context.InventoryLogs.Add(new InventoryLog
                         {
-                            CouponId = order.CouponId.Value,
-                            UserId = order.UserId,
-                            UsedAt = now
+                            VariantId = variant.Id,
+                            ChangeType = InventoryChangeType.Sold,
+                            QuantityChanged = -item.Quantity,
+                            Reason = $"Order {order.OrderNumber} paid via SePay",
+                            UserId = order.UserId
                         });
+                    }
 
-                        var coupon = await _context.Coupons.FindAsync(order.CouponId.Value);
-                        if (coupon != null)
+                    order.PaymentStatus = "Paid";
+                    order.Status = OrderStatus.Processing;
+                    order.UpdatedAt = now;
+
+                    // ── Cập nhật PaymentTransaction ─────────────────────────────
+                    var paymentTx = await _context.PaymentTransactions
+                        .FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending");
+
+                    if (paymentTx == null)
+                    {
+                        paymentTx = new PaymentTransaction
                         {
-                            coupon.UsedCount += 1;
-                            coupon.UpdatedAt = now;
+                            OrderId = order.Id,
+                            Amount = order.TotalAmount,
+                            CreatedAt = now
+                        };
+                        _context.PaymentTransactions.Add(paymentTx);
+                    }
+
+                    paymentTx.Gateway = "SePay";
+                    paymentTx.PaymentProvider = "SePay";
+                    paymentTx.TransactionCode = webhook.TransactionId ?? paymentTx.TransactionCode;
+                    paymentTx.TransactionId = webhook.TransactionId;
+                    paymentTx.VaNumber = webhook.VaNumber ?? paymentTx.VaNumber;
+                    paymentTx.Status = "Paid";
+                    paymentTx.PaidAt = webhook.PaidAt;
+                    paymentTx.Amount = order.TotalAmount;
+                    paymentTx.WebhookPayload = rawPayload;
+                    paymentTx.UpdatedAt = now;
+
+                    // ── Coupon usage ─────────────────────────────────────────────
+                    if (order.CouponId.HasValue)
+                    {
+                        var alreadyUsed = await _context.CouponUsages
+                            .AnyAsync(cu => cu.CouponId == order.CouponId.Value && cu.UserId == order.UserId);
+                        if (!alreadyUsed)
+                        {
+                            _context.CouponUsages.Add(new CouponUsage
+                            {
+                                CouponId = order.CouponId.Value,
+                                UserId = order.UserId,
+                                UsedAt = now
+                            });
+
+                            var coupon = await _context.Coupons.FindAsync(order.CouponId.Value);
+                            if (coupon != null)
+                            {
+                                coupon.UsedCount += 1;
+                                coupon.UpdatedAt = now;
+                            }
                         }
                     }
+
+                    // ── Xóa giỏ hàng ────────────────────────────────────────────
+                    var cart = await _context.Carts
+                        .Include(c => c.CartItems)
+                        .FirstOrDefaultAsync(c => c.UserId == order.UserId);
+                    if (cart != null)
+                    {
+                        _context.CartItems.RemoveRange(cart.CartItems);
+                        _context.Carts.Remove(cart);
+                    }
+
+                    // ── Thông báo ────────────────────────────────────────────────
+                    _context.Notifications.Add(new Notification
+                    {
+                        UserId = order.UserId,
+                        Message = $"Thanh toan don hang #{order.Id} thanh cong",
+                        Type = "Success",
+                        IsRead = false,
+                        CreatedAt = now
+                    });
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    // ── Tạo đơn GHN sau khi commit (ngoài transaction DB) ───────
+                    if (order.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(order.GhnWardCode)
+                        && string.IsNullOrWhiteSpace(order.GhnOrderCode))
+                    {
+                        try
+                        {
+                            var orderItemsForGhn = await _context.OrderItems
+                                .Include(oi => oi.Variant).ThenInclude(v => v!.Product)
+                                .Where(oi => oi.OrderId == order.Id)
+                                .ToListAsync();
+
+                            var ghnRequest = GhnOrderRequestBuilder.FromOrder(order, orderItemsForGhn);
+                            var ghnResult = await _ghnService.CreateShippingOrderAsync(ghnRequest);
+
+                            order.GhnOrderCode = ghnResult.OrderCode;
+                            order.ShippingStatus = "ready_to_pick";
+                            await _context.SaveChangesAsync();
+
+                            _logger.LogInformation("Đã tạo đơn GHN {Code} cho order SePay #{OrderId}", ghnResult.OrderCode, order.Id);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Tạo đơn GHN thất bại sau thanh toán cho order #{OrderId}", order.Id);
+                        }
+                    }
+
+                    await _hubContext.Clients.User(order.UserId.ToString())
+                        .SendAsync("ReceivePaymentSuccess", order.Id, "Thanh toan thanh cong");
+
+                    // Báo Admin
+                    await NotifyAdminNewOrder(order, _hubContext);
+                    await NotifyAdminPaymentSuccess(order, _hubContext);
+
+                    return Ok(ApiResponse<object>.Ok(new { orderId = order.Id }, "Payment confirmed."));
                 }
-
-                var cart = await _context.Carts
-                    .Include(c => c.CartItems)
-                    .FirstOrDefaultAsync(c => c.UserId == order.UserId);
-                if (cart != null)
+                catch (Exception ex)
                 {
-                    _context.CartItems.RemoveRange(cart.CartItems);
-                    _context.Carts.Remove(cart);
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "FinalizePaidOrderAsync failed for OrderId={OrderId}", orderId);
+                    return StatusCode(500, ApiResponse<object>.Fail("Could not finalize payment.", ex.Message));
                 }
-
-                _context.Notifications.Add(new Notification
-                {
-                    UserId = order.UserId,
-                    Message = $"Thanh toan don hang #{order.Id} thanh cong",
-                    Type = "Success",
-                    IsRead = false,
-                    CreatedAt = now
-                });
-
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                await _hubContext.Clients.User(order.UserId.ToString())
-                    .SendAsync("ReceivePaymentSuccess", order.Id, "Thanh toan thanh cong");
-
-                return Ok(ApiResponse<object>.Ok(new { orderId = order.Id }, "Payment confirmed."));
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "FinalizePaidOrderAsync failed for OrderId={OrderId}", orderId);
-                return StatusCode(500, ApiResponse<object>.Fail("Could not finalize payment.", ex.Message));
-            }
             });
         }
 
@@ -666,13 +646,36 @@ private async Task NotifyAdminNewOrder(Order order, IHubContext<OrderHub> hubCon
         _logger.LogWarning(ex, "NotifyAdminNewOrder failed for order #{OrderId}", order.Id);
     }
 }
+
+private async Task NotifyAdminPaymentSuccess(Order order, IHubContext<OrderHub> hubContext)
+{
+    try
+    {
+        await hubContext.Clients.Group("Admins")
+            .SendAsync("ReceivePaymentSuccess", order.Id, "Thanh toán thành công");
+        await hubContext.Clients.Group("Admins")
+            .SendAsync("ReceiveStatusUpdate", order.Id, order.Status.ToString());
+    }
+    catch (Exception ex)
+    {
+        _logger.LogWarning(ex, "NotifyAdminPaymentSuccess failed for order #{OrderId}", order.Id);
+    }
+}
         private static int ExtractOrderId(string orderInfo)
         {
             if (string.IsNullOrWhiteSpace(orderInfo))
                 return 0;
 
-            var digits = new string(orderInfo.Where(char.IsDigit).ToArray());
-            return int.TryParse(digits, out var orderId) ? orderId : 0;
+            var index = orderInfo.IndexOf("THEBOB", StringComparison.OrdinalIgnoreCase);
+            if (index >= 0)
+            {
+                var suffix = orderInfo.Substring(index + "THEBOB".Length);
+                var digits = new string(suffix.Where(char.IsDigit).ToArray());
+                return int.TryParse(digits, out var orderId) ? orderId : 0;
+            }
+
+            var allDigits = new string(orderInfo.Where(char.IsDigit).ToArray());
+            return int.TryParse(allDigits, out var fallbackId) ? fallbackId : 0;
         }
     }
 

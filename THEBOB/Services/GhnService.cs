@@ -18,6 +18,7 @@ public class GhnService : IGhnService
     private readonly string _token;
     private readonly string _shopId;
     private readonly string _baseUrl;
+    private readonly string _fromDistrictId;
     private readonly bool _useMock;
 
     public GhnService(
@@ -30,28 +31,54 @@ public class GhnService : IGhnService
 
         _token = configuration["GHN:Token"] ?? configuration["Ghn:Token"] ?? string.Empty;
         _shopId = configuration["GHN:ShopId"] ?? configuration["Ghn:ShopId"] ?? string.Empty;
-        _baseUrl = (configuration["GHN:BaseUrl"] ?? configuration["Ghn:BaseUrl"] ?? "https://dev-online-gateway.ghn.vn/shiip/public-api/").TrimEnd('/') + "/";
+        var configuredBaseUrl = configuration["GHN:BaseUrl"] ?? configuration["Ghn:BaseUrl"];
+        var useProduction = string.Equals(
+            configuration["GHN:Environment"],
+            "production",
+            StringComparison.OrdinalIgnoreCase);
 
-        _useMock = string.IsNullOrWhiteSpace(_token) || _token.StartsWith("YOUR_");
+        _baseUrl = (useProduction
+                ? "https://online-gateway.ghn.vn/shiip/public-api/"
+                : configuredBaseUrl ?? "https://dev-online-gateway.ghn.vn/shiip/public-api/")
+            .TrimEnd('/') + "/";
+
+        _fromDistrictId = configuration["GHN:FromDistrictId"] ?? configuration["Ghn:FromDistrictId"] ?? string.Empty;
+
+        _useMock = string.IsNullOrWhiteSpace(_token) || _token.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase);
 
         if (_useMock)
         {
             _logger.LogWarning("GHN API Token is not configured. GhnService will run in MOCK mode.");
         }
+        else
+        {
+            _logger.LogInformation("GHN REAL API mode enabled. BaseUrl={BaseUrl}, ShopId={ShopId}", _baseUrl, _shopId);
+        }
     }
 
+    /// <summary>Chỉ Token — dùng cho master-data (province/district/ward). ShopId gây lỗi 400 ở đây.</summary>
+    private HttpClient GetClientNoShop()
+    {
+        if (_httpClient.BaseAddress == null || _httpClient.BaseAddress.ToString() != _baseUrl)
+            _httpClient.BaseAddress = new Uri(_baseUrl);
+
+        _httpClient.DefaultRequestHeaders.Clear();
+        _httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Token", _token);
+        return _httpClient;
+    }
+
+    /// <summary>Token + ShopId — dùng cho order/fee/tracking endpoints.</summary>
     private HttpClient GetClient()
     {
-        _httpClient.BaseAddress = new Uri(_baseUrl);
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        _httpClient.DefaultRequestHeaders.Add("Token", _token);
-        
-        if (!string.IsNullOrWhiteSpace(_shopId))
-        {
-            _httpClient.DefaultRequestHeaders.Add("ShopId", _shopId);
-        }
+        if (_httpClient.BaseAddress == null || _httpClient.BaseAddress.ToString() != _baseUrl)
+            _httpClient.BaseAddress = new Uri(_baseUrl);
 
+        _httpClient.DefaultRequestHeaders.Clear();
+        _httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Token", _token);
+        if (!string.IsNullOrWhiteSpace(_shopId))
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("ShopId", _shopId);
         return _httpClient;
     }
 
@@ -69,7 +96,7 @@ public class GhnService : IGhnService
 
         try
         {
-            var client = GetClient();
+            var client = GetClientNoShop();
             var response = await client.GetAsync("master-data/province");
             response.EnsureSuccessStatusCode();
             var content = await response.Content.ReadAsStringAsync();
@@ -123,7 +150,7 @@ public class GhnService : IGhnService
 
         try
         {
-            var client = GetClient();
+            var client = GetClientNoShop();
             var body = JsonSerializer.Serialize(new { province_id = provinceId });
             var response = await client.PostAsync("master-data/district", new StringContent(body, Encoding.UTF8, "application/json"));
             response.EnsureSuccessStatusCode();
@@ -179,7 +206,7 @@ public class GhnService : IGhnService
 
         try
         {
-            var client = GetClient();
+            var client = GetClientNoShop();
             var body = JsonSerializer.Serialize(new { district_id = districtId });
             var response = await client.PostAsync("master-data/ward", new StringContent(body, Encoding.UTF8, "application/json"));
             response.EnsureSuccessStatusCode();
@@ -229,10 +256,14 @@ public class GhnService : IGhnService
         try
         {
             var client = GetClient();
+            var fromDistrict = !string.IsNullOrWhiteSpace(request.FromDistrictId)
+                ? request.FromDistrictId
+                : _fromDistrictId;
+
             var payload = new
             {
                 service_type_id = request.ServiceTypeId == 0 ? 2 : request.ServiceTypeId,
-                from_district_id = string.IsNullOrWhiteSpace(request.FromDistrictId) ? null : (int?)int.Parse(request.FromDistrictId),
+                from_district_id = string.IsNullOrWhiteSpace(fromDistrict) ? null : (int?)int.Parse(fromDistrict),
                 to_district_id = request.ToDistrictId,
                 to_ward_code = request.ToWardCode,
                 weight = request.Weight,
@@ -298,23 +329,23 @@ public class GhnService : IGhnService
         try
         {
             var client = GetClient();
-            var payload = new
+            var payload = new Dictionary<string, object?>
             {
-                payment_type_id = int.TryParse(request.PaymentTypeId, out var pId) ? pId : 1,
-                note = request.Note,
-                required_note = string.IsNullOrWhiteSpace(request.RequiredNote) ? "KHONGCHOXEMHANG" : request.RequiredNote,
-                to_name = request.ToName,
-                to_phone = request.ToPhone,
-                to_address = request.ToAddress,
-                to_ward_code = request.ToWardCode,
-                to_district_id = request.ToDistrictId,
-                weight = request.Weight,
-                length = request.Length,
-                width = request.Width,
-                height = request.Height,
-                insurance_value = (int)request.InsuranceValue,
-                service_type_id = request.ServiceTypeId == 0 ? 2 : request.ServiceTypeId,
-                items = request.Items.ConvertAll(i => new
+                ["payment_type_id"] = int.TryParse(request.PaymentTypeId, out var pId) ? pId : 1,
+                ["note"] = request.Note,
+                ["required_note"] = string.IsNullOrWhiteSpace(request.RequiredNote) ? "KHONGCHOXEMHANG" : request.RequiredNote,
+                ["to_name"] = request.ToName,
+                ["to_phone"] = request.ToPhone,
+                ["to_address"] = request.ToAddress,
+                ["to_ward_code"] = request.ToWardCode,
+                ["to_district_id"] = request.ToDistrictId,
+                ["weight"] = request.Weight,
+                ["length"] = request.Length,
+                ["width"] = request.Width,
+                ["height"] = request.Height,
+                ["insurance_value"] = (int)request.InsuranceValue,
+                ["service_type_id"] = request.ServiceTypeId == 0 ? 2 : request.ServiceTypeId,
+                ["items"] = request.Items.ConvertAll(i => new
                 {
                     name = i.Name,
                     code = i.Code.ToString(),
@@ -327,14 +358,23 @@ public class GhnService : IGhnService
                 })
             };
 
+            if (request.CodAmount > 0)
+                payload["cod_amount"] = request.CodAmount;
+
+            if (!string.IsNullOrWhiteSpace(request.ClientOrderCode))
+                payload["client_order_code"] = request.ClientOrderCode;
+
+            if (!string.IsNullOrWhiteSpace(request.Content))
+                payload["content"] = request.Content;
+
             var body = JsonSerializer.Serialize(payload);
             var response = await client.PostAsync("v2/shipping-order/create", new StringContent(body, Encoding.UTF8, "application/json"));
             var content = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("GHN CreateOrder error response: {Body}", content);
-                throw new InvalidOperationException("GHN API returned error status: " + response.StatusCode);
+                _logger.LogWarning("GHN CreateOrder HTTP {StatusCode}: {Body}", response.StatusCode, content);
+                throw new InvalidOperationException(ParseGhnErrorMessage(content, response.StatusCode.ToString()));
             }
 
             using var doc = JsonDocument.Parse(content);
@@ -342,7 +382,7 @@ public class GhnService : IGhnService
             var code = root.GetProperty("code").GetInt32();
             if (code != 200)
             {
-                throw new InvalidOperationException(root.GetProperty("message").GetString());
+                throw new InvalidOperationException(ParseGhnErrorMessage(content, code.ToString()));
             }
 
             var data = root.GetProperty("data");
@@ -478,6 +518,33 @@ public class GhnService : IGhnService
             _logger.LogError(ex, "Error cancelling GHN order {GhnOrderCode}", ghnOrderCode);
             throw new InvalidOperationException("Không thể hủy đơn vận chuyển trên GHN: " + ex.Message);
         }
+    }
+
+    private static string ParseGhnErrorMessage(string content, string code)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            var message = root.TryGetProperty("message", out var msgProp)
+                ? msgProp.GetString()
+                : null;
+            var codeMessage = root.TryGetProperty("code_message", out var cmProp)
+                ? cmProp.GetString()
+                : null;
+
+            if (!string.IsNullOrWhiteSpace(message) && !string.IsNullOrWhiteSpace(codeMessage))
+                return $"GHN [{code}]: {message} ({codeMessage})";
+
+            if (!string.IsNullOrWhiteSpace(message))
+                return $"GHN [{code}]: {message}";
+        }
+        catch
+        {
+            // fall through
+        }
+
+        return $"GHN [{code}]: {content}";
     }
 
     private string MapStatusToName(string? status)

@@ -127,8 +127,11 @@ namespace THEBOB.Services
 
         public bool VerifyWebhook(HttpRequest request, out string error)
         {
-          var expectedToken = _configuration["SePay:WebhookSecret"] 
-                    ?? GetRequiredConfig("SePay:ApiToken");
+            var expectedToken = _configuration["SePay:WebhookSecret"];
+            if (string.IsNullOrWhiteSpace(expectedToken) || expectedToken == "ĐỂ_TRỐNG_TRƯỚC")
+            {
+                expectedToken = GetRequiredConfig("SePay:ApiToken");
+            }
             var authorization = request.Headers.Authorization.ToString();
 
            if (string.IsNullOrWhiteSpace(authorization))

@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { recommendationAPI } from '../api/app';
+import '../styles/Products.css'; // Reuse product card styles
 import { useCart } from '../context/CartContext';
 import { useNotification } from '../context/NotificationContext';
 import { couponsAPI } from '../api/app';
@@ -13,6 +15,23 @@ export default function Cart() {
   const [activeCoupon, setActiveCoupon] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [itemToRemove, setItemToRemove] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
+
+  useEffect(() => {
+    async function fetchCartRecs() {
+      if (cartItems.length === 0) return;
+      try {
+        const prodIds = cartItems.map(item => item.productId || item.id).filter(Boolean);
+        if (prodIds.length > 0) {
+          const recs = await recommendationAPI.getFrequentlyBought(prodIds.join(','), 4);
+          setRecommendations(recs || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch cart cross-sell recommendations:', err);
+      }
+    }
+    fetchCartRecs();
+  }, [cartItems]);
 
   const getItemKey = (item) => item.variantId ?? item.id;
 
@@ -242,6 +261,29 @@ export default function Cart() {
           </button>
         </div>
       </div>
+
+      {/* Cross-selling Recommendations */}
+      {recommendations.length > 0 && (
+        <div className="recommendations-section-custom" style={{ padding: '60px 5%', borderTop: '1px solid #eee', marginTop: '40px' }}>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 300, letterSpacing: '0.05em', marginBottom: '30px', textAlign: 'center' }}>
+            ĐỀ XUẤT MUA KÈM (MANG LẠI GIÁ TRỊ CAO)
+          </h2>
+          <div className="products-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '30px' }}>
+            {recommendations.map((item) => (
+              <div key={item.id} className="product-card" style={{ border: '1px solid #eee', padding: '15px', background: '#fff' }}>
+                <div className="product-image-container" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer' }}>
+                  <img src={item.mainImageUrl || '/placeholder.jpg'} alt={item.name} className="product-image" style={{ width: '100%', height: '220px', objectFit: 'cover' }} />
+                </div>
+                <div className="product-info" style={{ marginTop: '15px' }}>
+                  <h3 className="product-name" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer', fontSize: '1rem', fontWeight: 400, minHeight: '40px' }}>{item.name}</h3>
+                  <div className="product-price" style={{ fontWeight: 600, margin: '8px 0', fontSize: '1.1rem' }}>{item.price?.toLocaleString('vi-VN')} VNĐ</div>
+                  <button onClick={() => navigate(`/products/${item.id}`)} className="btn-add-to-cart" style={{ width: '100%', padding: '12px' }}>Xem chi tiết</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Modal xác nhận xóa */}
       {showConfirmModal && (

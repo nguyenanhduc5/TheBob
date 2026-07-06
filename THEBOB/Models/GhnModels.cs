@@ -1,4 +1,6 @@
 // Models/GhnModels.cs
+using System.Text.Json.Serialization;
+
 namespace THEBOB.Models;
 
 // ─── Tính phí ship ────────────────────────────────────────────────────────────
@@ -31,7 +33,7 @@ public class GhnFeeResponse
 
 public class GhnCreateOrderRequest
 {
-    public string PaymentTypeId { get; set; } = "1"; // 1=Shop trả, 2=Người nhận trả
+    public string PaymentTypeId { get; set; } = "1"; // 1=Shop trả ship, 2=Người nhận trả ship
     public string Note { get; set; } = string.Empty;
     public string RequiredNote { get; set; } = "KHONGCHOXEMHANG"; // Không cho xem hàng
     public string ToName { get; set; } = string.Empty;
@@ -45,6 +47,11 @@ public class GhnCreateOrderRequest
     public int Height { get; set; }
     public long InsuranceValue { get; set; }
     public int ServiceTypeId { get; set; } = 2;
+    /// <summary>Tiền thu hộ COD (VND). Bắt buộc khi đơn COD.</summary>
+    public int CodAmount { get; set; }
+    /// <summary>Mã đơn nội bộ (OrderNumber) để đối soát trên GHN.</summary>
+    public string ClientOrderCode { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
     public List<GhnOrderItem> Items { get; set; } = new();
 }
 
@@ -97,12 +104,25 @@ public class GhnLog
 
 public class GhnWebhookPayload
 {
+    [JsonPropertyName("OrderCode")]
     public string OrderCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("ClientOrderCode")]
     public string ClientOrderCode { get; set; } = string.Empty; // order ID của bạn
+
+    [JsonPropertyName("Status")]
     public string Status { get; set; } = string.Empty;
+
+    [JsonPropertyName("Description")]
     public string Description { get; set; } = string.Empty;
+
+    [JsonPropertyName("Time")]
     public DateTime Time { get; set; }
+
+    [JsonPropertyName("Reason")]
     public string Reason { get; set; } = string.Empty;
+
+    [JsonPropertyName("CODTransferDate")]
     public string CODTransferDate { get; set; } = string.Empty;
 }
 

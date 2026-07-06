@@ -1,13 +1,16 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { recommendationAPI } from '../api/app';
 import '../styles/Home.css';
-import { useNavigate } from 'react-router-dom'; // 1. Chỉ thêm dòng này
+import '../styles/Products.css'; // Reuse product card styles
 
 const heroImage = 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/homy.jpg';
 const bannerItems = [
- {
+  {
     title: 'WHY THEBOB',
     description: 'Minimal basics, premium texture, effortless wear.',
     image: 'https://raw.githubusercontent.com/nguyenanhduc5/TheBob/main/frontend/src/images/TEE%20BLUE.jpg',
-},
+  },
   {
     title: 'PREMIUM ESSENTIALS',
     description: 'New arrivals designed for daily comfort.',
@@ -40,7 +43,32 @@ const wideBanner = {
 };
 
 export default function Home() {
-  const navigate = useNavigate(); // 2. Chỉ thêm dòng này
+  const navigate = useNavigate();
+  const [personalized, setPersonalized] = useState([]);
+  const [trending, setTrending] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const isLoggedIn = !!localStorage.getItem('thebob-token');
+
+  useEffect(() => {
+    async function fetchHomeData() {
+      try {
+        setLoading(true);
+        const trendingData = await recommendationAPI.getTrending(4);
+        setTrending(trendingData || []);
+
+        if (isLoggedIn) {
+          const personalizedData = await recommendationAPI.getPersonalized(4);
+          setPersonalized(personalizedData || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch home recommendations:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchHomeData();
+  }, [isLoggedIn]);
 
   return (
     <div className="bob-container">
@@ -50,12 +78,12 @@ export default function Home() {
           <span className="bob-label">NEW COLLECTION</span>
           <h1 className="bob-title-xl">PHONG CÁCH MỚI CHO NGÀY BÌNH THƯỜNG</h1>
           <p className="bob-desc">CHẤT LIỆU PREMIUM, THIẾT KẾ TỐI GIẢN.</p>
-         <button 
-      className="bob-btn-light" 
-      onClick={() => navigate('/products')} 
-    >
-      KHÁM PHÁ NGAY
-    </button>
+          <button 
+            className="bob-btn-light" 
+            onClick={() => navigate('/products')} 
+          >
+            KHÁM PHÁ NGAY
+          </button>
         </div>
       </section>
 
@@ -71,6 +99,30 @@ export default function Home() {
         ))}
       </section>
 
+      {/* 2.5 RECOMMENDATIONS - PERSONALIZED */}
+      {isLoggedIn && personalized.length > 0 && (
+        <section className="products-page" style={{ padding: '60px 5%', background: '#fafafa' }}>
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: 300, letterSpacing: '0.1em', margin: '0 0 10px 0' }}>DÀNH RIÊNG CHO BẠN</h2>
+            <p style={{ color: '#666', fontSize: '0.95rem' }}>Gợi ý cá nhân hóa dựa trên hành vi duyệt web và mua sắm của bạn</p>
+          </div>
+          <div className="products-grid">
+            {personalized.map((product) => (
+              <div key={product.id} className="product-card" style={{ background: '#fff' }}>
+                <div className="product-image-container" onClick={() => navigate(`/products/${product.id}`)}>
+                  <img src={product.mainImageUrl || '/placeholder.jpg'} alt={product.name} className="product-image" />
+                </div>
+                <div className="product-info">
+                  <h3 className="product-name" onClick={() => navigate(`/products/${product.id}`)}>{product.name}</h3>
+                  <div className="product-price">{product.price?.toLocaleString('vi-VN')} VNĐ</div>
+                  <button onClick={() => navigate(`/products/${product.id}`)} className="btn-add-to-cart">Xem chi tiết</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* 3. LƯỚI BANNER ĐÔI 2 CỘT KHÍT NHAU */}
       <section className="bob-split-grid">
         {extraBanners.map((banner) => (
@@ -82,6 +134,30 @@ export default function Home() {
           </article>
         ))}
       </section>
+
+      {/* 3.5 RECOMMENDATIONS - TRENDING */}
+      {trending.length > 0 && (
+        <section className="products-page" style={{ padding: '60px 5%' }}>
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: 300, letterSpacing: '0.1em', margin: '0 0 10px 0' }}>XU HƯỚNG MUA SẮM</h2>
+            <p style={{ color: '#666', fontSize: '0.95rem' }}>Những sản phẩm đang được yêu thích nhất thời gian qua</p>
+          </div>
+          <div className="products-grid">
+            {trending.map((product) => (
+              <div key={product.id} className="product-card">
+                <div className="product-image-container" onClick={() => navigate(`/products/${product.id}`)}>
+                  <img src={product.mainImageUrl || '/placeholder.jpg'} alt={product.name} className="product-image" />
+                </div>
+                <div className="product-info">
+                  <h3 className="product-name" onClick={() => navigate(`/products/${product.id}`)}>{product.name}</h3>
+                  <div className="product-price">{product.price?.toLocaleString('vi-VN')} VNĐ</div>
+                  <button onClick={() => navigate(`/products/${product.id}`)} className="btn-add-to-cart">Xem chi tiết</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 4. WIDE BANNER TRÀN KHUNG PHÍA DƯỚI */}
       <section className="bob-wide-banner" style={{ backgroundImage: `url(${wideBanner.image})` }}>

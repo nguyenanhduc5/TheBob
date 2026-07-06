@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using THEBOB.Data;
 
@@ -11,9 +12,11 @@ using THEBOB.Data;
 namespace THEBOB.Migrations
 {
     [DbContext(typeof(ThebobDbContext))]
-    partial class ThebobDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260705144335_AddRecommendationTables")]
+    partial class AddRecommendationTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -870,6 +873,51 @@ namespace THEBOB.Migrations
                     b.ToTable("ProductImages");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.ProductReview", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comment")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("OrderItemId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderItemId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ProductId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("ProductReviews", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductReviews_Rating_Range", "`Rating` >= 1 AND `Rating` <= 5");
+                        });
+                });
+
             modelBuilder.Entity("THEBOB.Models.ProductVariant", b =>
                 {
                     b.Property<int>("Id")
@@ -1119,6 +1167,49 @@ namespace THEBOB.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.Wishlist", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Wishlists");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.WishlistItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WishlistId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("WishlistId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("WishlistItems");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Address", b =>
                 {
                     b.HasOne("THEBOB.Models.User", "User")
@@ -1293,6 +1384,32 @@ namespace THEBOB.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.ProductReview", b =>
+                {
+                    b.HasOne("THEBOB.Models.OrderItem", "OrderItem")
+                        .WithMany("ProductReviews")
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("THEBOB.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("THEBOB.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrderItem");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("THEBOB.Models.ProductVariant", b =>
                 {
                     b.HasOne("THEBOB.Models.Color", "Color")
@@ -1361,6 +1478,36 @@ namespace THEBOB.Migrations
                     b.Navigation("RoleEntity");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.Wishlist", b =>
+                {
+                    b.HasOne("THEBOB.Models.User", "User")
+                        .WithMany("Wishlists")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.WishlistItem", b =>
+                {
+                    b.HasOne("THEBOB.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("THEBOB.Models.Wishlist", "Wishlist")
+                        .WithMany("WishlistItems")
+                        .HasForeignKey("WishlistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Wishlist");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Brand", b =>
                 {
                     b.Navigation("Products");
@@ -1393,6 +1540,11 @@ namespace THEBOB.Migrations
                     b.Navigation("PaymentTransactions");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.OrderItem", b =>
+                {
+                    b.Navigation("ProductReviews");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Product", b =>
                 {
                     b.Navigation("Images");
@@ -1413,6 +1565,13 @@ namespace THEBOB.Migrations
             modelBuilder.Entity("THEBOB.Models.User", b =>
                 {
                     b.Navigation("Addresses");
+
+                    b.Navigation("Wishlists");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Wishlist", b =>
+                {
+                    b.Navigation("WishlistItems");
                 });
 #pragma warning restore 612, 618
         }

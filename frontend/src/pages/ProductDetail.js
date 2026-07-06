@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';import { useParams, useNavigate } from 'react-router-dom';
+import { recommendationAPI } from '../api/app';
 import { useCart } from '../context/CartContext';
-import { useWishlist } from '../context/WishlistContext';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import '../styles/ProductDetail.css';
@@ -70,7 +70,6 @@ export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
  const { addToCart, cartItems } = useCart();
-  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addNotification } = useNotification();
   // FIX: Giữ addNotification stable để tránh re-render vô hạn
 const addNotificationRef = useRef(addNotification);
@@ -83,24 +82,39 @@ useEffect(() => { addNotificationRef.current = addNotification; }, [addNotificat
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [inWishlist, setInWishlist] = useState(false);
-  const [reviews, setReviews] = useState([]);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState('');
-  const [reviewLoading, setReviewLoading] = useState(true);
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [related, setRelated] = useState([]);
+  const [fbt, setFbt] = useState([]);
 
-  const fetchReviews = useCallback(async () => {
-    setReviewLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/reviews/product/${id}`);
-      setReviews(response.ok ? await response.json() : []);
-    } catch (error) {
-      console.error('Failed to fetch reviews:', error);
-      setReviews([]);
-    } finally {
-      setReviewLoading(false);
+  // View tracking
+  useEffect(() => {
+    const sessionId = localStorage.getItem('thebob-session-id') || 'session_' + Math.random().toString(36).substring(2);
+    if (!localStorage.getItem('thebob-session-id')) {
+      localStorage.setItem('thebob-session-id', sessionId);
     }
+    const startTime = Date.now();
+
+    return () => {
+      const endTime = Date.now();
+      const durationSeconds = Math.round((endTime - startTime) / 1000);
+      recommendationAPI.trackView(id, sessionId, durationSeconds)
+        .catch(err => console.error('Failed to track view:', err));
+    };
+  }, [id]);
+
+  // Fetch recommendations
+  useEffect(() => {
+    async function fetchRecommendations() {
+      try {
+        const relatedData = await recommendationAPI.getRelated(id, 4);
+        setRelated(relatedData || []);
+
+        const fbtData = await recommendationAPI.getFrequentlyBought(String(id), 4);
+        setFbt(fbtData || []);
+      } catch (err) {
+        console.error("Failed to fetch product recommendations:", err);
+      }
+    }
+    fetchRecommendations();
   }, [id]);
 
   const fetchProduct = useCallback(async () => {
@@ -127,12 +141,7 @@ useEffect(() => { addNotificationRef.current = addNotification; }, [addNotificat
 
   useEffect(() => {
     fetchProduct();
-    fetchReviews();
-  }, [fetchProduct, fetchReviews]);
-
-  useEffect(() => {
-    if (product) setInWishlist(isInWishlist(product.id));
-  }, [product, isInWishlist]);
+  }, [fetchProduct]);
 
   const variants = useMemo(() => getVariants(product), [product]);
 
@@ -301,53 +310,7 @@ try {
 }
   };
 
-  const handleWishlistToggle = () => {
-    if (inWishlist) {
-      removeFromWishlist(product.id);
-      setInWishlist(false);
-      addNotification('Đã xóa khỏi danh sách yêu thích', 'info');
-    } else {
-      addToWishlist(product);
-      setInWishlist(true);
-      addNotification('Đã thêm vào danh sách yêu thích', 'success');
-    }
-  };
 
-  const handleSubmitReview = async (event) => {
-    event.preventDefault();
-    if (!reviewComment.trim()) {
-      addNotification('Vui lòng nhập bình luận đánh giá', 'warning');
-      return;
-    }
-
-    setReviewSubmitting(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/reviews`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          productId: Number(id),
-          rating: reviewRating,
-          comment: reviewComment.trim(),
-        }),
-      });
-
-      if (!response.ok) throw new Error('Không gửi được đánh giá');
-
-      setReviewRating(5);
-      setReviewComment('');
-      await fetchReviews();
-      addNotification('Cảm ơn bạn đã gửi đánh giá!', 'success');
-    } catch (error) {
-      console.error('Failed to submit review:', error);
-      addNotification('Gửi đánh giá thất bại, vui lòng thử lại.', 'error');
-    } finally {
-      setReviewSubmitting(false);
-    }
-  };
 
   if (loading) return <div className="loading-page">Đang tải sản phẩm...</div>;
   if (!product) return <div className="error-page">Sản phẩm không tồn tại</div>;
@@ -398,13 +361,6 @@ try {
         <div className="product-details">
           <div className="product-header">
             <h1>{toText(product.name)}</h1>
-            <button
-              className={`btn-wishlist ${inWishlist ? 'active' : ''}`}
-              onClick={handleWishlistToggle}
-              title={inWishlist ? 'Xóa khỏi danh sách yêu thích' : 'Thêm vào danh sách yêu thích'}
-            >
-              ♥
-            </button>
           </div>
 
           <div className="product-meta">
@@ -413,10 +369,7 @@ try {
             <span className="category">{toText(product.categoryName ?? product.category, 'Không xác định')}</span>
           </div>
 
-          <div className="product-rating">
-            <span className="stars">★ {Number(product.rating ?? 0).toFixed(1)}</span>
-            <span className="reviews">({product.reviewCount ?? 0} đánh giá)</span>
-          </div>
+
 
           {/* KHU VỰC GIÁ TIỀN & TỔNG KHO - TÁCH KHỐI ĐỂ TỰ ĐỘNG XUỐNG DÒNG */}
           <div className="product-price-block">
@@ -519,80 +472,54 @@ try {
               Tiếp tục mua sắm
             </button>
           </div>
-
-          <div className="reviews-section">
-            <div className="reviews-header">
-              <div>
-                <h2>Đánh giá & Nhận xét</h2>
-                <p>{reviews.length} đánh giá cho sản phẩm này</p>
-              </div>
-            </div>
-
-            {reviewLoading ? (
-              <p className="reviews-loading">Đang tải đánh giá...</p>
-            ) : (
-              <div className="reviews-list">
-                {reviews.length === 0 ? (
-                  <div className="reviews-empty">Chưa có đánh giá nào cho sản phẩm này.</div>
-                ) : (
-                  reviews.map((review) => (
-                    <div key={review.id} className="review-card">
-                      <div className="review-card-header">
-                        <span className="review-username">{toText(review.username, 'Khách hàng')}</span>
-                        <span className="review-date">
-                          {new Date(review.createdAt).toLocaleDateString('vi-VN', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
-                        </span>
-                      </div>
-                      <div className="review-stars">
-                        {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
-                      </div>
-                      <p className="review-comment">{toText(review.comment)}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {token ? (
-              <form className="review-form" onSubmit={handleSubmitReview}>
-                <h3>Viết đánh giá của bạn</h3>
-                <div className="review-form-row">
-                  <label htmlFor="reviewRating">Đánh giá</label>
-                  <select id="reviewRating" value={reviewRating} onChange={(event) => setReviewRating(Number(event.target.value))}>
-                    {[5, 4, 3, 2, 1].map((star) => (
-                      <option key={star} value={star}>
-                        {star} sao
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="review-form-row">
-                  <label htmlFor="reviewComment">Bình luận</label>
-                  <textarea
-                    id="reviewComment"
-                    value={reviewComment}
-                    onChange={(event) => setReviewComment(event.target.value)}
-                    rows={5}
-                    className="review-textarea"
-                    placeholder="Viết cảm nhận của bạn về sản phẩm..."
-                  />
-                </div>
-
-                <button className="review-submit" type="submit" disabled={reviewSubmitting}>
-                  {reviewSubmitting ? 'Đang gửi...' : 'Gửi đánh giá'}
-                </button>
-              </form>
-            ) : (
-              <div className="review-placeholder">Vui lòng đăng nhập để viết bình luận đánh giá sản phẩm này.</div>
-            )}
-          </div>
         </div>
       </div>
+
+      {/* Frequently Bought Together */}
+      {fbt.length > 0 && (
+        <div className="recommendations-section-custom" style={{ padding: '60px 10%', borderTop: '1px solid #eee' }}>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 300, letterSpacing: '0.05em', marginBottom: '30px', textAlign: 'center' }}>
+            THƯỜNG MUA CÙNG NHAU
+          </h2>
+          <div className="products-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '30px' }}>
+            {fbt.map((item) => (
+              <div key={item.id} className="product-card" style={{ border: '1px solid #eee', padding: '15px', background: '#fff' }}>
+                <div className="product-image-container" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer' }}>
+                  <img src={item.mainImageUrl || '/placeholder.jpg'} alt={item.name} className="product-image" style={{ width: '100%', height: '220px', objectFit: 'cover' }} />
+                </div>
+                <div className="product-info" style={{ marginTop: '15px' }}>
+                  <h3 className="product-name" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer', fontSize: '1rem', fontWeight: 400, minHeight: '40px' }}>{item.name}</h3>
+                  <div className="product-price" style={{ fontWeight: 600, margin: '8px 0', fontSize: '1.1rem' }}>{item.price?.toLocaleString('vi-VN')} VNĐ</div>
+                  <button onClick={() => navigate(`/products/${item.id}`)} className="btn-add-to-cart" style={{ width: '100%', padding: '12px' }}>Xem chi tiết</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Related Products */}
+      {related.length > 0 && (
+        <div className="recommendations-section-custom" style={{ padding: '60px 10%', borderTop: '1px solid #eee', background: '#fafafa' }}>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 300, letterSpacing: '0.05em', marginBottom: '30px', textAlign: 'center' }}>
+            SẢN PHẨM LIÊN QUAN
+          </h2>
+          <div className="products-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '30px' }}>
+            {related.map((item) => (
+              <div key={item.id} className="product-card" style={{ border: '1px solid #eee', padding: '15px', background: '#fff' }}>
+                <div className="product-image-container" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer' }}>
+                  <img src={item.mainImageUrl || '/placeholder.jpg'} alt={item.name} className="product-image" style={{ width: '100%', height: '220px', objectFit: 'cover' }} />
+                </div>
+                <div className="product-info" style={{ marginTop: '15px' }}>
+                  <h3 className="product-name" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer', fontSize: '1rem', fontWeight: 400, minHeight: '40px' }}>{item.name}</h3>
+                  <div className="product-price" style={{ fontWeight: 600, margin: '8px 0', fontSize: '1.1rem' }}>{item.price?.toLocaleString('vi-VN')} VNĐ</div>
+                  <button onClick={() => navigate(`/products/${item.id}`)} className="btn-add-to-cart" style={{ width: '100%', padding: '12px' }}>Xem chi tiết</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }

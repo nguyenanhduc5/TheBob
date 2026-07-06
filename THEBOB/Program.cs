@@ -7,6 +7,7 @@ using System.Text;
 using THEBOB.Data;
 using THEBOB.Models;
 using THEBOB.Services;
+using THEBOB.Services.Recommendation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,10 +82,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddHttpClient<IGhnService, GhnService>();
+builder.Services.AddScoped<RecommendationService>();
+builder.Services.AddHostedService<RecommendationBackgroundService>();
 
 // Add Swagger
 builder.Services.AddSwaggerGen();

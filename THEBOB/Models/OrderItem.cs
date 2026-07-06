@@ -29,6 +29,10 @@ namespace THEBOB.Models
         public decimal PricePerItem { get; set; } // Frozen price at purchase time
 
         [Required]
+        [Range(0, 9999999.99)]
+        public decimal CostPerItem { get; set; } = 0; // Frozen cost at purchase time
+
+        [Required]
         [MaxLength(255)]
         public string ProductName { get; set; } = string.Empty;
 
@@ -43,7 +47,5 @@ namespace THEBOB.Models
 
         [MaxLength(500)]
         public string ProductImage { get; set; } = string.Empty;
-
-        public ICollection<ProductReview> ProductReviews { get; set; } = new List<ProductReview>();
     }
 }

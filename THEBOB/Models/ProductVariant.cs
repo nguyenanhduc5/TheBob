@@ -31,6 +31,11 @@ namespace THEBOB.Models
         public decimal Price { get; set; }
 
         [Required]
+        [Column(TypeName = "decimal(12,2)")]
+        [Range(0, 9999999.99)]
+        public decimal Cost { get; set; } = 0;
+
+        [Required]
         [Range(0, int.MaxValue)]
         public int Stock { get; set; }
 
