@@ -17,7 +17,7 @@ public static class GhnOrderRequestBuilder
 
         return new GhnCreateOrderRequest
         {
-            PaymentTypeId = isCod ? "2" : "1",
+            PaymentTypeId = 1,
             Note = $"Đơn hàng {order.OrderNumber}",
             RequiredNote = "KHONGCHOXEMHANG",
             ToName = toName ?? order.User?.FullName ?? order.User?.Email ?? "Khách hàng",
@@ -37,7 +37,7 @@ public static class GhnOrderRequestBuilder
             Items = itemList.Select(i => new GhnOrderItem
             {
                 Name = i.ProductName,
-                Code = i.VariantId ?? 0,
+                Code = i.VariantId.HasValue ? i.VariantId.Value.ToString() : string.Empty,
                 Quantity = i.Quantity,
                 Price = (int)i.PricePerItem,
                 Length = 20,
@@ -61,7 +61,7 @@ public static class GhnOrderRequestBuilder
 
         return new GhnCreateOrderRequest
         {
-            PaymentTypeId = "2",
+            PaymentTypeId = 1, // ✅ đã sửa: số nguyên, không phải chuỗi
             Note = $"Đơn hàng {order.OrderNumber}",
             RequiredNote = "KHONGCHOXEMHANG",
             ToName = toName,
@@ -81,7 +81,7 @@ public static class GhnOrderRequestBuilder
             Items = lines.Select(l => new GhnOrderItem
             {
                 Name = l.Item.Variant!.Product!.Name,
-                Code = l.Item.Variant.Id,
+                Code = l.Item.Variant.Id.ToString(),
                 Quantity = l.Item.Quantity,
                 Price = (int)l.Item.Variant.Price,
                 Length = 20,

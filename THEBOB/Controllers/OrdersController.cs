@@ -8,6 +8,9 @@ using THEBOB.Hubs;
 using System.Security.Claims;
 using System.ComponentModel.DataAnnotations;
 using THEBOB.Services;
+using THEBOB.Services.Promotion;
+using THEBOB.Models.Promotion;
+using System.Text.Json;
 
 namespace THEBOB.Controllers
 {
@@ -18,20 +21,22 @@ namespace THEBOB.Controllers
     {
         private readonly ThebobDbContext _context;
         private readonly IHubContext<OrderHub> _hubContext;
-
         private readonly IGhnService _ghnService;
-private readonly ILogger<OrdersController> _logger;
+        private readonly ILogger<OrdersController> _logger;
+        private readonly IPromotionEngine _promotionEngine;
 
 public OrdersController(
     ThebobDbContext context,
     IHubContext<OrderHub> hubContext,
     IGhnService ghnService,
-    ILogger<OrdersController> logger)
+    ILogger<OrdersController> logger,
+    IPromotionEngine promotionEngine)
 {
     _context = context;
     _hubContext = hubContext;
     _ghnService = ghnService;
     _logger = logger;
+    _promotionEngine = promotionEngine;
 }
 
         // GET: api/orders (user's orders)
@@ -234,36 +239,71 @@ public OrdersController(
                 var orderNumber = GenerateOrderNumber();
 
                 // Calculate total
-                // THAY DÒNG NÀY:
-// var subtotal = cart.CartItems.Sum(ci => ci.Variant.Price * ci.Quantity);
-// var shippingAmount = subtotal > 500000 ? 0 : 30000;
+                var subtotal = cart.CartItems.Sum(ci => ci.Variant.Price * ci.Quantity);
+                var totalWeight = cart.CartItems.Sum(ci => ci.Quantity * 500); // 500g/sp mặc định
 
-// BẰNG:
-var subtotal = cart.CartItems.Sum(ci => ci.Variant.Price * ci.Quantity);
-var totalWeight = cart.CartItems.Sum(ci => ci.Quantity * 500); // 500g/sp mặc định
+                decimal shippingAmount = 30000; // fallback nếu GHN lỗi
+                if (request.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(request.GhnWardCode))
+                {
+                    try
+                    {
+                        var feeResult = await _ghnService.CalculateFeeAsync(new GhnFeeRequest
+                        {
+                            ToDistrictId = request.GhnDistrictId.Value,
+                            ToWardCode = request.GhnWardCode,
+                            Weight = totalWeight,
+                            InsuranceValue = (int)subtotal,
+                            ServiceTypeId = 2
+                        });
+                        shippingAmount = feeResult.Total;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "GHN fee calculation failed, dùng phí fallback 30000");
+                    }
+                }
 
-decimal shippingAmount = 30000; // fallback nếu GHN lỗi (sandbox đôi khi down)
-if (request.GhnDistrictId.HasValue && !string.IsNullOrWhiteSpace(request.GhnWardCode))
-{
-    try
-    {
-        var feeResult = await _ghnService.CalculateFeeAsync(new GhnFeeRequest
-        {
-            ToDistrictId = request.GhnDistrictId.Value,
-            ToWardCode = request.GhnWardCode,
-            Weight = totalWeight,
-            InsuranceValue = (int)subtotal,
-            ServiceTypeId = 2
-        });
-        shippingAmount = feeResult.Total;
-    }
-    catch (Exception ex)
-    {
-        _logger.LogWarning(ex, "GHN fee calculation failed, dùng phí fallback 30000");
-    }
-}
+                // ── PROMOTION ENGINE — Backend tính giá, không tin frontend ──────
+                var orderCount = await _context.Orders
+                    .CountAsync(o => o.UserId == userId.Value &&
+                        (o.Status == OrderStatus.Delivered || o.Status == OrderStatus.Paid));
 
-var totalAmount = subtotal + shippingAmount;
+                var user = await _context.Users.AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == userId.Value);
+
+                var promotionContext = new PromotionContext
+                {
+                    UserId = userId.Value,
+                    User = new PromotionUserInfo
+                    {
+                        Id = userId.Value,
+                        Email = user?.Email ?? string.Empty,
+                        CustomerGroupId = user?.CustomerGroupId,
+                        DateOfBirth = user?.DateOfBirth,
+                        TotalSpent = user?.TotalSpent ?? 0,
+                        PreviousOrderCount = orderCount
+                    },
+                    CartItems = cart.CartItems.Select(ci => new PromotionCartItem
+                    {
+                        VariantId = ci.VariantId,
+                        ProductId = ci.Variant!.ProductId,
+                        CategoryId = ci.Variant.Product?.CategoryId,
+                        BrandId = ci.Variant.Product?.BrandId,
+                        Sku = ci.Variant.Sku ?? string.Empty,
+                        ProductName = ci.Variant.Product?.Name ?? string.Empty,
+                        UnitPrice = ci.Variant.Price,
+                        Quantity = ci.Quantity
+                    }).ToList(),
+                    ShippingFee = shippingAmount,
+                    CouponCode = request.CouponCode,
+                    UserCouponId = request.UserCouponId
+                };
+
+                var promotionResult = await _promotionEngine.CalculateAsync(promotionContext);
+
+                // Final amounts from engine (source of truth)
+                var finalAmount = promotionResult.FinalAmount;
+                var totalAmount = finalAmount; 
 
                 bool isCod = request.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase);
 
@@ -271,21 +311,33 @@ var totalAmount = subtotal + shippingAmount;
                 var shippingAddress = BuildShippingAddress(request);
 
                 var order = new Order
-{
-    OrderNumber = orderNumber,
-    UserId = userId.Value,
-    Status = isCod ? OrderStatus.Pending : OrderStatus.PendingPayment,
-    TotalAmount = totalAmount,
-    ShippingFee = shippingAmount,          // ← mới
-    ShippingAddress = shippingAddress,
-    PaymentMethod = request.PaymentMethod,
-    PaymentStatus = "Pending",
-    GhnProvinceId = request.GhnProvinceId, // ← mới
-    GhnDistrictId = request.GhnDistrictId, // ← mới
-    GhnWardCode = request.GhnWardCode,     // ← mới
-    CreatedAt = DateTime.UtcNow,
-    UpdatedAt = DateTime.UtcNow
-};
+                {
+                    OrderNumber = orderNumber,
+                    UserId = userId.Value,
+                    Status = isCod ? OrderStatus.Pending : OrderStatus.PendingPayment,
+                    // Promotion breakdown
+                    SubtotalAmount = subtotal,
+                    PromotionDiscount = promotionResult.AutomaticDiscount,
+                    CouponDiscount = promotionResult.CouponDiscount,
+                    ShippingDiscount = promotionResult.ShippingDiscount,
+                    TotalDiscount = promotionResult.TotalDiscount,
+                    FinalAmount = promotionResult.FinalAmount,
+                    TotalAmount = promotionResult.FinalAmount, // backward-compat
+                    ShippingFee = promotionResult.FinalShipping,
+                    DiscountAmount = promotionResult.TotalDiscount, // backward-compat
+                    AppliedCouponCode = promotionResult.AppliedCouponCode,
+                    CouponCode = promotionResult.AppliedCouponCode, // backward-compat
+                    PromotionSnapshot = JsonSerializer.Serialize(promotionResult.AppliedPromotions),
+                    ShippingAddress = shippingAddress,
+                    PaymentMethod = request.PaymentMethod,
+                    PaymentStatus = "Pending",
+                    GhnProvinceId = request.GhnProvinceId,
+                    GhnDistrictId = request.GhnDistrictId,
+                    GhnWardCode = request.GhnWardCode,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
 
                 _context.Orders.Add(order);
                 await _context.SaveChangesAsync();
@@ -306,7 +358,7 @@ var totalAmount = subtotal + shippingAmount;
                     PaymentProvider = isCod ? "COD" : "SePay",
                     TransactionCode = request.TransactionCode ?? string.Empty,
                     Amount = totalAmount,
-                    Status = "Pending", // Default status is Pending
+                    Status = "Pending",
                     RawResponse = request.RawPaymentResponse ?? string.Empty,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
@@ -333,15 +385,11 @@ var totalAmount = subtotal + shippingAmount;
 
                     if (isCod)
                     {
-                        // Reduce stock
                         cartItem.Variant.Stock -= cartItem.Quantity;
-
-                        // Log inventory change
                         LogInventoryChange(cartItem.VariantId, InventoryChangeType.Sold,
                             -cartItem.Quantity, $"Order {orderNumber} (COD)", userId);
                     }
                 }
-
 
                 var cartItemsSnapshot = cart.CartItems.ToList();
 
@@ -353,6 +401,18 @@ var totalAmount = subtotal + shippingAmount;
                         .ExecuteDeleteAsync();
                     _context.Carts.Remove(cart);
                 }
+
+                // ── Commit Promotion Usage (Promotion Engine) ────────────────────
+                await _promotionEngine.CommitUsageAsync(order.Id, userId.Value, promotionResult);
+
+                // Update user TotalSpent
+                await _context.Users
+                    .Where(u => u.Id == userId.Value)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(u => u.TotalSpent, u => u.TotalSpent + promotionResult.FinalAmount)
+                        .SetProperty(u => u.UpdatedAt, DateTime.UtcNow));
+
+
 
                 await _context.SaveChangesAsync();
 
@@ -1141,18 +1201,21 @@ private async Task NotifyAdminNewOrder(Order order, IHubContext<OrderHub> hubCon
             if (expiredOrders.Any())
             {
                 foreach (var order in expiredOrders)
-                {
-                    order.Status = OrderStatus.Cancelled;
-                    order.PaymentStatus = "Expired";
-                    order.UpdatedAt = DateTime.UtcNow;
-
-                    foreach (var tx in order.PaymentTransactions.Where(t => t.Status == "Pending"))
                     {
-                        tx.Status = "Expired";
-                        tx.FailureReason = "Payment expired";
-                        tx.UpdatedAt = DateTime.UtcNow;
+                        order.Status = OrderStatus.Cancelled;
+                        order.PaymentStatus = "Expired";
+                        order.UpdatedAt = DateTime.UtcNow;
+
+                        foreach (var tx in order.PaymentTransactions.Where(t => t.Status == "Pending"))
+                        {
+                            tx.Status = "Expired";
+                            tx.FailureReason = "Payment expired";
+                            tx.UpdatedAt = DateTime.UtcNow;
+                        }
+
+                        // Rollback promotion usage
+                        try { await _promotionEngine.RollbackUsageAsync(order.Id); } catch { /* non-critical */ }
                     }
-                }
                 await _context.SaveChangesAsync();
             }
         }
@@ -1195,6 +1258,11 @@ private async Task NotifyAdminNewOrder(Order order, IHubContext<OrderHub> hubCon
         public int? GhnProvinceId { get; set; }
         public int? GhnDistrictId { get; set; }
         public string? GhnWardCode { get; set; }
+        /// <summary>Mã giảm giá được áp dụng cho đơn hàng này (nếu có).</summary>
+        public string? CouponCode { get; set; }
+
+        /// <summary>ID của UserCoupon (voucher cá nhân) nếu user chọn từ danh sách.</summary>
+        public int? UserCouponId { get; set; }
     }
 
     public class UpdateOrderStatusRequest

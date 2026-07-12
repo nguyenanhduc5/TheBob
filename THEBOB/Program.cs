@@ -6,7 +6,11 @@ using System.Security.Claims;
 using System.Text;
 using THEBOB.Data;
 using THEBOB.Models;
+using THEBOB.Repositories;
 using THEBOB.Services;
+using THEBOB.Services.Background;
+using THEBOB.Services.Chat;
+using THEBOB.Services.Promotion;
 using THEBOB.Services.Recommendation;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -54,7 +58,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
                 if (!string.IsNullOrWhiteSpace(accessToken) && 
-                    (path.StartsWithSegments("/hubs/order") || path.StartsWithSegments("/api/hubs/order")))
+                    (path.StartsWithSegments("/hubs/order") || path.StartsWithSegments("/api/hubs/order") ||
+                     path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/api/hubs/chat")))
                 {
                     context.Token = accessToken;
                 }
@@ -82,12 +87,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddHttpClient<IGhnService, GhnService>();
-builder.Services.AddScoped<RecommendationService>();
-builder.Services.AddHostedService<RecommendationBackgroundService>();
-
 // Add Swagger
 builder.Services.AddSwaggerGen();
 
@@ -96,15 +95,30 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<ThebobDbContext>(options =>
     options.UseMySql(
         connectionString, 
-        ServerVersion.AutoDetect(connectionString),
-        mysqlOptions => mysqlOptions.EnableRetryOnFailure()
+        ServerVersion.AutoDetect(connectionString)
     )
     .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning))
 );
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
-// ✅ THÊM VÀO ĐÂY
+builder.Services.AddMemoryCache();
+
+builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IAdminProductService, AdminProductService>();
+builder.Services.AddScoped<IAdminProductRepository, AdminProductRepository>();
+builder.Services.AddScoped<IPromotionEngine, PromotionEngine>();
+builder.Services.AddScoped<RecommendationService>();
+builder.Services.AddScoped<PromotionEvaluator>();
+builder.Services.AddScoped<PromotionScopeChecker>();
+builder.Services.AddScoped<PromotionCalculator>();
+builder.Services.AddScoped<PromotionStackingResolver>();
+
+builder.Services.AddHostedService<RecommendationBackgroundService>();
+builder.Services.AddHostedService<PromotionExpireService>();
+builder.Services.AddHostedService<FlashSaleNotificationService>();
+
 builder.Services.AddHttpClient<SepayService>(client =>
 {
     client.BaseAddress = new Uri("https://userapi.sepay.vn/v2/");
@@ -114,7 +128,16 @@ builder.Services.AddHttpClient<SepayService>(client =>
     );
 });
 builder.Services.AddScoped<SepayService>();
+// GHN HttpClient — base address tự động chuyển giữa sandbox / production
+var ghnBaseUrl = builder.Environment.IsDevelopment()
+    ? "https://dev-online-gateway.ghn.vn"   // Sandbox
+    : "https://online-gateway.ghn.vn";       // Production
 
+builder.Services.AddHttpClient<IGhnService, GhnService>(client =>
+{
+    client.BaseAddress = new Uri(ghnBaseUrl);
+    client.Timeout     = TimeSpan.FromSeconds(15);
+});
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())

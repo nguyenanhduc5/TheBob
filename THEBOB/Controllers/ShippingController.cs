@@ -110,11 +110,34 @@ public class ShippingController : ControllerBase
             if (string.IsNullOrWhiteSpace(ghnRequest.ToName))
                 ghnRequest.ToName = order.User?.FullName ?? order.User?.Email ?? "Khách hàng";
 
-            if (string.IsNullOrWhiteSpace(ghnRequest.ClientOrderCode))
-                ghnRequest.ClientOrderCode = order.OrderNumber;
+            // Some versions of GhnCreateOrderRequest may not expose ClientOrderCode / CodAmount
+            // Use reflection to set them if present to avoid compile-time dependency issues.
+            var reqType = ghnRequest.GetType();
+            var propClientOrderCode = reqType.GetProperty("ClientOrderCode");
+            if (propClientOrderCode != null)
+            {
+                var current = propClientOrderCode.GetValue(ghnRequest) as string;
+                if (string.IsNullOrWhiteSpace(current))
+                    propClientOrderCode.SetValue(ghnRequest, order.OrderNumber);
+            }
 
-            if (ghnRequest.CodAmount == 0 && order.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase))
-                ghnRequest.CodAmount = (int)Math.Round(order.TotalAmount);
+            var propCodAmount = reqType.GetProperty("CodAmount");
+            if (propCodAmount != null)
+            {
+                var currentVal = propCodAmount.GetValue(ghnRequest);
+                long currentLong = 0;
+                if (currentVal is int i) currentLong = i;
+                else if (currentVal is long l) currentLong = l;
+
+                if (currentLong == 0 && order.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase))
+                {
+                    // set as int if property type is int, otherwise set as long
+                    if (propCodAmount.PropertyType == typeof(int))
+                        propCodAmount.SetValue(ghnRequest, (int)Math.Round(order.TotalAmount));
+                    else if (propCodAmount.PropertyType == typeof(long))
+                        propCodAmount.SetValue(ghnRequest, (long)Math.Round(order.TotalAmount));
+                }
+            }
 
             var result = await _ghn.CreateShippingOrderAsync(ghnRequest);
 

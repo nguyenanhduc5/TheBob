@@ -1,7 +1,7 @@
 // Models/GhnModels.cs
 using System.Text.Json.Serialization;
-
 namespace THEBOB.Models;
+
 
 // ─── Tính phí ship ────────────────────────────────────────────────────────────
 
@@ -31,42 +31,91 @@ public class GhnFeeResponse
 
 // ─── Tạo đơn vận chuyển ──────────────────────────────────────────────────────
 
+
+
 public class GhnCreateOrderRequest
 {
-    public string PaymentTypeId { get; set; } = "1"; // 1=Shop trả ship, 2=Người nhận trả ship
+    [JsonPropertyName("payment_type_id")]
+    public int PaymentTypeId { get; set; } = 1;
+
+    [JsonPropertyName("note")]
     public string Note { get; set; } = string.Empty;
-    public string RequiredNote { get; set; } = "KHONGCHOXEMHANG"; // Không cho xem hàng
+
+    [JsonPropertyName("required_note")]
+    public string RequiredNote { get; set; } = "KHONGCHOXEMHANG";
+
+    [JsonPropertyName("to_name")]
     public string ToName { get; set; } = string.Empty;
+
+    [JsonPropertyName("to_phone")]
     public string ToPhone { get; set; } = string.Empty;
+
+    [JsonPropertyName("to_address")]
     public string ToAddress { get; set; } = string.Empty;
+
+    [JsonPropertyName("to_ward_code")]
     public string ToWardCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("to_district_id")]
     public int ToDistrictId { get; set; }
+
+    [JsonPropertyName("weight")]
     public int Weight { get; set; }
+
+    [JsonPropertyName("length")]
     public int Length { get; set; }
+
+    [JsonPropertyName("width")]
     public int Width { get; set; }
+
+    [JsonPropertyName("height")]
     public int Height { get; set; }
+
+    [JsonPropertyName("insurance_value")]
     public long InsuranceValue { get; set; }
+
+    [JsonPropertyName("service_type_id")]
     public int ServiceTypeId { get; set; } = 2;
-    /// <summary>Tiền thu hộ COD (VND). Bắt buộc khi đơn COD.</summary>
+
+    [JsonPropertyName("cod_amount")]
     public int CodAmount { get; set; }
-    /// <summary>Mã đơn nội bộ (OrderNumber) để đối soát trên GHN.</summary>
+
+    [JsonPropertyName("client_order_code")]
     public string ClientOrderCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
+
+    [JsonPropertyName("items")]
     public List<GhnOrderItem> Items { get; set; } = new();
 }
 
 public class GhnOrderItem
 {
+    [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
-    public int Code { get; set; }
+
+    [JsonPropertyName("code")]
+    public string? Code { get; set; }
+
+    [JsonPropertyName("quantity")]
     public int Quantity { get; set; }
+
+    [JsonPropertyName("price")]
     public int Price { get; set; }
+
+    [JsonPropertyName("length")]
     public int Length { get; set; }
+
+    [JsonPropertyName("width")]
     public int Width { get; set; }
+
+    [JsonPropertyName("height")]
     public int Height { get; set; }
+
+    [JsonPropertyName("weight")]
     public int Weight { get; set; }
 }
-
 public class GhnCreateOrderResponse
 {
     public string OrderCode { get; set; } = string.Empty;
@@ -104,25 +153,12 @@ public class GhnLog
 
 public class GhnWebhookPayload
 {
-    [JsonPropertyName("OrderCode")]
     public string OrderCode { get; set; } = string.Empty;
-
-    [JsonPropertyName("ClientOrderCode")]
     public string ClientOrderCode { get; set; } = string.Empty; // order ID của bạn
-
-    [JsonPropertyName("Status")]
     public string Status { get; set; } = string.Empty;
-
-    [JsonPropertyName("Description")]
     public string Description { get; set; } = string.Empty;
-
-    [JsonPropertyName("Time")]
     public DateTime Time { get; set; }
-
-    [JsonPropertyName("Reason")]
     public string Reason { get; set; } = string.Empty;
-
-    [JsonPropertyName("CODTransferDate")]
     public string CODTransferDate { get; set; } = string.Empty;
 }
 

@@ -200,89 +200,126 @@ namespace THEBOB.Controllers
             });
         }
 
-        [Authorize]
-        [HttpGet("profile")]
-        public ActionResult<object> GetProfile()
+       [Authorize]
+[HttpGet("profile")]
+public ActionResult<object> GetProfile()
+{
+    var userId = GetCurrentUserId();
+    if (userId == null)
+        return Unauthorized(new { success = false, message = "Invalid token" });
+
+    var user = _context.Users
+        .Include(u => u.RoleEntity)
+        .Include(u => u.Addresses)
+        .FirstOrDefault(u => u.Id == userId.Value);
+    if (user == null)
+        return NotFound(new { success = false, message = "User not found" });
+
+    var defaultAddress = user.Addresses.FirstOrDefault(a => a.IsDefault)
+                          ?? user.Addresses.FirstOrDefault();
+
+    return Ok(new
+    {
+        success = true,
+        data = new
         {
-            var userId = GetCurrentUserId();
-            if (userId == null)
-                return Unauthorized(new { success = false, message = "Invalid token" });
-
-            var user = _context.Users
-                .Include(u => u.RoleEntity)
-                .Include(u => u.Addresses)
-                .FirstOrDefault(u => u.Id == userId.Value);
-            if (user == null)
-                return NotFound(new { success = false, message = "User not found" });
-
-            return Ok(new
-            {
-                success = true,
-                data = new
-                {
-                    id = user.Id,
-                    userId = user.Id,
-                    username = user.Username,
-                    email = user.Email,
-                    name = user.Name,
-                    phone = user.Phone,
-                    address = user.Address,
-                    role = user.RoleEntity?.RoleName ?? user.Role.ToString()
-                }
-            });
+            id              = user.Id,
+            userId          = user.Id,
+            username        = user.Username,
+            email           = user.Email,
+            name            = user.Name,
+            phone           = user.Phone,
+            specificAddress = defaultAddress?.SpecificAddress ?? string.Empty,
+            provinceCity    = defaultAddress?.ProvinceCity ?? string.Empty,
+            district        = defaultAddress?.District ?? string.Empty,
+            ward            = defaultAddress?.Ward ?? string.Empty,
+            ghnProvinceId   = defaultAddress?.GhnProvinceId,
+            ghnDistrictId   = defaultAddress?.GhnDistrictId,
+            ghnWardCode     = defaultAddress?.GhnWardCode,
+            role            = user.RoleEntity?.RoleName ?? user.Role.ToString()
         }
+    });
+}
 
-        [Authorize]
-        [HttpPut("profile")]
-        public async Task<ActionResult<object>> UpdateProfile([FromBody] UpdateProfileRequest request)
+       [Authorize]
+[HttpPut("profile")]
+public async Task<ActionResult<object>> UpdateProfile([FromBody] UpdateProfileRequest request)
+{
+    var userId = GetCurrentUserId();
+    if (userId == null)
+        return Unauthorized(new { success = false, message = "Invalid token" });
+
+    var user = _context.Users
+        .Include(u => u.RoleEntity)
+        .Include(u => u.Addresses)
+        .FirstOrDefault(u => u.Id == userId.Value);
+    if (user == null)
+        return NotFound(new { success = false, message = "User not found" });
+
+    if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Phone))
+        return BadRequest(new { success = false, message = "Tên và số điện thoại là bắt buộc" });
+
+    user.Name = request.Name.Trim();
+    user.Phone = request.Phone.Trim();
+
+    if (!string.IsNullOrWhiteSpace(request.Email))
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var emailExists = await _context.Users.AnyAsync(u => u.Id != user.Id && u.Email.ToLower() == email);
+        if (emailExists)
+            return BadRequest(new { success = false, message = "Email da duoc su dung" });
+
+        user.Email = email;
+    }
+
+    // ── Upsert địa chỉ mặc định ──────────────────────────────────
+    var defaultAddress = user.Addresses.FirstOrDefault(a => a.IsDefault)
+                          ?? user.Addresses.FirstOrDefault();
+
+    if (defaultAddress == null)
+    {
+        defaultAddress = new Address { UserId = user.Id, IsDefault = true };
+        _context.Addresses.Add(defaultAddress);
+        user.Addresses.Add(defaultAddress);
+    }
+
+    defaultAddress.RecipientName   = user.Name;
+    defaultAddress.RecipientPhone  = user.Phone;
+    defaultAddress.SpecificAddress = request.SpecificAddress?.Trim() ?? string.Empty;
+    defaultAddress.ProvinceCity    = request.ProvinceCity?.Trim() ?? string.Empty;
+    defaultAddress.District        = request.District?.Trim() ?? string.Empty;
+    defaultAddress.Ward            = request.Ward?.Trim() ?? string.Empty;
+    defaultAddress.GhnProvinceId   = request.GhnProvinceId;
+    defaultAddress.GhnDistrictId   = request.GhnDistrictId;
+    defaultAddress.GhnWardCode     = request.GhnWardCode;
+    defaultAddress.UpdatedAt       = DateTime.UtcNow;
+
+    user.UpdatedAt = DateTime.UtcNow;
+
+    await _context.SaveChangesAsync();
+
+    return Ok(new
+    {
+        success = true,
+        message = "Thông tin tài khoản đã được cập nhật",
+        data = new
         {
-            var userId = GetCurrentUserId();
-            if (userId == null)
-                return Unauthorized(new { success = false, message = "Invalid token" });
-
-            var user = _context.Users
-                .Include(u => u.RoleEntity)
-                .Include(u => u.Addresses)
-                .FirstOrDefault(u => u.Id == userId.Value);
-            if (user == null)
-                return NotFound(new { success = false, message = "User not found" });
-
-            if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Phone))
-                return BadRequest(new { success = false, message = "Tên và số điện thoại là bắt buộc" });
-
-            user.Name = request.Name.Trim();
-            user.Phone = request.Phone.Trim();
-            user.Address = request.Address?.Trim() ?? string.Empty;
-
-            if (!string.IsNullOrWhiteSpace(request.Email))
-            {
-                var email = request.Email.Trim().ToLowerInvariant();
-                var emailExists = await _context.Users.AnyAsync(u => u.Id != user.Id && u.Email.ToLower() == email);
-                if (emailExists)
-                    return BadRequest(new { success = false, message = "Email da duoc su dung" });
-
-                user.Email = email;
-            }
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                success = true,
-                message = "Thông tin tài khoản đã được cập nhật",
-                data = new
-                {
-                    userId = user.Id,
-                    username = user.Username,
-                    email = user.Email,
-                    name = user.Name,
-                    phone = user.Phone,
-                    address = user.Address,
-                    role = user.RoleEntity?.RoleName ?? user.Role.ToString()
-                }
-            });
+            userId          = user.Id,
+            username        = user.Username,
+            email           = user.Email,
+            name            = user.Name,
+            phone           = user.Phone,
+            specificAddress = defaultAddress.SpecificAddress,
+            provinceCity    = defaultAddress.ProvinceCity,
+            district        = defaultAddress.District,
+            ward            = defaultAddress.Ward,
+            ghnProvinceId   = defaultAddress.GhnProvinceId,
+            ghnDistrictId   = defaultAddress.GhnDistrictId,
+            ghnWardCode     = defaultAddress.GhnWardCode,
+            role            = user.RoleEntity?.RoleName ?? user.Role.ToString()
         }
+    });
+}
 
         private int? GetCurrentUserId()
         {
@@ -320,10 +357,16 @@ namespace THEBOB.Controllers
     }
 
     public class UpdateProfileRequest
-    {
-        public string? Email { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Phone { get; set; } = string.Empty;
-        public string? Address { get; set; }
-    }
+{
+    public string? Email { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public string? SpecificAddress { get; set; }
+    public string? ProvinceCity { get; set; }
+    public string? District { get; set; }
+    public string? Ward { get; set; }
+    public int? GhnProvinceId { get; set; }
+    public int? GhnDistrictId { get; set; }
+    public string? GhnWardCode { get; set; }
+}
 }

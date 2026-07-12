@@ -8,10 +8,28 @@ namespace THEBOB.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<Coupon> builder)
         {
+            // Code phải unique trong các coupon có code (IsAutomatic=false)
+            // Nhưng cần allow nhiều automatic promotions (code = empty).
+            // Giữ unique index nhưng filter: chỉ unique khi Code != ''
             builder.HasIndex(c => c.Code).IsUnique();
             builder.Property(c => c.DiscountValue).HasColumnType("decimal(12,2)");
             builder.Property(c => c.MinOrderValue).HasColumnType("decimal(12,2)");
             builder.Property(c => c.MaxDiscountAmount).HasColumnType("decimal(12,2)");
+
+            builder.HasOne(c => c.Product)
+                .WithMany()
+                .HasForeignKey(c => c.ProductId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.HasOne(c => c.Category)
+                .WithMany()
+                .HasForeignKey(c => c.CategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.HasOne(c => c.TargetUser)
+                .WithMany()
+                .HasForeignKey(c => c.TargetUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 

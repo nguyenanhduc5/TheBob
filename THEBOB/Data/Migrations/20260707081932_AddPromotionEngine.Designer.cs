@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using THEBOB.Data;
 
 #nullable disable
 
-namespace THEBOB.Migrations
+namespace THEBOB.Data.Migrations
 {
     [DbContext(typeof(ThebobDbContext))]
-    partial class ThebobDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707081932_AddPromotionEngine")]
+    partial class AddPromotionEngine
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -67,16 +70,6 @@ namespace THEBOB.Migrations
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
-
-                    b.Property<int?>("GhnDistrictId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("GhnProvinceId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("GhnWardCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
 
                     b.Property<bool>("IsDefault")
                         .HasColumnType("tinyint(1)");
@@ -549,171 +542,6 @@ namespace THEBOB.Migrations
                     b.HasIndex("VariantId");
 
                     b.ToTable("InventoryLogs");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.AdminPresence", b =>
-                {
-                    b.Property<int>("AdminId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ConnectionId")
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<bool>("IsOnline")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<DateTime>("LastSeen")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("AdminId");
-
-                    b.HasIndex("IsOnline");
-
-                    b.ToTable("AdminPresences", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Conversation", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("AssignedAdminId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ChatMode")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int?>("CurrentOrderId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CurrentProductId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CurrentVariantId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedAdminId");
-
-                    b.HasIndex("CurrentOrderId");
-
-                    b.HasIndex("CurrentProductId");
-
-                    b.HasIndex("CurrentVariantId");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "Status");
-
-                    b.ToTable("Conversations", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Faq", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Answer")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Keywords")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("varchar(2000)");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Question")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("IsActive", "Priority");
-
-                    b.ToTable("Faqs", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Message", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ImageUrl")
-                        .HasMaxLength(2000)
-                        .HasColumnType("varchar(2000)");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<int?>("ReferencedOrderId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ReferencedProductId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("SenderId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SenderType")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConversationId");
-
-                    b.HasIndex("ReferencedOrderId");
-
-                    b.HasIndex("ReferencedProductId");
-
-                    b.HasIndex("SenderId");
-
-                    b.HasIndex("ConversationId", "CreatedAt");
-
-                    b.ToTable("Messages", (string)null);
                 });
 
             modelBuilder.Entity("THEBOB.Models.Notification", b =>
@@ -1899,88 +1727,6 @@ namespace THEBOB.Migrations
                     b.Navigation("Variant");
                 });
 
-            modelBuilder.Entity("THEBOB.Models.LiveChat.AdminPresence", b =>
-                {
-                    b.HasOne("THEBOB.Models.User", "Admin")
-                        .WithMany()
-                        .HasForeignKey("AdminId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Admin");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Conversation", b =>
-                {
-                    b.HasOne("THEBOB.Models.User", "AssignedAdmin")
-                        .WithMany()
-                        .HasForeignKey("AssignedAdminId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.Order", "CurrentOrder")
-                        .WithMany()
-                        .HasForeignKey("CurrentOrderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.Product", "CurrentProduct")
-                        .WithMany()
-                        .HasForeignKey("CurrentProductId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.ProductVariant", "CurrentVariant")
-                        .WithMany()
-                        .HasForeignKey("CurrentVariantId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("AssignedAdmin");
-
-                    b.Navigation("CurrentOrder");
-
-                    b.Navigation("CurrentProduct");
-
-                    b.Navigation("CurrentVariant");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Message", b =>
-                {
-                    b.HasOne("THEBOB.Models.LiveChat.Conversation", "Conversation")
-                        .WithMany("Messages")
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.Order", "ReferencedOrder")
-                        .WithMany()
-                        .HasForeignKey("ReferencedOrderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.Product", "ReferencedProduct")
-                        .WithMany()
-                        .HasForeignKey("ReferencedProductId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.User", "Sender")
-                        .WithMany()
-                        .HasForeignKey("SenderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Conversation");
-
-                    b.Navigation("ReferencedOrder");
-
-                    b.Navigation("ReferencedProduct");
-
-                    b.Navigation("Sender");
-                });
-
             modelBuilder.Entity("THEBOB.Models.Notification", b =>
                 {
                     b.HasOne("THEBOB.Models.User", "User")
@@ -2304,11 +2050,6 @@ namespace THEBOB.Migrations
             modelBuilder.Entity("THEBOB.Models.Coupon", b =>
                 {
                     b.Navigation("CouponUsages");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Conversation", b =>
-                {
-                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("THEBOB.Models.Order", b =>

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using THEBOB.Models.Promotion;
 
 namespace THEBOB.Models
 {
@@ -32,8 +33,38 @@ namespace THEBOB.Models
         [Required]
         public OrderStatus Status { get; set; } = OrderStatus.Pending;
 
+        // ── Promotion & Pricing Breakdown ─────────────────────────────────────
+
+        /// <summary>Tổng giá trị sản phẩm trước khi giảm</summary>
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal SubtotalAmount { get; set; } = 0;
+
+        /// <summary>Tổng giảm từ Automatic Promotion</summary>
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal PromotionDiscount { get; set; } = 0;
+
+        /// <summary>Tổng giảm từ Coupon do user nhập</summary>
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal CouponDiscount { get; set; } = 0;
+
+        /// <summary>Giảm phí vận chuyển</summary>
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal ShippingDiscount { get; set; } = 0;
+
+        /// <summary>Tổng tất cả giảm giá = PromotionDiscount + CouponDiscount + ShippingDiscount</summary>
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal TotalDiscount { get; set; } = 0;
+
+        /// <summary>Số tiền cuối cùng user phải trả = SubtotalAmount + ShippingFee - TotalDiscount</summary>
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal FinalAmount { get; set; } = 0;
+
+        /// <summary>
+        /// TotalAmount giữ nguyên để backward-compat với payment flow hiện tại.
+        /// = FinalAmount (denormalized).
+        /// </summary>
         [Required]
-        [Range(0, 999999.99)]
+        [Column(TypeName = "decimal(12,2)")]
         public decimal TotalAmount { get; set; }
 
         [MaxLength(500)]
@@ -45,10 +76,28 @@ namespace THEBOB.Models
         [MaxLength(50)]
         public string PaymentStatus { get; set; } = "Pending"; // Pending, Completed, Failed, Refunded
 
+        // ── Legacy Coupon (backward-compat — will be removed in future) ─────────
+        // Dùng OrderPromotions thay thế.
         public int? CouponId { get; set; }
 
         [ForeignKey("CouponId")]
         public Coupon? Coupon { get; set; }
+
+        /// <summary>Tổng tiền đã giảm (denormalized = TotalDiscount)</summary>
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal DiscountAmount { get; set; } = 0;
+
+        /// <summary>Mã coupon đã dùng (denormalized — snapshot)</summary>
+        [MaxLength(100)]
+        public string? CouponCode { get; set; }
+
+        /// <summary>Mã coupon từ Promotion Engine mới (snapshot)</summary>
+        [MaxLength(100)]
+        public string? AppliedCouponCode { get; set; }
+
+        /// <summary>JSON snapshot toàn bộ promotions đã áp dụng — dùng để hiển thị trong order detail.</summary>
+        [Column(TypeName = "longtext")]
+        public string? PromotionSnapshot { get; set; }
 
         // ───────────────────────────────────────────────────────────────────
         // GHN / Vận chuyển
@@ -97,9 +146,10 @@ namespace THEBOB.Models
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigation property
+        // Navigation
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
-
         public ICollection<PaymentTransaction> PaymentTransactions { get; set; } = new List<PaymentTransaction>();
+        public ICollection<OrderPromotion> OrderPromotions { get; set; } = new List<OrderPromotion>();
+        public ICollection<PromotionUsage> PromotionUsages { get; set; } = new List<PromotionUsage>();
     }
 }

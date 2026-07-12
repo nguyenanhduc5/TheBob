@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Collections.Generic;
 using System;
 using System.Linq;
+using THEBOB.Models.Promotion;
 
 namespace THEBOB.Models
 {
@@ -86,6 +87,21 @@ namespace THEBOB.Models
         }
 
         public bool IsActive { get; set; } = true;
+
+        // ── Customer Group / Tier ───────────────────────────────────────
+
+        /// <summary>Nhóm khách hàng hiện tại (VIP, Silver, Gold...).</summary>
+        public int? CustomerGroupId { get; set; }
+
+        [ForeignKey(nameof(CustomerGroupId))]
+        public CustomerGroup? CustomerGroup { get; set; }
+
+        /// <summary>Ngày sinh (dùng cho Birthday Promotion).</summary>
+        public DateOnly? DateOfBirth { get; set; }
+
+        /// <summary>Tổng số tiền đã chi tiêu (cập nhật khi Order tạo thành công).</summary>
+        [Column(TypeName = "decimal(14,2)")]
+        public decimal TotalSpent { get; set; } = 0;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

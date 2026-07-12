@@ -72,6 +72,20 @@ namespace THEBOB.Controllers
             if (color == null || string.IsNullOrWhiteSpace(color.Name))
                 return BadRequest(new { success = false, message = "Tên màu là bắt buộc" });
 
+            if (string.IsNullOrWhiteSpace(color.HexCode))
+            {
+                color.HexCode = "#000000";
+            }
+            else
+            {
+                color.HexCode = color.HexCode.Trim();
+                var hexRegex = new System.Text.RegularExpressions.Regex(@"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$");
+                if (!hexRegex.IsMatch(color.HexCode))
+                {
+                    return BadRequest(new { success = false, message = "Mã màu HEX không hợp lệ (VD: #000000 hoặc #FFF)" });
+                }
+            }
+
             var exists = await _context.Colors.AnyAsync(c => c.Name.ToLower() == color.Name.ToLower());
             if (exists) return BadRequest(new { success = false, message = "Màu này đã tồn tại" });
 
@@ -93,6 +107,79 @@ namespace THEBOB.Controllers
             _context.Sizes.Add(size);
             await _context.SaveChangesAsync();
             return Ok(size);
+        }
+
+        [HttpPut("colors/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateColor(int id, [FromBody] Color color)
+        {
+            if (color == null || string.IsNullOrWhiteSpace(color.Name))
+                return BadRequest(new { success = false, message = "Tên màu là bắt buộc" });
+
+            var existing = await _context.Colors.FindAsync(id);
+            if (existing == null) return NotFound(new { success = false, message = "Không tìm thấy màu" });
+
+            var duplicate = await _context.Colors.AnyAsync(c => c.Id != id && c.Name.ToLower() == color.Name.ToLower());
+            if (duplicate) return BadRequest(new { success = false, message = "Màu này đã tồn tại" });
+
+            existing.Name = color.Name.Trim();
+            existing.HexCode = string.IsNullOrWhiteSpace(color.HexCode) ? "#000000" : color.HexCode.Trim();
+            await _context.SaveChangesAsync();
+            return Ok(existing);
+        }
+
+        [HttpDelete("colors/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteColor(int id)
+        {
+            var existing = await _context.Colors.FindAsync(id);
+            if (existing == null) return NotFound(new { success = false, message = "Không tìm thấy màu" });
+
+            var inUse = await _context.ProductVariants.AnyAsync(v => v.ColorId == id);
+            if (inUse)
+            {
+                return BadRequest(new { success = false, message = "Màu này đang được sử dụng bởi biến thể sản phẩm, không thể xóa" });
+            }
+
+            _context.Colors.Remove(existing);
+            await _context.SaveChangesAsync();
+            return Ok(new { success = true, message = "Đã xóa màu" });
+        }
+
+        [HttpPut("sizes/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateSize(int id, [FromBody] Size size)
+        {
+            if (size == null || string.IsNullOrWhiteSpace(size.Name))
+                return BadRequest(new { success = false, message = "Tên kích thước là bắt buộc" });
+
+            var existing = await _context.Sizes.FindAsync(id);
+            if (existing == null) return NotFound(new { success = false, message = "Không tìm thấy size" });
+
+            var duplicate = await _context.Sizes.AnyAsync(s => s.Id != id && s.Name.ToLower() == size.Name.ToLower());
+            if (duplicate) return BadRequest(new { success = false, message = "Kích thước này đã tồn tại" });
+
+            existing.Name = size.Name.Trim();
+            await _context.SaveChangesAsync();
+            return Ok(existing);
+        }
+
+        [HttpDelete("sizes/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteSize(int id)
+        {
+            var existing = await _context.Sizes.FindAsync(id);
+            if (existing == null) return NotFound(new { success = false, message = "Không tìm thấy size" });
+
+            var inUse = await _context.ProductVariants.AnyAsync(v => v.SizeId == id);
+            if (inUse)
+            {
+                return BadRequest(new { success = false, message = "Size này đang được sử dụng bởi biến thể sản phẩm, không thể xóa" });
+            }
+
+            _context.Sizes.Remove(existing);
+            await _context.SaveChangesAsync();
+            return Ok(new { success = true, message = "Đã xóa size" });
         }
 
         [HttpPost]
@@ -316,6 +403,30 @@ namespace THEBOB.Controllers
             }
 
             var products = await q.ToListAsync();
+
+            if (!string.IsNullOrWhiteSpace(query))
+            {
+                var lowerQuery = query.ToLower();
+                products = products.OrderByDescending(p =>
+                {
+                    var score = 0;
+                    var nameLower = p.Name.ToLower();
+
+                    if (nameLower == lowerQuery)
+                        score += 100;
+                    else if (nameLower.StartsWith(lowerQuery))
+                        score += 80;
+                    else if (nameLower.Contains(lowerQuery))
+                        score += 50;
+                    else if (p.ProductVariants.Any(v => v.Sku.ToLower().Contains(lowerQuery)))
+                        score += 20;
+                    else if (p.Description != null && p.Description.ToLower().Contains(lowerQuery))
+                        score += 5;
+
+                    return score;
+                }).ToList();
+            }
+
             return Ok(products.Select(ToProductDto));
         }
 

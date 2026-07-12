@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using THEBOB.Data;
 
@@ -11,9 +12,11 @@ using THEBOB.Data;
 namespace THEBOB.Migrations
 {
     [DbContext(typeof(ThebobDbContext))]
-    partial class ThebobDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260706071238_AddPromotionFieldsToOrderAndCoupon")]
+    partial class AddPromotionFieldsToOrderAndCoupon
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -67,16 +70,6 @@ namespace THEBOB.Migrations
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
-
-                    b.Property<int?>("GhnDistrictId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("GhnProvinceId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("GhnWardCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
 
                     b.Property<bool>("IsDefault")
                         .HasColumnType("tinyint(1)");
@@ -551,171 +544,6 @@ namespace THEBOB.Migrations
                     b.ToTable("InventoryLogs");
                 });
 
-            modelBuilder.Entity("THEBOB.Models.LiveChat.AdminPresence", b =>
-                {
-                    b.Property<int>("AdminId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ConnectionId")
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<bool>("IsOnline")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<DateTime>("LastSeen")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("AdminId");
-
-                    b.HasIndex("IsOnline");
-
-                    b.ToTable("AdminPresences", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Conversation", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("AssignedAdminId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ChatMode")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int?>("CurrentOrderId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CurrentProductId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CurrentVariantId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedAdminId");
-
-                    b.HasIndex("CurrentOrderId");
-
-                    b.HasIndex("CurrentProductId");
-
-                    b.HasIndex("CurrentVariantId");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "Status");
-
-                    b.ToTable("Conversations", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Faq", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Answer")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Keywords")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("varchar(2000)");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Question")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("IsActive", "Priority");
-
-                    b.ToTable("Faqs", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Message", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ImageUrl")
-                        .HasMaxLength(2000)
-                        .HasColumnType("varchar(2000)");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<int?>("ReferencedOrderId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ReferencedProductId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("SenderId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SenderType")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConversationId");
-
-                    b.HasIndex("ReferencedOrderId");
-
-                    b.HasIndex("ReferencedProductId");
-
-                    b.HasIndex("SenderId");
-
-                    b.HasIndex("ConversationId", "CreatedAt");
-
-                    b.ToTable("Messages", (string)null);
-                });
-
             modelBuilder.Entity("THEBOB.Models.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -758,16 +586,9 @@ namespace THEBOB.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("AppliedCouponCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
                     b.Property<string>("CouponCode")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
-
-                    b.Property<decimal>("CouponDiscount")
-                        .HasColumnType("decimal(12,2)");
 
                     b.Property<int?>("CouponId")
                         .HasColumnType("int");
@@ -776,9 +597,6 @@ namespace THEBOB.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.Property<decimal>("DiscountAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("FinalAmount")
                         .HasColumnType("decimal(12,2)");
 
                     b.Property<int?>("GhnDistrictId")
@@ -810,19 +628,10 @@ namespace THEBOB.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.Property<decimal>("PromotionDiscount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("PromotionSnapshot")
-                        .HasColumnType("longtext");
-
                     b.Property<string>("ShippingAddress")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
-
-                    b.Property<decimal>("ShippingDiscount")
-                        .HasColumnType("decimal(12,2)");
 
                     b.Property<decimal>("ShippingFee")
                         .HasColumnType("decimal(12,2)");
@@ -834,13 +643,7 @@ namespace THEBOB.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("SubtotalAmount")
-                        .HasColumnType("decimal(12,2)");
-
                     b.Property<decimal>("TotalAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("TotalDiscount")
                         .HasColumnType("decimal(12,2)");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -1197,433 +1000,6 @@ namespace THEBOB.Migrations
                     b.ToTable("ProductVariantImages");
                 });
 
-            modelBuilder.Entity("THEBOB.Models.Promotion.CustomerGroup", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("BadgeColor")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("varchar(10)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<decimal>("MinTotalSpent")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("CustomerGroups", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.OrderPromotion", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("AppliedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CouponCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<decimal>("DiscountApplied")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("DiscountType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<decimal>("DiscountValue")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<int>("OrderId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PromotionId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PromotionName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<string>("PromotionType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId");
-
-                    b.HasIndex("PromotionId");
-
-                    b.ToTable("OrderPromotions", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.Promotion", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("BannerUrl")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("varchar(2000)");
-
-                    b.Property<int>("BuyQuantity")
-                        .HasColumnType("int");
-
-                    b.Property<string>("CouponCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<string>("DiscountType")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<decimal>("DiscountValue")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<DateTime>("EndDate")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ExclusiveGroup")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<int?>("GetProductId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("GetQuantity")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsPersonal")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("IsStackable")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<decimal?>("MaxDiscountAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal?>("MaxOrderValue")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<int>("MaxStackCount")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("MinOrderValue")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<int>("MinQuantity")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("RequiresBirthdayUser")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("RequiresCustomerGroup")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("RequiresNewUser")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Scope")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("UsageLimitPerDay")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UsageLimitPerMonth")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UsageLimitPerUser")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UsageLimitTotal")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UsedCount")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CouponCode")
-                        .IsUnique()
-                        .HasFilter("`CouponCode` IS NOT NULL AND `CouponCode` != ''");
-
-                    b.HasIndex("Priority");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("Type");
-
-                    b.HasIndex("Status", "StartDate", "EndDate");
-
-                    b.ToTable("Promotions", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionBrand", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("BrandId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsExcluded")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<int>("PromotionId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BrandId");
-
-                    b.HasIndex("PromotionId");
-
-                    b.HasIndex("PromotionId", "BrandId")
-                        .IsUnique();
-
-                    b.ToTable("PromotionBrands", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CategoryId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsExcluded")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<int>("PromotionId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CategoryId");
-
-                    b.HasIndex("PromotionId");
-
-                    b.HasIndex("PromotionId", "CategoryId")
-                        .IsUnique();
-
-                    b.ToTable("PromotionCategories", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionCustomerGroup", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CustomerGroupId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PromotionId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomerGroupId");
-
-                    b.HasIndex("PromotionId", "CustomerGroupId")
-                        .IsUnique();
-
-                    b.ToTable("PromotionCustomerGroups", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionProduct", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("IsExcluded")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<int>("ProductId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PromotionId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("PromotionId");
-
-                    b.HasIndex("PromotionId", "ProductId")
-                        .IsUnique();
-
-                    b.ToTable("PromotionProducts", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionUsage", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("DiscountApplied")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<bool>("IsRolledBack")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<int>("OrderId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PromotionId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("RolledBackAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("UsedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsRolledBack");
-
-                    b.HasIndex("OrderId");
-
-                    b.HasIndex("UsedAt");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("PromotionId", "UserId");
-
-                    b.ToTable("PromotionUsages", (string)null);
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.UserCoupon", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<bool>("IsUsed")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Note")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<int>("PromotionId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UsedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("PromotionId", "UserId");
-
-                    b.HasIndex("UserId", "IsUsed");
-
-                    b.ToTable("UserCoupons", (string)null);
-                });
-
             modelBuilder.Entity("THEBOB.Models.RecommendationCache", b =>
                 {
                     b.Property<int>("Id")
@@ -1741,12 +1117,6 @@ namespace THEBOB.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<int?>("CustomerGroupId")
-                        .HasColumnType("int");
-
-                    b.Property<DateOnly?>("DateOfBirth")
-                        .HasColumnType("date");
-
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -1772,15 +1142,10 @@ namespace THEBOB.Migrations
                     b.Property<int>("RoleId")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("TotalSpent")
-                        .HasColumnType("decimal(14,2)");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CustomerGroupId");
 
                     b.HasIndex("RoleId");
 
@@ -1897,88 +1262,6 @@ namespace THEBOB.Migrations
                     b.Navigation("User");
 
                     b.Navigation("Variant");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.AdminPresence", b =>
-                {
-                    b.HasOne("THEBOB.Models.User", "Admin")
-                        .WithMany()
-                        .HasForeignKey("AdminId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Admin");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Conversation", b =>
-                {
-                    b.HasOne("THEBOB.Models.User", "AssignedAdmin")
-                        .WithMany()
-                        .HasForeignKey("AssignedAdminId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.Order", "CurrentOrder")
-                        .WithMany()
-                        .HasForeignKey("CurrentOrderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.Product", "CurrentProduct")
-                        .WithMany()
-                        .HasForeignKey("CurrentProductId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.ProductVariant", "CurrentVariant")
-                        .WithMany()
-                        .HasForeignKey("CurrentVariantId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("AssignedAdmin");
-
-                    b.Navigation("CurrentOrder");
-
-                    b.Navigation("CurrentProduct");
-
-                    b.Navigation("CurrentVariant");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Message", b =>
-                {
-                    b.HasOne("THEBOB.Models.LiveChat.Conversation", "Conversation")
-                        .WithMany("Messages")
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.Order", "ReferencedOrder")
-                        .WithMany()
-                        .HasForeignKey("ReferencedOrderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.Product", "ReferencedProduct")
-                        .WithMany()
-                        .HasForeignKey("ReferencedProductId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("THEBOB.Models.User", "Sender")
-                        .WithMany()
-                        .HasForeignKey("SenderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Conversation");
-
-                    b.Navigation("ReferencedOrder");
-
-                    b.Navigation("ReferencedProduct");
-
-                    b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("THEBOB.Models.Notification", b =>
@@ -2105,146 +1388,6 @@ namespace THEBOB.Migrations
                     b.Navigation("Variant");
                 });
 
-            modelBuilder.Entity("THEBOB.Models.Promotion.OrderPromotion", b =>
-                {
-                    b.HasOne("THEBOB.Models.Order", "Order")
-                        .WithMany("OrderPromotions")
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.Promotion.Promotion", "Promotion")
-                        .WithMany("OrderPromotions")
-                        .HasForeignKey("PromotionId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Order");
-
-                    b.Navigation("Promotion");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionBrand", b =>
-                {
-                    b.HasOne("THEBOB.Models.Brand", "Brand")
-                        .WithMany()
-                        .HasForeignKey("BrandId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.Promotion.Promotion", "Promotion")
-                        .WithMany("PromotionBrands")
-                        .HasForeignKey("PromotionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Brand");
-
-                    b.Navigation("Promotion");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionCategory", b =>
-                {
-                    b.HasOne("THEBOB.Models.Category", "Category")
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.Promotion.Promotion", "Promotion")
-                        .WithMany("PromotionCategories")
-                        .HasForeignKey("PromotionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Category");
-
-                    b.Navigation("Promotion");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionCustomerGroup", b =>
-                {
-                    b.HasOne("THEBOB.Models.Promotion.CustomerGroup", "CustomerGroup")
-                        .WithMany("PromotionCustomerGroups")
-                        .HasForeignKey("CustomerGroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.Promotion.Promotion", "Promotion")
-                        .WithMany("PromotionCustomerGroups")
-                        .HasForeignKey("PromotionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CustomerGroup");
-
-                    b.Navigation("Promotion");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionProduct", b =>
-                {
-                    b.HasOne("THEBOB.Models.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.Promotion.Promotion", "Promotion")
-                        .WithMany("PromotionProducts")
-                        .HasForeignKey("PromotionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-
-                    b.Navigation("Promotion");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.PromotionUsage", b =>
-                {
-                    b.HasOne("THEBOB.Models.Order", "Order")
-                        .WithMany("PromotionUsages")
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.Promotion.Promotion", "Promotion")
-                        .WithMany("PromotionUsages")
-                        .HasForeignKey("PromotionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Order");
-
-                    b.Navigation("Promotion");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.UserCoupon", b =>
-                {
-                    b.HasOne("THEBOB.Models.Promotion.Promotion", "Promotion")
-                        .WithMany("UserCoupons")
-                        .HasForeignKey("PromotionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("THEBOB.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Promotion");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("THEBOB.Models.RecommendationCache", b =>
                 {
                     b.HasOne("THEBOB.Models.Product", "Product")
@@ -2266,17 +1409,11 @@ namespace THEBOB.Migrations
 
             modelBuilder.Entity("THEBOB.Models.User", b =>
                 {
-                    b.HasOne("THEBOB.Models.Promotion.CustomerGroup", "CustomerGroup")
-                        .WithMany("Users")
-                        .HasForeignKey("CustomerGroupId");
-
                     b.HasOne("THEBOB.Models.Role", "RoleEntity")
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("CustomerGroup");
 
                     b.Navigation("RoleEntity");
                 });
@@ -2306,20 +1443,11 @@ namespace THEBOB.Migrations
                     b.Navigation("CouponUsages");
                 });
 
-            modelBuilder.Entity("THEBOB.Models.LiveChat.Conversation", b =>
-                {
-                    b.Navigation("Messages");
-                });
-
             modelBuilder.Entity("THEBOB.Models.Order", b =>
                 {
                     b.Navigation("OrderItems");
 
-                    b.Navigation("OrderPromotions");
-
                     b.Navigation("PaymentTransactions");
-
-                    b.Navigation("PromotionUsages");
                 });
 
             modelBuilder.Entity("THEBOB.Models.Product", b =>
@@ -2332,30 +1460,6 @@ namespace THEBOB.Migrations
             modelBuilder.Entity("THEBOB.Models.ProductVariant", b =>
                 {
                     b.Navigation("Images");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.CustomerGroup", b =>
-                {
-                    b.Navigation("PromotionCustomerGroups");
-
-                    b.Navigation("Users");
-                });
-
-            modelBuilder.Entity("THEBOB.Models.Promotion.Promotion", b =>
-                {
-                    b.Navigation("OrderPromotions");
-
-                    b.Navigation("PromotionBrands");
-
-                    b.Navigation("PromotionCategories");
-
-                    b.Navigation("PromotionCustomerGroups");
-
-                    b.Navigation("PromotionProducts");
-
-                    b.Navigation("PromotionUsages");
-
-                    b.Navigation("UserCoupons");
                 });
 
             modelBuilder.Entity("THEBOB.Models.Size", b =>
