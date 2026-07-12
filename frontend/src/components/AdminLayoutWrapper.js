@@ -47,12 +47,24 @@ const AdminLayoutWrapper = () => {
         <Link to="/admin/coupons" className={getNavLinkClass('/admin/coupons')}>
           Mã Giảm Giá
         </Link>
+        <Link to="/admin/promotions" className={getNavLinkClass('/admin/promotions')}>
+           Khuyến Mãi
+        </Link>
         <Link to="/admin/users" className={getNavLinkClass('/admin/users')}>
           Người Dùng
+        </Link>
+        <Link to="/admin/chat" className={getNavLinkClass('/admin/chat')}>
+           Hỗ Trợ Chat
+        </Link>
+        <Link to="/admin/faqs" className={getNavLinkClass('/admin/faqs')}>
+           Quản Lý FAQ
         </Link>
         <Link to="/admin/profile" className={getNavLinkClass('/admin/profile')}>
           Tài Khoản
         </Link>
+<Link to="/admin/settings" className={getNavLinkClass('/admin/settings')}>
+  Cài Đặt
+</Link>
       </nav>
     </aside>
   ), [sidebarOpen, getNavLinkClass]);
@@ -65,7 +77,7 @@ const AdminLayoutWrapper = () => {
       </div>
       <div className="topbar-right">
         <div className="admin-menu-container">
-          <button 
+          <button
             className="admin-menu-btn"
             onClick={() => setMenuOpen(!menuOpen)}
             title="Menu Admin"
@@ -76,7 +88,7 @@ const AdminLayoutWrapper = () => {
             <div className="admin-dropdown">
               <div className="dropdown-item email">{user?.email}</div>
               <hr />
-              <button 
+              <button
                 className="dropdown-item logout-btn"
                 onClick={handleLogout}
               >
@@ -91,7 +103,7 @@ const AdminLayoutWrapper = () => {
 
   return (
     <div className="admin-wrapper">
-      <button 
+      <button
         className="admin-sidebar-toggle"
         onClick={() => setSidebarOpen(!sidebarOpen)}
         title="Toggle Sidebar"

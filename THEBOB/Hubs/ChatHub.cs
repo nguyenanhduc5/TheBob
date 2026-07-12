@@ -9,10 +9,43 @@ namespace THEBOB.Hubs
     public class ChatHub : Hub
     {
         private readonly IChatService _chatService;
+        private readonly IPresenceService _presenceService;
 
-        public ChatHub(IChatService chatService)
+        public ChatHub(IChatService chatService, IPresenceService presenceService)
         {
             _chatService = chatService;
+            _presenceService = presenceService;
+        }
+
+        public override async Task OnConnectedAsync()
+        {
+            var (userId, isAdmin) = GetCallerContext();
+            if (userId.HasValue && isAdmin)
+            {
+                await _presenceService.SetAdminOnlineAsync(userId.Value, Context.ConnectionId);
+                
+                await Clients.All.SendAsync("AdminStatusChanged", true);
+                
+                // Switch AI conversations to Admin
+                await _chatService.HandleAdminOnlineAsync();
+            }
+            await base.OnConnectedAsync();
+        }
+
+        public override async Task OnDisconnectedAsync(Exception? exception)
+        {
+            var (userId, isAdmin) = GetCallerContext();
+            if (userId.HasValue && isAdmin)
+            {
+                await _presenceService.SetAdminOfflineAsync(Context.ConnectionId);
+                
+                bool anyAdminLeft = await _presenceService.IsAnyAdminOnlineAsync();
+                if (!anyAdminLeft)
+                {
+                    await Clients.All.SendAsync("AdminStatusChanged", false);
+                }
+            }
+            await base.OnDisconnectedAsync(exception);
         }
 
         public async Task JoinConversation(int conversationId)
@@ -36,7 +69,7 @@ namespace THEBOB.Hubs
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, IChatService.ConversationGroup(conversationId));
         }
 
-        public async Task SendMessage(int conversationId, string content)
+        public async Task SendMessage(int conversationId, string content, int? productId = null, int? variantId = null)
         {
             var (userId, isAdmin) = GetCallerContext();
             if (!userId.HasValue)
@@ -44,7 +77,7 @@ namespace THEBOB.Hubs
                 throw new HubException("Unauthorized");
             }
 
-            await _chatService.SendMessageAsync(conversationId, userId.Value, isAdmin, content);
+            await _chatService.SendMessageAsync(conversationId, userId.Value, isAdmin, content, productId, variantId);
         }
 
         public async Task Typing(int conversationId, bool isTyping)

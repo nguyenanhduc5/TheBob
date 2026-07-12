@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using THEBOB.DTOs.Chat;
 using THEBOB.Models;
 using THEBOB.Services.Chat;
+using Microsoft.EntityFrameworkCore;
 
 namespace THEBOB.Controllers
 {
@@ -13,10 +14,47 @@ namespace THEBOB.Controllers
     public class ChatController : ControllerBase
     {
         private readonly IChatService _chatService;
+        private readonly IPresenceService _presenceService;
+        private readonly THEBOB.Data.ThebobDbContext _db;
 
-        public ChatController(IChatService chatService)
+        public ChatController(IChatService chatService, IPresenceService presenceService, THEBOB.Data.ThebobDbContext db)
         {
             _chatService = chatService;
+            _presenceService = presenceService;
+            _db = db;
+        }
+
+        [HttpGet("search-product")]
+        public async Task<IActionResult> SearchProduct([FromQuery] string q)
+        {
+            if (string.IsNullOrWhiteSpace(q))
+            {
+                return Ok(ApiResponse<List<object>>.Ok(new List<object>()));
+            }
+
+            var query = q.Trim().ToLower();
+            var products = await _db.Products
+                .Include(p => p.ProductVariants)
+                .Where(p => !p.IsDeleted && p.IsAvailable && p.Name.ToLower().Contains(query))
+                .Select(p => new
+                {
+                    id = p.Id,
+                    name = p.Name,
+                    thumbnail = p.MainImageUrl,
+                    price = p.ProductVariants.Any() ? p.ProductVariants.Min(v => v.Price) : 0
+                })
+                .Take(5)
+                .ToListAsync();
+
+            return Ok(ApiResponse<object>.Ok(products));
+        }
+
+        [HttpGet("admin-status")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetAdminStatus()
+        {
+            var isOnline = await _presenceService.IsAnyAdminOnlineAsync();
+            return Ok(ApiResponse<bool>.Ok(isOnline));
         }
 
         [HttpGet("conversations")]
@@ -77,7 +115,7 @@ namespace THEBOB.Controllers
             try
             {
                 var (_, message) = await _chatService.SendMessageForUserAsync(
-                    userId.Value, isAdmin, request.Content, request.ConversationId);
+                    userId.Value, isAdmin, request.Content, request.ConversationId, request.ProductId, request.VariantId);
 
                 return Ok(ApiResponse<ChatMessageDto>.Ok(message));
             }

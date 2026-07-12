@@ -1,0 +1,209 @@
+.product-context-card {
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #eee;
+  font-size: 0.88rem;
+}
+
+/* Card khi đang có sản phẩm */
+.product-context-card.active {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: linear-gradient(135deg, #f0f4ff, #e8f5e9);
+  border-bottom: 1px solid #c5d5e5;
+  padding: 8px 10px;
+}
+
+.product-context-card.loading {
+  color: #999;
+  text-align: center;
+  font-style: italic;
+  padding: 6px 12px;
+}
+
+/* Info row bên trong */
+.product-context-card__info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.product-context-card__img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+  border: 1px solid #dde;
+}
+
+.product-context-card__details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.product-context-card__badge {
+  font-size: 0.72rem;
+  color: #3b82f6;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.product-context-card__name {
+  margin: 0;
+  font-weight: 500;
+  color: #1a1a2e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+/* Nút X để clear sản phẩm */
+.product-context-card__clear {
+  background: transparent;
+  border: 1px solid #bbb;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #666;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.product-context-card__clear:hover {
+  background: #ff4d4d;
+  border-color: #ff4d4d;
+  color: #fff;
+}
+
+/* Chế độ tìm kiếm */
+.product-context-card.search-mode {
+  background-color: #fff;
+  padding: 8px 10px;
+  position: relative;
+}
+
+.product-context-card__search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.product-context-card__search-input {
+  flex: 1;
+  padding: 6px 28px 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  outline: none;
+  font-size: 0.85rem;
+  transition: border-color 0.2s;
+  background: #f9f9f9;
+}
+
+.product-context-card__search-input:focus {
+  border-color: #3b82f6;
+  background: #fff;
+}
+
+.product-context-card__clear-search {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #aaa;
+  font-size: 0.8rem;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-context-card__clear-search:hover {
+  color: #333;
+}
+
+.product-context-card__no-result {
+  font-size: 0.8rem;
+  color: #999;
+  text-align: center;
+  padding: 6px 0 2px;
+}
+
+/* Dropdown kết quả tìm kiếm */
+.product-context-card__search-results {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0 0;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background: #fff;
+  max-height: 180px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.product-context-card__search-results li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f5f5;
+  transition: background-color 0.15s ease;
+}
+
+.product-context-card__search-results li:last-child {
+  border-bottom: none;
+}
+
+.product-context-card__search-results li:hover {
+  background-color: #f0f4ff;
+}
+
+.product-context-card__search-results img {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.product-context-card__result-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.product-context-card__result-name {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-context-card__result-price {
+  font-size: 0.78rem;
+  color: #3b82f6;
+  margin-top: 1px;
+}

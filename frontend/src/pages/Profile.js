@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { authAPI, ordersAPI } from '../api/app';
+import { authAPI, ordersAPI, shippingAPI } from '../api/app';
 import AdminLayout from '../components/AdminLayout';
 import './Profile.css';
 
@@ -25,8 +25,6 @@ export default function Profile() {
   const [searchParams] = useSearchParams();
 
   // ✅ FIX: lấy cả loading và isAdminUser (boolean) thay vì gọi isAdmin()
-  // Trước đây: isAdmin() là function mới mỗi render → gây re-render không cần thiết
-  // isAdminUser là boolean stable từ useMemo trong AuthContext
   const { user, token, updateUser, logout, loading: authLoading, isAdminUser } = useAuth();
   const { addNotification } = useNotification();
 
@@ -39,12 +37,25 @@ export default function Profile() {
   const [ordersLoading, setOrdersLoading] = useState(false);
 
   const [formData, setFormData] = useState({
-    name:    user?.name    || '',
-    email:   user?.email   || '',
-    phone:   user?.phone   || '',
-    address: user?.address || '',
+    name:            user?.name    || '',
+    email:           user?.email   || '',
+    phone:           user?.phone   || '',
+    specificAddress: '',
   });
   const [successMessage, setSuccessMessage] = useState('');
+
+  // ── Địa chỉ (đồng bộ cấu trúc với Checkout: Tỉnh/Thành → Quận/Huyện → Phường/Xã) ──
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+
+  const [selectedProvince, setSelectedProvince] = useState({ id: null, name: '' });
+  const [selectedDistrict, setSelectedDistrict] = useState({ id: null, name: '' });
+  const [selectedWard, setSelectedWard] = useState({ code: '', name: '' });
+
+  // Địa chỉ đã lưu từ server, chờ danh sách tỉnh/thành tải xong để khớp và tự chọn
+  const [pendingAddress, setPendingAddress] = useState(null);
+  const addressInitRef = useRef(false);
 
   // Sync URL param → activeMenu
   useEffect(() => {
@@ -55,6 +66,13 @@ export default function Profile() {
   // Stable ref cho updateUser
   const updateUserRef = useRef(updateUser);
   useEffect(() => { updateUserRef.current = updateUser; }, [updateUser]);
+
+  // Tải danh sách tỉnh/thành (dùng chung API với Checkout)
+  useEffect(() => {
+    shippingAPI.getProvinces()
+      .then(setProvinces)
+      .catch(() => addNotification('Không tải được danh sách tỉnh/thành', 'error'));
+  }, [addNotification]);
 
   // Load profile
   useEffect(() => {
@@ -67,10 +85,16 @@ export default function Profile() {
         const profile = result?.data;
         if (profile && alive) {
           setFormData({
-            name:    profile.name    || '',
-            email:   profile.email   || '',
-            phone:   profile.phone   || '',
-            address: profile.address || '',
+            name:            profile.name    || '',
+            email:           profile.email   || '',
+            phone:           profile.phone   || '',
+            // hỗ trợ ngược: nếu backend vẫn còn field "address" cũ dạng chuỗi
+            specificAddress: profile.specificAddress || profile.address || '',
+          });
+          setPendingAddress({
+            provinceId: profile.ghnProvinceId ?? null,
+            districtId: profile.ghnDistrictId ?? null,
+            wardCode:   profile.ghnWardCode ?? '',
           });
           updateUserRef.current(profile);
         }
@@ -83,6 +107,56 @@ export default function Profile() {
     load();
     return () => { alive = false; };
   }, [token]);
+
+  const loadDistricts = useCallback(async (provinceId) => {
+    try {
+      return await shippingAPI.getDistricts(provinceId);
+    } catch (err) {
+      console.error('Failed to load districts:', err);
+      addNotification('Không tải được danh sách quận/huyện', 'error');
+      return [];
+    }
+  }, [addNotification]);
+
+  const loadWards = useCallback(async (districtId) => {
+    try {
+      return await shippingAPI.getWards(districtId);
+    } catch (err) {
+      console.error('Failed to load wards:', err);
+      addNotification('Không tải được danh sách phường/xã', 'error');
+      return [];
+    }
+  }, [addNotification]);
+
+  // Khi đã có danh sách tỉnh/thành + địa chỉ đã lưu → tự động chọn sẵn tỉnh/quận/phường
+  useEffect(() => {
+    if (addressInitRef.current) return;
+    if (!pendingAddress || provinces.length === 0) return;
+    if (!pendingAddress.provinceId) { addressInitRef.current = true; return; }
+
+    addressInitRef.current = true;
+
+    (async () => {
+      const province = provinces.find((p) => p.provinceId === pendingAddress.provinceId);
+      if (!province) return;
+      setSelectedProvince({ id: province.provinceId, name: province.provinceName });
+
+      const districtList = await loadDistricts(province.provinceId);
+      setDistricts(districtList);
+      if (!pendingAddress.districtId) return;
+
+      const district = districtList.find((d) => d.districtId === pendingAddress.districtId);
+      if (!district) return;
+      setSelectedDistrict({ id: district.districtId, name: district.districtName });
+
+      const wardList = await loadWards(district.districtId);
+      setWards(wardList);
+      if (!pendingAddress.wardCode) return;
+
+      const ward = wardList.find((w) => w.wardCode === pendingAddress.wardCode);
+      if (ward) setSelectedWard({ code: ward.wardCode, name: ward.wardName });
+    })();
+  }, [pendingAddress, provinces, loadDistricts, loadWards]);
 
   // Load orders
   const fetchUserOrders = useCallback(async () => {
@@ -113,6 +187,47 @@ export default function Profile() {
   const handleInputChange = (field) => (e) =>
     setFormData((prev) => ({ ...prev, [field]: e.target.value }));
 
+  const handleProvinceChange = async (e) => {
+    const id = parseInt(e.target.value, 10);
+    const province = provinces.find((p) => p.provinceId === id);
+
+    setSelectedProvince({ id: province?.provinceId ?? null, name: province?.provinceName ?? '' });
+    setSelectedDistrict({ id: null, name: '' });
+    setSelectedWard({ code: '', name: '' });
+    setDistricts([]);
+    setWards([]);
+
+    if (!province) return;
+    const data = await loadDistricts(province.provinceId);
+    setDistricts(data);
+  };
+
+  const handleDistrictChange = async (e) => {
+    const id = parseInt(e.target.value, 10);
+    const district = districts.find((d) => d.districtId === id);
+
+    setSelectedDistrict({ id: district?.districtId ?? null, name: district?.districtName ?? '' });
+    setSelectedWard({ code: '', name: '' });
+    setWards([]);
+
+    if (!district) return;
+    const data = await loadWards(district.districtId);
+    setWards(data);
+  };
+
+  const handleWardChange = (e) => {
+    const code = e.target.value;
+    const ward = wards.find((w) => w.wardCode === code);
+    setSelectedWard({ code: ward?.wardCode ?? '', name: ward?.wardName ?? '' });
+  };
+
+  const fullAddressPreview = useMemo(() => [
+    formData.specificAddress,
+    selectedWard.name,
+    selectedDistrict.name,
+    selectedProvince.name,
+  ].filter(Boolean).join(', '), [formData.specificAddress, selectedWard.name, selectedDistrict.name, selectedProvince.name]);
+
   const handleUpdateInfo = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.phone) {
@@ -123,10 +238,16 @@ export default function Profile() {
     setSuccessMessage('');
     try {
       const result = await authAPI.updateProfile({
-        email:   formData.email,
-        name:    formData.name,
-        phone:   formData.phone,
-        address: formData.address,
+        email:           formData.email,
+        name:            formData.name,
+        phone:           formData.phone,
+        specificAddress: formData.specificAddress,
+        provinceCity:    selectedProvince.name,
+        district:        selectedDistrict.name,
+        ward:            selectedWard.name,
+        ghnProvinceId:   selectedProvince.id,
+        ghnDistrictId:   selectedDistrict.id,
+        ghnWardCode:     selectedWard.code,
       });
       const updated = result?.data;
       if (updated) {
@@ -157,10 +278,6 @@ export default function Profile() {
   };
 
   // ── Guard: chờ auth load xong trước khi render ────────────────────────────────
-  // ✅ FIX quan trọng nhất:
-  // Trước đây: authLoading chưa xong → isAdmin() = false → render user layout
-  // Khi auth xong: isAdmin() = true → render lại admin layout → giao diện nhảy
-  // Fix: chờ authLoading = false mới render, tránh flash sai layout
   if (authLoading || pageLoading) {
     return (
       <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'60vh' }}>
@@ -174,13 +291,6 @@ export default function Profile() {
   // ── Form dùng chung ───────────────────────────────────────────────────────────
   const profileForm = (
     <form onSubmit={handleUpdateInfo} className="account-form">
-      <div className="form-row">
-        <div className="form-group">
-          <label>Email</label>
-          <input type="email" value={formData.email} disabled className="disabled-input" />
-        </div>
-      </div>
-
       <div className="form-row two-cols">
         <div className="form-group">
           <label>Họ và tên *</label>
@@ -205,14 +315,72 @@ export default function Profile() {
 
       <div className="form-row">
         <div className="form-group">
-          <label>Địa chỉ giao hàng</label>
-          <textarea
-            rows={3}
-            value={formData.address}
-            onChange={handleInputChange('address')}
-            placeholder="Số nhà, đường, phường/xã, quận/huyện, thành phố"
-          />
-          <span className="form-hint">Địa chỉ mặc định khi đặt hàng.</span>
+          <label>Email</label>
+          <input type="email" value={formData.email} disabled className="disabled-input" />
+        </div>
+      </div>
+
+      <div className="address-block">
+        <div className="address-block-title">Địa chỉ giao hàng mặc định</div>
+        <span className="form-hint address-block-hint">
+          Lưu địa chỉ tại đây để khi đặt hàng, Checkout tự điền sẵn — không cần nhập lại.
+        </span>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Tỉnh / Thành phố</label>
+            <select value={selectedProvince.id || ''} onChange={handleProvinceChange}>
+              <option value="">Chọn tỉnh/thành</option>
+              {provinces.map((p) => (
+                <option key={p.provinceId} value={p.provinceId}>{p.provinceName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-row two-cols">
+          <div className="form-group">
+            <label>Quận / Huyện</label>
+            <select
+              value={selectedDistrict.id || ''}
+              onChange={handleDistrictChange}
+              disabled={!districts.length}
+            >
+              <option value="">Chọn quận/huyện</option>
+              {districts.map((d) => (
+                <option key={d.districtId} value={d.districtId}>{d.districtName}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Phường / Xã</label>
+            <select
+              value={selectedWard.code || ''}
+              onChange={handleWardChange}
+              disabled={!wards.length}
+            >
+              <option value="">Chọn phường/xã</option>
+              {wards.map((w) => (
+                <option key={w.wardCode} value={w.wardCode}>{w.wardName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Số nhà, tên đường</label>
+            <input
+              type="text"
+              value={formData.specificAddress}
+              onChange={handleInputChange('specificAddress')}
+              placeholder="76 Nguyễn Sơn"
+            />
+          </div>
+        </div>
+
+        <div className="address-preview">
+          <strong>Địa chỉ đầy đủ:</strong> {fullAddressPreview || 'Chưa có địa chỉ'}
         </div>
       </div>
 
@@ -225,7 +393,6 @@ export default function Profile() {
   // ── Admin layout ──────────────────────────────────────────────────────────────
   if (isAdminUser) {
     return (
-      // ✅ hideTopbar=true → ẩn <header class="admin-topbar"> ở trang này
       <AdminLayout title="Hồ Sơ Admin" hideTopbar>
         <div className="admin-profile-section">
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -285,6 +452,12 @@ export default function Profile() {
               onClick={() => setActiveMenu('orders')}
             >
               <span className="menu-icon">📦</span> Đơn hàng
+            </button>
+            <button
+              className="menu-item"
+              onClick={() => navigate('/user/vouchers')}
+            >
+              <span className="menu-icon">🎁</span> Voucher của tôi
             </button>
             <button
               className={`menu-item ${activeMenu === 'password' ? 'active' : ''}`}

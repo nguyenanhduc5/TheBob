@@ -36,10 +36,10 @@ const getTotalStock = (product) =>
   getVariants(product).reduce((sum, variant) => sum + toNumber(variant?.stock), 0);
 
 const statusLabel = {
-  available: 'Dang ban',
-  lowStock: 'Sap het',
-  outOfStock: 'Het hang',
-  inactive: 'Tam an',
+  available: 'Đang bán',
+  lowStock: 'Sắp hết',
+  outOfStock: 'Hết hàng',
+  inactive: 'Tạm ẩn',
 };
 
 function ProductTable({ products, getProductStatus, onEdit, onDelete, onView }) {
@@ -68,17 +68,17 @@ function ProductTable({ products, getProductStatus, onEdit, onDelete, onView }) 
       <table className="pm-table">
         <thead>
           <tr>
-            <th>Anh</th>
-            <th>Ten san pham</th>
-            <th>Thuong hieu</th>
-            <th>Danh muc</th>
-            <th>Gia san pham</th>
-            <th>Tong ton kho</th>
-            <th>Bien the</th>
-            <th>Trang thai</th>
+            <th>Ảnh</th>
+            <th>Tên sản phẩm</th>
+            <th>Thương hiệu</th>
+            <th>Danh mục</th>
+            <th>Giá sản phẩm</th>
+            <th>Tổng tồn kho</th>
+            <th>Biến thể</th>
+            <th>Trạng thái</th>
             <th>Xem</th>
-            <th>Sua</th>
-            <th>Xoa</th>
+            <th>Sửa</th>
+            <th>Xóa</th>
           </tr>
         </thead>
         <tbody>
@@ -89,7 +89,7 @@ function ProductTable({ products, getProductStatus, onEdit, onDelete, onView }) 
                   {row.image ? (
                     <img src={row.image} alt={row.name} loading="lazy" />
                   ) : (
-                    <span>No image</span>
+                    <span>Không có ảnh</span>
                   )}
                 </div>
               </td>
@@ -107,22 +107,22 @@ function ProductTable({ products, getProductStatus, onEdit, onDelete, onView }) 
               <td>{row.variantCount}</td>
               <td>
                 <span className={`pm-status pm-status-${row.status}`}>
-                  {statusLabel[row.status] || 'Khong ro'}
+                  {statusLabel[row.status] || 'Không rõ'}
                 </span>
               </td>
               <td>
-                <button className="pm-icon-button" type="button" onClick={() => onView(row.id)} title="Xem san pham">
-                  View
+                <button className="pm-icon-button" type="button" onClick={() => onView(row.id)} title="Xem sản phẩm">
+                  Xem
                 </button>
               </td>
               <td>
-                <button className="pm-icon-button" type="button" onClick={() => onEdit(row.id)} title="Sua san pham">
-                  Edit
+                <button className="pm-icon-button" type="button" onClick={() => onEdit(row.id)} title="Sửa sản phẩm">
+                  Sửa
                 </button>
               </td>
               <td>
-                <button className="pm-icon-button pm-danger" type="button" onClick={() => onDelete(row.id)} title="Xoa san pham">
-                  Delete
+                <button className="pm-icon-button pm-danger" type="button" onClick={() => onDelete(row.id)} title="Xóa sản phẩm">
+                  Xóa
                 </button>
               </td>
             </tr>

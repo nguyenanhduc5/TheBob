@@ -19,6 +19,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddEndpointsApiExplorer();
 
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
+
 // Register controllers so MapControllers() works
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -106,6 +111,10 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddMemoryCache();
 
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IPresenceService, PresenceService>();
+builder.Services.AddScoped<IFaqService, FaqService>();
+builder.Services.AddScoped<IProductContextService, ProductContextService>();
+builder.Services.AddHttpClient<IAiChatService, AiChatService>();
 builder.Services.AddScoped<IAdminProductService, AdminProductService>();
 builder.Services.AddScoped<IAdminProductRepository, AdminProductRepository>();
 builder.Services.AddScoped<IPromotionEngine, PromotionEngine>();
@@ -224,6 +233,7 @@ app.UseAuthorization();
 app.UseWebSockets();
 app.MapControllers();
 app.MapHub<THEBOB.Hubs.OrderHub>("/hubs/order").RequireCors("AllowReactApp");
+app.MapHub<THEBOB.Hubs.ChatHub>("/hubs/chat").RequireCors("AllowReactApp");
 
 var summaries = new[]
 {
@@ -243,6 +253,15 @@ app.MapGet("/weatherforecast", () =>
     return forecast;
 })
 .WithName("GetWeatherForecast");
+
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var context = services.GetRequiredService<THEBOB.Data.ThebobDbContext>();
+    
+    // Clear stale AdminPresence records on startup
+    context.Database.ExecuteSqlRaw("UPDATE AdminPresences SET IsOnline = 0, ConnectionId = NULL");
+}
 
 app.Run();
 

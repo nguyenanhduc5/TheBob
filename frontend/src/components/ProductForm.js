@@ -105,6 +105,7 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
       const newColor = await productsAPI.createColor(payload);
       if (newColor) {
         if (fetchLookups) await fetchLookups();
+        addNotification(`Đã thêm màu "${payload?.name || ''}" thành công.`, 'success');
         return newColor;
       }
     } catch (e) {
@@ -120,12 +121,72 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
       const newSize = await productsAPI.createSize(payload);
       if (newSize) {
         if (fetchLookups) await fetchLookups();
+        addNotification(`Đã thêm size "${payload?.name || ''}" thành công.`, 'success');
         return newSize;
       }
     } catch (e) {
       addNotification(e.message, "error");
     }
   }, [fetchLookups, addNotification]);
+  const handleEditColor = useCallback(async (colorId, payload) => {
+  try {
+    if (typeof productsAPI.updateColor !== 'function') {
+      throw new Error("Hàm updateColor chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+    }
+    const updated = await productsAPI.updateColor(colorId, payload);
+    if (fetchLookups) await fetchLookups();
+    addNotification(`Đã cập nhật màu "${payload?.name || ''}" thành công.`, 'success');
+    return updated;
+  } catch (e) {
+    addNotification(e.message, "error");
+    return null;
+  }
+}, [fetchLookups, addNotification]);
+
+const handleDeleteColor = useCallback(async (colorId) => {
+  try {
+    if (typeof productsAPI.deleteColor !== 'function') {
+      throw new Error("Hàm deleteColor chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+    }
+    await productsAPI.deleteColor(colorId);
+    if (fetchLookups) await fetchLookups();
+    addNotification('Đã xóa màu thành công.', 'success');
+    return true;
+  } catch (e) {
+    addNotification(e.message || 'Không thể xóa màu này.', "error");
+    return false;
+  }
+}, [fetchLookups, addNotification]);
+
+const handleEditSize = useCallback(async (sizeId, payload) => {
+  try {
+    if (typeof productsAPI.updateSize !== 'function') {
+      throw new Error("Hàm updateSize chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+    }
+    const updated = await productsAPI.updateSize(sizeId, payload);
+    if (fetchLookups) await fetchLookups();
+    addNotification(`Đã cập nhật size "${payload?.name || ''}" thành công.`, 'success');
+    return updated;
+  } catch (e) {
+    addNotification(e.message, "error");
+    return null;
+  }
+}, [fetchLookups, addNotification]);
+
+const handleDeleteSize = useCallback(async (sizeId) => {
+  try {
+    if (typeof productsAPI.deleteSize !== 'function') {
+      throw new Error("Hàm deleteSize chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+    }
+    await productsAPI.deleteSize(sizeId);
+    if (fetchLookups) await fetchLookups();
+    addNotification('Đã xóa size thành công.', 'success');
+    return true;
+  } catch (e) {
+    addNotification(e.message || 'Không thể xóa size này.', "error");
+    return false;
+  }
+}, [fetchLookups, addNotification]);
 
   const validate = useCallback(() => {
     const nextErrors = {};
@@ -343,6 +404,10 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
         onChange={(variants) => updateField('variants', variants)}
         onAddColor={handleAddColor}
         onAddSize={handleAddSize}
+        onEditColor={handleEditColor}
+        onDeleteColor={handleDeleteColor}
+        onEditSize={handleEditSize}
+        onDeleteSize={handleDeleteSize}
       />
 
       <div className="pm-form-footer">

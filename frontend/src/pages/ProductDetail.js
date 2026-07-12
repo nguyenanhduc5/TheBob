@@ -40,6 +40,7 @@ const getVariants = (product) => {
       sizeId: variant.sizeId ?? variant.SizeId,
       colorName: toText(variant.color ?? variant.Color),
       sizeName: toText(variant.size ?? variant.Size),
+      hexCode: toText(variant.hexCode ?? variant.HexCode),
       sku: toText(variant.sku ?? variant.Sku),
       price: toNumber(variant.price ?? variant.Price),
       stock: toNumber(variant.stock ?? variant.Stock),
@@ -155,6 +156,7 @@ useEffect(() => { addNotificationRef.current = addNotification; }, [addNotificat
         return {
           id: variant.colorId,
           name: variant.colorName,
+          hexCode: variant.hexCode,
           hasStock,
         };
       })
@@ -187,9 +189,12 @@ useEffect(() => { addNotificationRef.current = addNotification; }, [addNotificat
     [variants, selectedColorId, selectedSizeId]
   );
 
-  const productImages = useMemo(() => {
-    const baseImages = getImageUrls(product?.images);
-    const fallbackImages = baseImages.length > 0 ? baseImages : [toText(product?.mainImageUrl) || '/placeholder.jpg'];
+ const productImages = useMemo(() => {
+    const mainImage = toText(product?.mainImageUrl);
+    const otherImages = getImageUrls(product?.images).filter((img) => img !== mainImage);
+    // Ảnh bìa (mainImage) luôn đứng đầu, sau đó mới tới các ảnh phụ
+    const baseImages = mainImage ? [mainImage, ...otherImages] : otherImages;
+    const fallbackImages = baseImages.length > 0 ? baseImages : ['/placeholder.jpg'];
 
     if (!selectedColorId) return fallbackImages;
 
@@ -312,11 +317,11 @@ try {
 
 
 
-  if (loading) return <div className="loading-page">Đang tải sản phẩm...</div>;
+  if (loading && !product) return <div className="loading-page">Đang tải sản phẩm...</div>;
   if (!product) return <div className="error-page">Sản phẩm không tồn tại</div>;
 
   return (
-    <>
+    <div className={loading ? 'grid-loading' : ''}>
       <div className="product-detail-container">
         <div className="product-gallery">
           <div className="main-image-container">
@@ -415,7 +420,20 @@ try {
                       key={color.id}
                       className={`color-button ${normalizeId(selectedColorId) === normalizeId(color.id) ? 'active' : ''} ${!color.hasStock ? 'low-opacity' : ''}`}
                       onClick={() => handleColorSelect(color.id)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                     >
+                      {color.hexCode && (
+                        <span 
+                          style={{ 
+                            width: '12px', 
+                            height: '12px', 
+                            borderRadius: '50%', 
+                            backgroundColor: color.hexCode, 
+                            border: '1px solid #ccc',
+                            display: 'inline-block'
+                          }} 
+                        />
+                      )}
                       {color.name}
                     </button>
                   ))}
@@ -520,6 +538,6 @@ try {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

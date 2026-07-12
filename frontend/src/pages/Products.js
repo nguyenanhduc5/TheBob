@@ -18,6 +18,15 @@ export default function Products() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const [localFilters, setLocalFilters] = useState({
+    query: searchParams.get('query') || '',
+    categoryId: searchParams.get('categoryId') || '',
+    color: searchParams.get('color') || '',
+    minPrice: searchParams.get('minPrice') || '',
+    maxPrice: searchParams.get('maxPrice') || '',
+  });
+
   const [filters, setFilters] = useState({
     query: searchParams.get('query') || '',
     categoryId: searchParams.get('categoryId') || '',
@@ -25,11 +34,52 @@ export default function Products() {
     minPrice: searchParams.get('minPrice') || '',
     maxPrice: searchParams.get('maxPrice') || '',
   });
+
   const [sortBy, setSortBy] = useState('newest');
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 8;
 
-  // ✅ FIX: fetchCategories không có deps → chỉ tạo 1 lần, không bao giờ thay đổi
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, categoryId: localFilters.categoryId }));
+  }, [localFilters.categoryId]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setFilters(prev => ({
+        ...prev,
+        query: localFilters.query,
+        color: localFilters.color,
+        minPrice: localFilters.minPrice,
+        maxPrice: localFilters.maxPrice,
+      }));
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [localFilters.query, localFilters.color, localFilters.minPrice, localFilters.maxPrice]);
+
+  useEffect(() => {
+    if (!localFilters.query.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    const fetchSuggestions = async () => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/products/search?query=${encodeURIComponent(localFilters.query)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setSuggestions(data.slice(0, 5));
+        }
+      } catch (error) {
+        console.error('Failed to fetch search suggestions:', error);
+      }
+    };
+    const handler = setTimeout(fetchSuggestions, 250);
+    return () => clearTimeout(handler);
+  }, [localFilters.query]);
+
   const fetchCategories = useCallback(async () => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/products/categories`);
@@ -40,9 +90,8 @@ export default function Products() {
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     }
-  }, []); // ✅ không deps → stable, chỉ fetch 1 lần
+  }, []);
 
-  // ✅ FIX: bỏ addNotification khỏi deps, dùng addNotificationRef thay thế
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
@@ -70,25 +119,22 @@ export default function Products() {
       }
     } catch (error) {
       console.error('Failed to fetch products:', error);
-      addNotificationRef.current('Lỗi khi tải sản phẩm', 'error'); // ✅ dùng ref
+      addNotificationRef.current('Lỗi khi tải sản phẩm', 'error');
     } finally {
       setLoading(false);
     }
-  }, [filters, sortBy]); // ✅ chỉ giữ filters và sortBy — đúng deps thực sự cần
+  }, [filters, sortBy]);
 
-  // ✅ FIX: tách 2 useEffect riêng biệt
-  // fetchCategories chỉ chạy 1 lần lúc mount
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
-  // fetchProducts chạy lại khi filters hoặc sortBy thay đổi
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }));
+  const handleLocalFilterChange = (field, value) => {
+    setLocalFilters(prev => ({ ...prev, [field]: value }));
   };
 
   const handleProductClick = (productId) => {
@@ -115,22 +161,47 @@ export default function Products() {
       <div className="products-container">
         {/* Sidebar - Filters */}
         <aside className="products-sidebar">
-          <div className="filter-section">
+          <div className="filter-section search-filter-section">
             <h3>Tìm Kiếm</h3>
             <input
               type="text"
               placeholder="Tên sản phẩm..."
-              value={filters.query}
-              onChange={(e) => handleFilterChange('query', e.target.value)}
+              value={localFilters.query}
+              onChange={(e) => handleLocalFilterChange('query', e.target.value)}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               className="filter-input"
             />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="search-suggestions-dropdown">
+                {suggestions.map(p => (
+                  <div key={p.id} className="suggestion-item" onClick={() => {
+                    handleLocalFilterChange('query', p.name);
+                    navigate(`/products/${p.id}`);
+                  }}>
+                    <img src={p.mainImageUrl || '/placeholder.jpg'} alt="" />
+                    <div className="suggestion-info">
+                      <span className="suggestion-name">{p.name}</span>
+                      <span className="suggestion-price">
+                        {p.price !== undefined && p.price !== null
+                          ? p.price.toLocaleString('vi-VN')
+                          : p.productVariants?.[0]?.price
+                          ? p.productVariants[0].price.toLocaleString('vi-VN')
+                          : '0'}{' '}
+                        VNĐ
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="filter-section">
             <h3>Danh Mục</h3>
             <select
-              value={filters.categoryId}
-              onChange={(e) => handleFilterChange('categoryId', e.target.value)}
+              value={localFilters.categoryId}
+              onChange={(e) => handleLocalFilterChange('categoryId', e.target.value)}
               className="filter-select"
               aria-label="Lọc theo danh mục sản phẩm"
             >
@@ -148,20 +219,51 @@ export default function Products() {
             <input
               type="text"
               placeholder="Ví dụ: Đỏ, Xanh..."
-              value={filters.color}
-              onChange={(e) => handleFilterChange('color', e.target.value)}
+              value={localFilters.color}
+              onChange={(e) => handleLocalFilterChange('color', e.target.value)}
               className="filter-input"
             />
           </div>
 
           <div className="filter-section">
-            <h3>Giá</h3>
+            <h3>Khoảng Giá</h3>
+            <div className="price-presets">
+              {[
+                { label: 'Tất cả giá', min: '', max: '' },
+                { label: 'Dưới 100k', min: '', max: '100000' },
+                { label: '100k - 300k', min: '100000', max: '300000' },
+                { label: '300k - 500k', min: '300000', max: '500000' },
+                { label: 'Trên 500k', min: '500000', max: '' },
+              ].map((preset, index) => {
+                const isActive = localFilters.minPrice === preset.min && localFilters.maxPrice === preset.max;
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    className={`price-preset-btn ${isActive ? 'active' : ''}`}
+                    onClick={() => {
+                      setLocalFilters(prev => ({
+                        ...prev,
+                        minPrice: preset.min,
+                        maxPrice: preset.max
+                      }));
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: '12px', marginBottom: '6px', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#666', fontWeight: 'bold' }}>
+              Tự nhập khoảng giá:
+            </div>
             <div className="price-range">
               <input
                 type="number"
                 placeholder="Từ"
-                value={filters.minPrice}
-                onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+                value={localFilters.minPrice}
+                onChange={(e) => handleLocalFilterChange('minPrice', e.target.value)}
                 className="filter-input"
                 aria-label="Giá tối thiểu"
               />
@@ -169,8 +271,8 @@ export default function Products() {
               <input
                 type="number"
                 placeholder="Đến"
-                value={filters.maxPrice}
-                onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+                value={localFilters.maxPrice}
+                onChange={(e) => handleLocalFilterChange('maxPrice', e.target.value)}
                 className="filter-input"
                 aria-label="Giá tối đa"
               />
@@ -178,7 +280,11 @@ export default function Products() {
           </div>
 
           <button
-            onClick={() => setFilters({ query: '', categoryId: '', color: '', minPrice: '', maxPrice: '' })}
+            onClick={() => {
+              const reset = { query: '', categoryId: '', color: '', minPrice: '', maxPrice: '' };
+              setLocalFilters(reset);
+              setFilters(reset);
+            }}
             className="btn-clear-filters"
           >
             Xóa Bộ Lọc
@@ -205,60 +311,93 @@ export default function Products() {
             </div>
           </div>
 
-          {loading ? (
-            <div className="loading">Đang tải sản phẩm...</div>
-          ) : products.length === 0 ? (
+          {products.length === 0 && !loading ? (
             <div className="no-products">Không tìm thấy sản phẩm nào.</div>
           ) : (
             <>
-              <div className="products-grid">
-                {currentProducts.map((product) => (
-                  <div key={product.id} className="product-card">
-                    <div
-  className="product-image-container"
-  onClick={() => handleProductClick(product.id)}
->
-  <img
-    src={product.mainImageUrl || '/placeholder.jpg'}
-    alt={product.name}
-    className="product-image"
-  />
-  {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
-  {/* Chỉ giữ chữ Hết Hàng, bỏ SOLD OUT */}
-  {(product.productVariants ?? []).reduce(
-    (sum, v) => sum + (Number(v.stock ?? v.Stock) || 0), 0
-  ) === 0 && (
-    <span className="badge-sold-out">Hết Hàng</span>
-  )}
-</div>
-                    <div className="product-info">
-                      <h3 className="product-name" onClick={() => handleProductClick(product.id)}>
-                        {product.name}
-                      </h3>
-                      <div className="product-rating">
-                        <span className="stars">⭐ {Number(product.rating ?? 0).toFixed(1)}</span>
-                        <span className="reviews">({product.reviewCount ?? 0})</span>
-                      </div>
-                      <div className="product-price">
-                        {product.price !== undefined && product.price !== null
-                          ? product.price.toLocaleString('vi-VN')
-                          : product.productVariants?.[0]?.price
-                          ? product.productVariants[0].price.toLocaleString('vi-VN')
-                          : '0'}{' '}
-                        VNĐ
-                      </div>
-                      <button
-                        onClick={() => handleProductClick(product.id)}
-                        className="btn-add-to-cart"
-                      >
-                        Xem chi tiết
-                      </button>
-                    </div>
+              <div className={`products-grid ${loading ? 'grid-loading' : ''}`}>
+                {loading && products.length === 0 ? (
+                  <div className="loading-placeholder" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '100px', fontSize: '0.9rem', color: '#666', letterSpacing: '0.05em' }}>
+                    Đang tải sản phẩm...
                   </div>
-                ))}
+                ) : (
+                  currentProducts.map((product) => {
+                    const colorsMap = new Map();
+                    (product.variants || product.productVariants || []).forEach(v => {
+                      const cId = v.colorId ?? v.ColorId;
+                      const cName = v.color ?? v.Color;
+                      const cHex = v.hexCode ?? v.HexCode;
+                      if (cId && cHex && !colorsMap.has(cId)) {
+                        colorsMap.set(cId, { id: cId, name: cName, hexCode: cHex });
+                      }
+                    });
+                    const productColors = Array.from(colorsMap.values());
+
+                    return (
+                      <div key={product.id} className="product-card">
+                        <div
+                          className="product-image-container"
+                          onClick={() => handleProductClick(product.id)}
+                        >
+                          <img
+                            src={product.mainImageUrl || '/placeholder.jpg'}
+                            alt={product.name}
+                            className="product-image"
+                          />
+                          {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
+                          {(product.productVariants ?? []).reduce(
+                            (sum, v) => sum + (Number(v.stock ?? v.Stock) || 0), 0
+                          ) === 0 && (
+                            <span className="badge-sold-out">Hết Hàng</span>
+                          )}
+                        </div>
+                        <div className="product-info">
+                          <h3 className="product-name" onClick={() => handleProductClick(product.id)}>
+                            {product.name}
+                          </h3>
+                          <div className="product-card-colors" style={{ display: 'flex', gap: '6px', alignItems: 'center', height: '20px', margin: '8px 0' }}>
+                            {productColors.slice(0, 3).map(color => (
+                              <span 
+                                key={color.id} 
+                                title={color.name}
+                                style={{ 
+                                  width: '12px', 
+                                  height: '12px', 
+                                  borderRadius: '50%', 
+                                  backgroundColor: color.hexCode, 
+                                  border: '1px solid #ccc',
+                                  display: 'inline-block'
+                                }} 
+                              />
+                            ))}
+                            {productColors.length > 3 && (
+                              <span style={{ fontSize: '0.72rem', color: '#666', fontWeight: '500' }}>
+                                +{productColors.length - 3}
+                              </span>
+                            )}
+                          </div>
+                          <div className="product-price">
+                            {product.price !== undefined && product.price !== null
+                              ? product.price.toLocaleString('vi-VN')
+                              : product.productVariants?.[0]?.price
+                              ? product.productVariants[0].price.toLocaleString('vi-VN')
+                              : '0'}{' '}
+                            VNĐ
+                          </div>
+                          <button
+                            onClick={() => handleProductClick(product.id)}
+                            className="btn-add-to-cart"
+                          >
+                            Xem chi tiết
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
-              {totalPages > 1 && (
+              {totalPages > 1 && products.length > 0 && (
                 <div className="bob-pagination">
                   <button
                     onClick={() => handlePageChange(currentPage - 1)}

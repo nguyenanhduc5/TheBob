@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using THEBOB.Data;
 using THEBOB.DTOs.Chat;
 using THEBOB.Hubs;
@@ -11,11 +12,21 @@ namespace THEBOB.Services.Chat
     {
         private readonly ThebobDbContext _db;
         private readonly IHubContext<ChatHub> _hubContext;
+        private readonly IPresenceService _presenceService;
+        private readonly IFaqService _faqService;
+        private readonly IAiChatService _aiChatService;
+        private readonly ILogger<ChatService> _logger;
+        private readonly Microsoft.Extensions.DependencyInjection.IServiceScopeFactory _scopeFactory;
 
-        public ChatService(ThebobDbContext db, IHubContext<ChatHub> hubContext)
+        public ChatService(ThebobDbContext db, IHubContext<ChatHub> hubContext, IPresenceService presenceService, IFaqService faqService, IAiChatService aiChatService, ILogger<ChatService> logger, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory scopeFactory)
         {
             _db = db;
             _hubContext = hubContext;
+            _presenceService = presenceService;
+            _faqService = faqService;
+            _aiChatService = aiChatService;
+            _logger = logger;
+            _scopeFactory = scopeFactory;
         }
 
         public async Task<bool> CanAccessConversationAsync(int conversationId, int userId, bool isAdmin)
@@ -52,7 +63,7 @@ namespace THEBOB.Services.Chat
             return conversation;
         }
 
-        public async Task<ChatMessageDto> SendMessageAsync(int conversationId, int userId, bool isAdmin, string content)
+        public async Task<ChatMessageDto> SendMessageAsync(int conversationId, int userId, bool isAdmin, string content, int? productId = null, int? variantId = null)
         {
             if (string.IsNullOrWhiteSpace(content))
             {
@@ -88,6 +99,12 @@ namespace THEBOB.Services.Chat
             _db.Messages.Add(message);
             conversation.UpdatedAt = DateTime.UtcNow;
 
+            if (!isAdmin)
+            {
+                conversation.CurrentProductId = productId;
+                conversation.CurrentVariantId = variantId;
+            }
+
             if (isAdmin && conversation.AssignedAdminId == null)
             {
                 conversation.AssignedAdminId = userId;
@@ -100,11 +117,174 @@ namespace THEBOB.Services.Chat
                 .Group(IChatService.ConversationGroup(conversationId))
                 .SendAsync("ReceiveMessage", dto);
 
+            // Phase 2: If User sends a message, check Admin presence
+            if (!isAdmin)
+            {
+                bool isAdminOnline = await _presenceService.IsAnyAdminOnlineAsync();
+                if (!isAdminOnline)
+                {
+                    // Set ChatMode = AI if no admin is online
+                    if (conversation.ChatMode != ChatMode.AI)
+                    {
+                        conversation.ChatMode = ChatMode.AI;
+                        await _db.SaveChangesAsync();
+                        // Optional: broadcast ChatModeChanged to clients? Yes.
+                        // Currently, the prompt doesn't explicitly ask for ChatModeChanged event when switching to AI,
+                        // but it sets the conversation chat mode.
+                    }
+
+                    // Execute AI/FAQ reply in background so it doesn't block the client
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var scope = _scopeFactory.CreateScope();
+                            var scopedFaqService = scope.ServiceProvider.GetRequiredService<IFaqService>();
+                            var scopedAiChatService = scope.ServiceProvider.GetRequiredService<IAiChatService>();
+                            var scopedDb = scope.ServiceProvider.GetRequiredService<ThebobDbContext>();
+                            var scopedHubContext = scope.ServiceProvider.GetRequiredService<IHubContext<ChatHub>>();
+
+                            // Phase 3: Try match FAQ first
+                            var matchedFaq = await scopedFaqService.TryMatchFaqAsync(content);
+                            string aiResponseContent;
+
+                            if (matchedFaq != null)
+                            {
+                                aiResponseContent = matchedFaq.Answer;
+                            }
+                            else
+                            {
+                                // Phase 4: Call OpenAI if no FAQ matches
+                                var lastMessages = await scopedDb.Messages
+                                    .AsNoTracking()
+                                    .Where(m => m.ConversationId == conversationId)
+                                    .OrderByDescending(m => m.CreatedAt)
+                                    .Take(10)
+                                    .ToListAsync();
+
+                                lastMessages.Reverse();
+
+                                var history = lastMessages
+                                    .Where(m => m.SenderType != SenderType.System)
+                                    .Select(m => (
+                                        role: m.SenderType == SenderType.User ? "user" : "assistant",
+                                        content: m.Content
+                                    ))
+                                    .ToList();
+
+                                var scopedProductService = scope.ServiceProvider.GetRequiredService<IProductContextService>();
+
+                                // Send AI typing indicator
+                                await scopedHubContext.Clients.Group(IChatService.ConversationGroup(conversationId))
+                                    .SendAsync("ReceiveTyping", conversationId, true);
+
+                                string systemPrompt = "Bạn là nhân viên tư vấn của cửa hàng thời trang THEBOB. Trả lời thân thiện, ngắn gọn, tiếng Việt. Nếu không chắc thông tin, đề nghị khách chờ nhân viên hỗ trợ.";
+                                
+                                if (conversation.CurrentProductId.HasValue)
+                                {
+                                    var productCtx = await scopedProductService.BuildContextAsync(conversation.CurrentProductId.Value);
+                                    if (productCtx != null)
+                                    {
+                                        systemPrompt += $"\n\nTHÔNG TIN SẢN PHẨM KHÁCH ĐANG XEM:\n" +
+                                                        $"- Tên: {productCtx.Name}\n" +
+                                                        $"- Phân loại: {productCtx.CategoryName} - Thương hiệu: {productCtx.BrandName}\n" +
+                                                        $"- Chất liệu: {productCtx.Material}\n" +
+                                                        $"- Đánh giá: {productCtx.Rating}/5 ({productCtx.ReviewCount} lượt)\n" +
+                                                        $"- Khoảng giá: {productCtx.MinPrice:N0} - {productCtx.MaxPrice:N0} đ\n";
+                                        
+                                        if (productCtx.PromotionPercent > 0)
+                                        {
+                                            systemPrompt += $"- KHUYẾN MÃI: Đang giảm {productCtx.PromotionPercent}%\n";
+                                        }
+
+                                        systemPrompt += "\nDANH SÁCH MÀU VÀ SIZE ĐANG BÁN:\n";
+                                        foreach (var v in productCtx.Variants)
+                                        {
+                                            systemPrompt += $" + Size {v.Size}, Màu {v.Color}: {v.Price:N0} đ (Còn {v.Stock} chiếc)\n";
+                                        }
+                                        systemPrompt += "\nMô tả sản phẩm: " + productCtx.Description;
+                                    }
+                                }
+                                else
+                                {
+                                    systemPrompt += "\n\nKhách hàng hiện chưa chọn sản phẩm nào. Nếu khách hỏi về sản phẩm, hãy hỏi khách muốn tư vấn sản phẩm nào và gợi ý dùng thanh tìm kiếm sản phẩm. Không tự bịa ra tên sản phẩm.";
+                                }
+
+                                aiResponseContent = await scopedAiChatService.GenerateReplyAsync(systemPrompt, history, content);
+                            }
+
+                            var aiMessage = new Message
+                            {
+                                ConversationId = conversationId,
+                                SenderType = SenderType.AI,
+                                Content = aiResponseContent,
+                                CreatedAt = DateTime.UtcNow,
+                                IsRead = false
+                            };
+                            scopedDb.Messages.Add(aiMessage);
+                            await scopedDb.SaveChangesAsync();
+
+                            var aiDto = MapMessage(aiMessage, "AI Assistant");
+                            await scopedHubContext.Clients
+                                .Group(IChatService.ConversationGroup(conversationId))
+                                .SendAsync("ReceiveMessage", aiDto);
+
+                            // Turn off typing indicator
+                            await scopedHubContext.Clients.Group(IChatService.ConversationGroup(conversationId))
+                                .SendAsync("ReceiveTyping", conversationId, false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error processing background AI message");
+                        }
+                    });
+                }
+                else
+                {
+                    // If Admin online, keep ChatMode = Admin
+                    if (conversation.ChatMode != ChatMode.Admin)
+                    {
+                        conversation.ChatMode = ChatMode.Admin;
+                        await _db.SaveChangesAsync();
+                    }
+                }
+            }
+
             return dto;
         }
 
+        public async Task HandleAdminOnlineAsync()
+        {
+            // When an admin comes online, find all open conversations currently in AI mode
+            var aiConversations = await _db.Conversations
+                .Where(c => c.Status == ConversationStatus.Open && c.ChatMode == ChatMode.AI)
+                .ToListAsync();
+
+            foreach (var conv in aiConversations)
+            {
+                conv.ChatMode = ChatMode.Admin;
+                
+                var systemMsg = new Message
+                {
+                    ConversationId = conv.Id,
+                    SenderType = SenderType.System,
+                    Content = "Nhân viên đã tham gia cuộc trò chuyện.",
+                    CreatedAt = DateTime.UtcNow,
+                    IsRead = false
+                };
+                
+                _db.Messages.Add(systemMsg);
+                await _db.SaveChangesAsync();
+
+                var sysDto = MapMessage(systemMsg, "System");
+                await _hubContext.Clients
+                    .Group(IChatService.ConversationGroup(conv.Id))
+                    .SendAsync("ReceiveMessage", sysDto);
+            }
+        }
+
         public async Task<(Conversation Conversation, ChatMessageDto Message)> SendMessageForUserAsync(
-            int userId, bool isAdmin, string content, int? conversationId = null)
+            int userId, bool isAdmin, string content, int? conversationId = null, int? productId = null, int? variantId = null)
         {
             Conversation conversation;
 
@@ -127,7 +307,7 @@ namespace THEBOB.Services.Chat
                 conversation = await GetOrCreateOpenConversationAsync(userId);
             }
 
-            var message = await SendMessageAsync(conversation.Id, userId, isAdmin, content);
+            var message = await SendMessageAsync(conversation.Id, userId, isAdmin, content, productId, variantId);
             return (conversation, message);
         }
 

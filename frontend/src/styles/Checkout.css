@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    THEBOB - CHECKOUT PAGE | STABLE LAYOUT, NO JANK, MOBILE READY
    ========================================================================== */
 
@@ -268,7 +268,7 @@
   gap: 10px;
 }
 
-/* Toàn bộ ô là <label> — click đâu cũng tích được */
+/* ToÃ n bá»™ Ã´ lÃ  <label> â€” click Ä‘Ã¢u cÅ©ng tÃ­ch Ä‘Æ°á»£c */
 .payment-option {
   display: flex;
   align-items: center;
@@ -277,7 +277,7 @@
   border: 1px solid #ddd;
   cursor: pointer;
   min-height: 64px;
-  /* Không dùng transition/will-change để tránh rung */
+  /* KhÃ´ng dÃ¹ng transition/will-change Ä‘á»ƒ trÃ¡nh rung */
 }
 
 .payment-option:has(input:checked) {
@@ -555,4 +555,98 @@
   .summary-row.total {
     font-size: 0.95rem;
   }
+}
+
+/* ─── Coupon Section ──────────────────────────────────────────────────────── */
+.coupon-section h2 { font-size: 1rem; margin-bottom: 14px; }
+
+.coupon-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.coupon-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  transition: border-color 0.2s;
+}
+.coupon-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+}
+
+.coupon-apply-btn {
+  padding: 10px 20px;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.coupon-apply-btn:hover:not(:disabled) { background: #4338ca; }
+.coupon-apply-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.coupon-applied {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 2px solid #10b981;
+  border-radius: 8px;
+}
+.coupon-tag {
+  font-weight: 700;
+  color: #059669;
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+.coupon-saving {
+  font-size: 0.85rem;
+  color: #10b981;
+  flex: 1;
+}
+.coupon-remove {
+  background: none;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.coupon-remove:hover { background: #fef2f2; }
+.coupon-error {
+  color: #ef4444;
+  font-size: 0.85rem;
+  margin: 8px 0 0;
+}
+
+/* ─── Discount Breakdown Rows ──────────────────────────────────────────────── */
+.discount-row span:last-child,
+.discount-amount {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.summary-saving {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border: 1px solid #6ee7b7;
+  border-radius: 8px;
+  color: #065f46;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: center;
 }

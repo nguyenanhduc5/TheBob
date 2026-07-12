@@ -350,16 +350,16 @@ export default function AdminProducts() {
         </div>
       )}
 
-      {filteredProducts.length > itemsPerPage && (
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          itemsPerPage={itemsPerPage}
-          setItemsPerPage={setItemsPerPage}
-          setCurrentPage={setCurrentPage}
-          totalItems={filteredProducts.length}
-        />
-      )}
+    {filteredProducts.length > 0 && (
+  <Pagination
+    currentPage={currentPage}
+    totalPages={totalPages}
+    itemsPerPage={itemsPerPage}
+    setItemsPerPage={setItemsPerPage}
+    setCurrentPage={setCurrentPage}
+    totalItems={filteredProducts.length}
+  />
+)}
     </div>
   );
 }

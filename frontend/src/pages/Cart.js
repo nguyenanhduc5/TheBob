@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { recommendationAPI } from '../api/app';
+import { recommendationAPI, promotionsAPI, couponsAPI } from '../api/app';
 import '../styles/Products.css'; // Reuse product card styles
 import { useCart } from '../context/CartContext';
 import { useNotification } from '../context/NotificationContext';
-import { couponsAPI } from '../api/app';
 import '../styles/Cart.css';
 
 export default function Cart() {
@@ -16,6 +15,9 @@ export default function Cart() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [itemToRemove, setItemToRemove] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
+  const [applicablePromotions, setApplicablePromotions] = useState([]);
+  const [automaticDiscount, setAutomaticDiscount] = useState(0);
+  const [promotionLoading, setPromotionLoading] = useState(false);
 
   useEffect(() => {
     async function fetchCartRecs() {
@@ -33,6 +35,40 @@ export default function Cart() {
     fetchCartRecs();
   }, [cartItems]);
 
+  // ✅ NEW: Fetch automatic promotions when cart changes
+  useEffect(() => {
+    async function fetchAndCalculatePromotions() {
+      if (cartItems.length === 0) {
+        setApplicablePromotions([]);
+        setAutomaticDiscount(0);
+        return;
+      }
+
+      setPromotionLoading(true);
+      try {
+        // Call new endpoint to calculate promotions (includes automatic discount)
+        const calcResult = await promotionsAPI.calculatePromotions();
+        
+        if (calcResult?.automaticDiscount > 0) {
+          setAutomaticDiscount(calcResult.automaticDiscount);
+        } else {
+          setAutomaticDiscount(0);
+        }
+
+        // Also fetch applicable promotions to show user available offers
+        const promos = await promotionsAPI.getApplicable();
+        setApplicablePromotions(promos || []);
+      } catch (err) {
+        console.error('Failed to fetch promotions in Cart:', err);
+        setAutomaticDiscount(0);
+      } finally {
+        setPromotionLoading(false);
+      }
+    }
+
+    fetchAndCalculatePromotions();
+  }, [cartItems]);
+
   const getItemKey = (item) => item.variantId ?? item.id;
 
   const calculateSubtotal = () => {
@@ -42,16 +78,22 @@ export default function Cart() {
   const subtotal = calculateSubtotal();
 
   const calculateDiscount = () => {
-    if (!activeCoupon) return 0;
-    if (activeCoupon.productId) {
-      const targetItems = cartItems.filter(item =>
-        String(item.productId) === String(activeCoupon.productId) ||
-        String(item.id) === String(activeCoupon.productId)
-      );
-      const targetSubtotal = targetItems.reduce((t, i) => t + ((i.price ?? 0) * (i.quantity ?? 1)), 0);
-      return (targetSubtotal * activeCoupon.discountPercent) / 100;
+    let totalDiscount = automaticDiscount;
+    
+    if (activeCoupon) {
+      if (activeCoupon.productId) {
+        const targetItems = cartItems.filter(item =>
+          String(item.productId) === String(activeCoupon.productId) ||
+          String(item.id) === String(activeCoupon.productId)
+        );
+        const targetSubtotal = targetItems.reduce((t, i) => t + ((i.price ?? 0) * (i.quantity ?? 1)), 0);
+        totalDiscount += (targetSubtotal * activeCoupon.discountPercent) / 100;
+      } else {
+        totalDiscount += (subtotal * activeCoupon.discountPercent) / 100;
+      }
     }
-    return (subtotal * activeCoupon.discountPercent) / 100;
+    
+    return totalDiscount;
   };
 
   const discount = calculateDiscount();
@@ -213,6 +255,24 @@ export default function Cart() {
               Áp Dụng
             </button>
           </div>
+
+          {/* ✅ NEW: Show applicable promotions */}
+          {applicablePromotions.length > 0 && (
+            <div className="applicable-promotions" style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f0f8ff', borderRadius: '4px' }}>
+              <p style={{ fontSize: '0.85rem', margin: '0 0 5px 0', color: '#555' }}>⚡ Khuyến mãi tự động:</p>
+              {applicablePromotions.map((promo) => (
+                <div key={promo.id} style={{ fontSize: '0.8rem', color: '#0066cc', marginBottom: '3px' }}>
+                  • {promo.name} ({promo.discountValue}% giảm)
+                </div>
+              ))}
+            </div>
+          )}
+
+          {promotionLoading && (
+            <div style={{ fontSize: '0.85rem', color: '#999', marginBottom: '10px' }}>
+              Đang tải khuyến mãi...
+            </div>
+          )}
 
           <div className="summary-row">
             <span>Tạm tính:</span>

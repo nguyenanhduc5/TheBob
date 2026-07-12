@@ -130,6 +130,10 @@ export const productsAPI = {
 
   createColor:   (data)     => apiClient('/products/colors',  { method: 'POST',   auth: true, body: data }),
   createSize:    (data)     => apiClient('/products/sizes',   { method: 'POST',   auth: true, body: data }),
+  updateColor: (id, payload) => apiClient(`/products/colors/${id}`, { method: 'PUT', auth: true, body: payload }),
+  deleteColor: (id) => apiClient(`/products/colors/${id}`, { method: 'DELETE', auth: true }),
+  updateSize: (id, payload) => apiClient(`/products/sizes/${id}`, { method: 'PUT', auth: true, body: payload }),
+  deleteSize: (id) => apiClient(`/products/sizes/${id}`, { method: 'DELETE', auth: true }),
   createProduct: (data)     => apiClient('/products',         { method: 'POST',   auth: true, body: data }),
   updateProduct: (id, data) => apiClient(`/products/${id}`,  { method: 'PUT',    auth: true, body: data }),
   deleteProduct: (id)       => apiClient(`/products/${id}`,  { method: 'DELETE', auth: true }),
@@ -189,6 +193,16 @@ export const couponsAPI = {
   getByCode: (code) => apiClient(`/coupons/code/${code}`),
   create:    (data) => apiClient('/coupons',      { method: 'POST',   auth: true, body: data }),
   delete:    (id)   => apiClient(`/coupons/${id}`, { method: 'DELETE', auth: true }),
+};
+
+// ─── Categories & Brands (standalone exports) ─────────────────────────────────
+
+export const categoriesAPI = {
+  getAll: () => apiClient('/products/categories'),
+};
+
+export const brandsAPI = {
+  getAll: () => apiClient('/products/brands'),
 };
 
 // ─── Payment ──────────────────────────────────────────────────────────────────
@@ -268,6 +282,83 @@ export const recommendationAPI = {
 
 export const ORDER_HUB_URL =
   API_BASE_URL.replace(/\/api\/?$/, '') + '/hubs/order';
+
+export const CHAT_HUB_URL =
+  API_BASE_URL.replace(/\/api\/?$/, '') + '/hubs/chat';
+
+// ─── FAQ API ─────────────────────────────────────────────────────────────────
+
+export const faqAPI = {
+  getAll: () => apiClient('/faq', { auth: true }),
+  create: (data) => apiClient('/faq', { method: 'POST', auth: true, body: data }),
+  update: (id, data) => apiClient(`/faq/${id}`, { method: 'PUT', auth: true, body: data }),
+  delete: (id) => apiClient(`/faq/${id}`, { method: 'DELETE', auth: true }),
+};
+
+// ─── Chat API ─────────────────────────────────────────────────────────────────
+
+export const chatAPI = {
+  getAdminStatus: () => apiClient('/chat/admin-status'),
+  getConversations: () => apiClient('/chat/conversations', { auth: true }),
+  getMessages: (conversationId, page = 1, pageSize = 50) =>
+    apiClient(`/chat/messages/${conversationId}?page=${page}&pageSize=${pageSize}`, { auth: true }),
+  sendMessage: (content, conversationId, productId) =>
+    apiClient('/chat/send', {
+      method: 'POST',
+      auth: true,
+      body: { content, conversationId: conversationId ?? undefined, productId: productId ?? undefined },
+    }),
+  searchProduct: (q) => apiClient(`/chat/search-product?q=${encodeURIComponent(q)}`, { auth: true }),
+};
+
+// ─── Promotions API ───────────────────────────────────────────────────────────
+
+export const promotionsAPI = {
+  // Admin
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([,v]) => v))).toString();
+    return apiClient(`/promotions${qs ? `?${qs}` : ''}`, { auth: true });
+  },
+  getById: (id) => apiClient(`/promotions/${id}`, { auth: true }),
+  create: (data) => apiClient('/promotions', { method: 'POST', auth: true, body: data }),
+  update: (id, data) => apiClient(`/promotions/${id}`, { method: 'PUT', auth: true, body: data }),
+  updateStatus: (id, status) => apiClient(`/promotions/${id}/status`, { method: 'PUT', auth: true, body: { status } }),
+  clone: (id) => apiClient(`/promotions/${id}/clone`, { method: 'POST', auth: true }),
+  delete: (id) => apiClient(`/promotions/${id}`, { method: 'DELETE', auth: true }),
+  getStats: (id) => apiClient(`/promotions/${id}/stats`, { auth: true }),
+  getStatsSummary: () => apiClient('/promotions/stats/summary', { auth: true }),
+  getUsages: (id, page = 1) => apiClient(`/promotions/${id}/usages?page=${page}`, { auth: true }),
+  sendUserCoupon: (data) => apiClient('/promotions/send-user-coupon', { method: 'POST', auth: true, body: data }),
+  sendBulkCoupon: (data) => apiClient('/promotions/send-bulk-coupon', { method: 'POST', auth: true, body: data }),
+  getCustomerGroups: () => apiClient('/promotions/customer-groups', { auth: true }),
+  createCustomerGroup: (data) => apiClient('/promotions/customer-groups', { method: 'POST', auth: true, body: data }),
+
+  // User
+  validateCoupon: (couponCode) => apiClient('/promotions/validate-coupon', { method: 'POST', auth: true, body: { couponCode } }),
+  /**
+   * Tính khuyến mãi cho giỏ hàng hiện tại.
+   * @param {string} [couponCode] - Mã giảm giá (nếu có)
+   * @param {number} [shippingFee] - Phí vận chuyển thực tế (đã tính từ GHN), gửi lên để
+   *   backend cộng vào finalAmount và tính đúng shippingDiscount (nếu khuyến mãi giảm ship).
+   */
+  calculatePromotions: (couponCode, shippingFee) => apiClient('/promotions/calculate', {
+    method: 'POST',
+    auth: true,
+    body: {
+      couponCode: couponCode || undefined,
+      shippingFee: typeof shippingFee === 'number' ? shippingFee : undefined,
+    },
+  }),
+  getMyVouchers: () => apiClient('/promotions/my-vouchers', { auth: true }),
+  getApplicable: () => apiClient('/promotions/applicable', { auth: true }),
+};
+
+// ─── Users API extended ───────────────────────────────────────────────────────
+
+export const usersAPI = {
+  findByEmail: (email) => apiClient(`/users/by-email?email=${encodeURIComponent(email)}`, { auth: true }),
+  getAll: (page = 1, pageSize = 20) => apiClient(`/users?page=${page}&pageSize=${pageSize}`, { auth: true }),
+};
 
 // ─── Re-exports ───────────────────────────────────────────────────────────────
 

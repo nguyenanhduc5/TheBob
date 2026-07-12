@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { authAPI, cartAPI, ordersAPI, shippingAPI } from '../api/app';
+import { authAPI, cartAPI, ordersAPI, shippingAPI, promotionsAPI } from '../api/app';
 import '../styles/Checkout.css';
 
 const decodeJwt = (token) => {
@@ -49,6 +49,13 @@ export default function Checkout() {
   const submittingRef = useRef(false);
   const [formErrors, setFormErrors] = useState({});
 
+  // ── Coupon / Promotion ─────────────────────────────────────────
+  const [couponCode, setCouponCode] = useState('');
+  const [couponInput, setCouponInput] = useState('');
+  const [promoPreview, setPromoPreview] = useState(null);  // { totalDiscount, couponDiscount, appliedCouponCode, ... }
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError]   = useState('');
+
   const [provinces, setProvinces] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [wards, setWards] = useState([]);
@@ -59,6 +66,52 @@ export default function Checkout() {
 
   const [shippingFee, setShippingFee] = useState(null);
   const [isCalcFee, setIsCalcFee] = useState(false);
+
+  // Địa chỉ đã lưu sẵn trong Profile, chờ danh sách tỉnh/thành tải xong để tự động chọn
+  const [pendingProfileAddress, setPendingProfileAddress] = useState(null);
+  const addressAutoFillRef = useRef(false);
+
+  // Tạm tính (subtotal) - tính trước, dùng lại ở nhiều nơi (kể cả trong effect khuyến mãi)
+  const subtotal = useMemo(
+    () => cartItems.reduce((total, item) => total + item.price * item.quantity, 0),
+    [cartItems]
+  );
+
+  // Phí vận chuyển hiển thị: miễn phí nếu subtotal > 500k, ngược lại lấy phí GHN đã tính (fallback 30.000đ)
+  const shipping = subtotal > 500000 ? 0 : (shippingFee ?? 30000);
+
+  // Tính phí vận chuyển GHN cho một quận/phường cụ thể — dùng chung cho cả
+  // lựa chọn thủ công (handleWardChange) và tự động điền từ địa chỉ đã lưu.
+  const calculateShippingFee = useCallback(async (districtId, wardCode) => {
+    setIsCalcFee(true);
+    try {
+      const totalWeight = cartItems.reduce((sum, item) => sum + item.quantity * 500, 0);
+      const insuranceValue = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+      const result = await shippingAPI.calculateFee({
+        toDistrictId: districtId,
+        toWardCode: wardCode,
+        weight: Math.max(totalWeight, 200),
+        length: 20,
+        width: 15,
+        height: 10,
+        insuranceValue,
+      });
+      const feeValue = result?.total ?? result?.Total ?? result?.data?.total ?? result?.data?.Total ?? 30000;
+      setShippingFee(Number(feeValue));
+    } catch (error) {
+      console.error('Fee calculation failed:', error);
+      // ✅ FIX: Hiện lỗi thật cho người dùng/dev thấy thay vì âm thầm dùng phí mặc định 30k.
+      // Trước đây lỗi chỉ log console nên không ai biết vì sao phí luôn là 30.000đ.
+      addNotification(
+        `Không tính được phí ship GHN (${error?.message || 'lỗi không xác định'}), tạm dùng phí mặc định 30.000đ`,
+        'warning'
+      );
+      setShippingFee(30000);
+    } finally {
+      setIsCalcFee(false);
+    }
+  }, [cartItems, addNotification]);
 
   useEffect(() => {
     const autoFillProfile = async () => {
@@ -84,7 +137,19 @@ export default function Checkout() {
             fullName: profile.name || profile.fullName || prev.fullName,
             email: profile.email || prev.email,
             phone: profile.phone || prev.phone,
+            // Địa chỉ đã lưu trong Profile → điền sẵn số nhà/tên đường
+            specificAddress: prev.specificAddress || profile.specificAddress || '',
           }));
+
+          // Nếu Profile đã có địa chỉ tỉnh/quận/phường đã lưu, ghi nhận lại để
+          // effect dưới tự động chọn khi danh sách tỉnh/thành tải xong.
+          if (profile.ghnProvinceId) {
+            setPendingProfileAddress({
+              provinceId: profile.ghnProvinceId,
+              districtId: profile.ghnDistrictId ?? null,
+              wardCode: profile.ghnWardCode ?? '',
+            });
+          }
         }
       } catch (error) {
         console.error('Failed to fetch profile in Checkout:', error);
@@ -99,6 +164,91 @@ export default function Checkout() {
       .then(setProvinces)
       .catch(() => addNotification('Không tải được danh sách tỉnh/thành', 'error'));
   }, [addNotification]);
+
+  // Tự động chọn Tỉnh/Thành → Quận/Huyện → Phường/Xã từ địa chỉ đã lưu trong
+  // Profile (một lần duy nhất, chỉ khi user chưa tự chọn địa chỉ nào trong form).
+  useEffect(() => {
+    if (addressAutoFillRef.current) return;
+    if (!pendingProfileAddress || provinces.length === 0) return;
+    if (selectedProvince.id) { addressAutoFillRef.current = true; return; }
+
+    addressAutoFillRef.current = true;
+
+    (async () => {
+      const province = provinces.find((p) => p.provinceId === pendingProfileAddress.provinceId);
+      if (!province) return;
+      setSelectedProvince({ id: province.provinceId, name: province.provinceName });
+
+      let districtList = [];
+      try {
+        districtList = await shippingAPI.getDistricts(province.provinceId);
+        setDistricts(districtList);
+      } catch (error) {
+        console.error('Failed to load districts:', error);
+        return;
+      }
+      if (!pendingProfileAddress.districtId) return;
+
+      const district = districtList.find((d) => d.districtId === pendingProfileAddress.districtId);
+      if (!district) return;
+      setSelectedDistrict({ id: district.districtId, name: district.districtName });
+
+      let wardList = [];
+      try {
+        wardList = await shippingAPI.getWards(district.districtId);
+        setWards(wardList);
+      } catch (error) {
+        console.error('Failed to load wards:', error);
+        return;
+      }
+      if (!pendingProfileAddress.wardCode) return;
+
+      const ward = wardList.find((w) => w.wardCode === pendingProfileAddress.wardCode);
+      if (!ward) return;
+      setSelectedWard({ code: ward.wardCode, name: ward.wardName });
+
+      calculateShippingFee(district.districtId, ward.wardCode);
+    })();
+  }, [pendingProfileAddress, provinces, selectedProvince.id, calculateShippingFee]);
+
+  // ✅ FIX: Fetch and calculate promotions when cart, coupon, OR shipping fee changes.
+  // Trước đây effect này không phụ thuộc `shippingFee` và không gửi phí ship lên backend,
+  // nên `finalAmount` trả về không cộng phí vận chuyển => Tổng Cộng bị thiếu tiền ship.
+  useEffect(() => {
+    async function fetchAndCalculatePromotions() {
+      if (cartItems.length === 0) {
+        setPromoPreview(null);
+        return;
+      }
+
+      try {
+        // Gửi kèm phí ship thực tế (shipping) để backend tính đúng shippingDiscount/finalAmount
+        const result = await promotionsAPI.calculatePromotions(couponCode, shipping);
+
+        setPromoPreview({
+          automaticDiscount: result.automaticDiscount || 0,
+          couponDiscount: result.couponDiscount || 0,
+          shippingDiscount: result.shippingDiscount || 0,
+          totalDiscount: result.totalDiscount || 0,
+          subtotal: result.subtotal || subtotal,
+          shipping: result.shipping ?? shipping,
+          finalAmount: result.finalAmount || 0,
+          appliedCouponCode: result.appliedCouponCode || '',
+          appliedPromotions: result.appliedPromotions || []
+        });
+      } catch (error) {
+        console.error('Failed to calculate promotions in Checkout:', error);
+        if (couponCode) {
+          setCouponCode('');
+          setCouponInput('');
+          setCouponError('Mã giảm giá không còn hợp lệ');
+        }
+      }
+    }
+
+    fetchAndCalculatePromotions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartItems, couponCode, shipping]);
 
   const fullShippingAddress = useMemo(() => {
     return [
@@ -173,36 +323,45 @@ export default function Checkout() {
     }
   };
 
-  const handleWardChange = async (e) => {
+  const handleWardChange = (e) => {
     const code = e.target.value;
     const ward = wards.find((w) => w.wardCode === code);
 
     setSelectedWard({ code: ward?.wardCode ?? '', name: ward?.wardName ?? '' });
 
     if (!ward || !selectedDistrict.id) return;
+    calculateShippingFee(selectedDistrict.id, ward.wardCode);
+  };
 
-    setIsCalcFee(true);
+  // ── Validate coupon via backend ────────────────────────────────
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    setCouponLoading(true);
+    setCouponError('');
     try {
-      const totalWeight = cartItems.reduce((sum, item) => sum + item.quantity * 500, 0);
-      const insuranceValue = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-      const result = await shippingAPI.calculateFee({
-        toDistrictId: selectedDistrict.id,
-        toWardCode: ward.wardCode,
-        weight: Math.max(totalWeight, 200),
-        length: 20,
-        width: 15,
-        height: 10,
-        insuranceValue,
-      });
-      const feeValue = result?.total ?? result?.Total ?? result?.data?.total ?? result?.data?.Total ?? 30000;
-      setShippingFee(Number(feeValue));
-    } catch (error) {
-      console.error('Fee calculation failed:', error);
-      setShippingFee(30000);
+      // Validate coupon first
+      const validResult = await promotionsAPI.validateCoupon(code);
+      if (validResult?.isValid) {
+        setCouponCode(code);
+        // After coupon code is set, the useEffect will call calculatePromotions
+        // and update promoPreview with the full calculation
+        addNotification(`✅ Áp dụng mã "${code}" thành công!`, 'success');
+      } else {
+        setCouponError(validResult?.errorMessage || 'Mã giảm giá không hợp lệ hoặc đã hết hạn');
+      }
+    } catch (err) {
+      setCouponError(err?.message || 'Mã giảm giá không hợp lệ hoặc đã hết hạn');
     } finally {
-      setIsCalcFee(false);
+      setCouponLoading(false);
     }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponCode('');
+    setCouponInput('');
+    setPromoPreview(null);
+    setCouponError('');
   };
 
   const handleSubmitOrder = async (e) => {
@@ -247,6 +406,7 @@ export default function Checkout() {
         ghnProvinceId: selectedProvince.id,
         ghnDistrictId: selectedDistrict.id,
         ghnWardCode: selectedWard.code,
+        couponCode: couponCode || undefined,
       };
 
       const order = await ordersAPI.createOrder(orderData);
@@ -294,9 +454,11 @@ export default function Checkout() {
     );
   }
 
-  const subtotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-  const shipping = subtotal > 500000 ? 0 : (shippingFee ?? 30000);
-  const total = subtotal + shipping;
+  // ✅ FIX: Tổng cộng cuối cùng luôn cộng đủ subtotal + shipping - discount,
+  // dù backend (promoPreview) có trả thiếu trường nào cũng không bị mất tiền ship.
+  const finalTotal = promoPreview
+    ? subtotal + shipping - (promoPreview.totalDiscount || 0)
+    : subtotal + shipping;
 
   return (
     <div className="checkout-page">
@@ -352,8 +514,8 @@ export default function Checkout() {
                 <label>Tỉnh / Thành phố *</label>
                 <select value={selectedProvince.id || ''} onChange={handleProvinceChange} required>
                   <option value="">Chọn tỉnh/thành</option>
-                  {provinces.map((p) => (
-                    <option key={p.provinceId} value={p.provinceId}>{p.provinceName}</option>
+                  {provinces.map((p, index) => (
+                    <option key={`province-${p.provinceId}-${index}`} value={p.provinceId}>{p.provinceName}</option>
                   ))}
                 </select>
                 {formErrors.provinceCity && <span className="field-error">{formErrors.provinceCity}</span>}
@@ -369,8 +531,8 @@ export default function Checkout() {
                     disabled={!districts.length}
                   >
                     <option value="">Chọn quận/huyện</option>
-                    {districts.map((d) => (
-                      <option key={d.districtId} value={d.districtId}>{d.districtName}</option>
+                    {districts.map((d, index) => (
+                      <option key={`district-${d.districtId}-${index}`} value={d.districtId}>{d.districtName}</option>
                     ))}
                   </select>
                   {formErrors.district && <span className="field-error">{formErrors.district}</span>}
@@ -385,8 +547,8 @@ export default function Checkout() {
                     disabled={!wards.length}
                   >
                     <option value="">Chọn phường/xã</option>
-                    {wards.map((w) => (
-                      <option key={w.wardCode} value={w.wardCode}>{w.wardName}</option>
+                    {wards.map((w, index) => (
+                      <option key={`ward-${w.wardCode}-${index}`} value={w.wardCode}>{w.wardName}</option>
                     ))}
                   </select>
                   {formErrors.ward && <span className="field-error">{formErrors.ward}</span>}
@@ -460,6 +622,41 @@ export default function Checkout() {
               </div>
             </div>
 
+            {/* ── Coupon Input ──────────────────────────────────── */}
+            <div className="form-section coupon-section">
+              <h2>🎟️ Mã Giảm Giá</h2>
+              {couponCode ? (
+                <div className="coupon-applied">
+                  <span className="coupon-tag">✅ {couponCode}</span>
+                  {promoPreview?.couponDiscount > 0 && (
+                    <span className="coupon-saving">Tiết kiệm {promoPreview.couponDiscount.toLocaleString('vi-VN')}₫</span>
+                  )}
+                  <button type="button" className="coupon-remove" onClick={handleRemoveCoupon}>✕ Xóa</button>
+                </div>
+              ) : (
+                <div className="coupon-input-row">
+                  <input
+                    type="text"
+                    value={couponInput}
+                    onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleApplyCoupon())}
+                    placeholder="Nhập mã giảm giá..."
+                    className="coupon-input"
+                    disabled={couponLoading}
+                  />
+                  <button
+                    type="button"
+                    className="coupon-apply-btn"
+                    onClick={handleApplyCoupon}
+                    disabled={couponLoading || !couponInput.trim()}
+                  >
+                    {couponLoading ? '...' : 'Áp dụng'}
+                  </button>
+                </div>
+              )}
+              {couponError && <p className="coupon-error">{couponError}</p>}
+            </div>
+
             <div className="form-actions">
               <button
                 type="button"
@@ -507,18 +704,46 @@ export default function Checkout() {
             <div className="summary-row">
               <span>Phí vận chuyển:</span>
               <span>
-                {subtotal > 500000
-                  ? 'Miễn Phí'
-                  : isCalcFee
-                    ? 'Đang tính...'
-                    : shipping.toLocaleString('vi-VN') + ' VNĐ'}
+                {isCalcFee
+                  ? 'Đang tính...'
+                  : shipping.toLocaleString('vi-VN') + ' VNĐ'}
               </span>
             </div>
 
+            {/* Promotion discount breakdown */}
+            {promoPreview && promoPreview.totalDiscount > 0 && (
+              <>
+                {promoPreview.automaticDiscount > 0 && (
+                  <div className="summary-row discount-row">
+                    <span>⚡ Khuyến mãi tự động:</span>
+                    <span className="discount-amount">-{promoPreview.automaticDiscount.toLocaleString('vi-VN')}₫</span>
+                  </div>
+                )}
+                {promoPreview.couponDiscount > 0 && (
+                  <div className="summary-row discount-row">
+                    <span>🎟️ Mã {promoPreview.appliedCouponCode}:</span>
+                    <span className="discount-amount">-{promoPreview.couponDiscount.toLocaleString('vi-VN')}₫</span>
+                  </div>
+                )}
+                {promoPreview.shippingDiscount > 0 && (
+                  <div className="summary-row discount-row">
+                    <span>🚚 Giảm phí ship:</span>
+                    <span className="discount-amount">-{promoPreview.shippingDiscount.toLocaleString('vi-VN')}₫</span>
+                  </div>
+                )}
+              </>
+            )}
+
             <div className="summary-row total">
               <span>Tổng Cộng:</span>
-              <span>{total.toLocaleString('vi-VN')} VNĐ</span>
+              <span>{finalTotal.toLocaleString('vi-VN')} VNĐ</span>
             </div>
+
+            {promoPreview && promoPreview.totalDiscount > 0 && (
+              <div className="summary-saving">
+                🎉 Bạn tiết kiệm được {promoPreview.totalDiscount.toLocaleString('vi-VN')}₫!
+              </div>
+            )}
           </div>
         </div>
       </div>

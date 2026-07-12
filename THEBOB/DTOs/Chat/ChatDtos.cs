@@ -33,6 +33,10 @@ namespace THEBOB.DTOs.Chat
     {
         public string Content { get; set; } = string.Empty;
         public int? ConversationId { get; set; }
+        public int? ProductId { get; set; }
+        public int? VariantId { get; set; }
+        public string? SelectedColor { get; set; }
+        public string? SelectedSize { get; set; }
     }
 
     public class PagedMessagesResponse

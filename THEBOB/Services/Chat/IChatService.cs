@@ -11,10 +11,10 @@ namespace THEBOB.Services.Chat
 
         Task<Conversation> GetOrCreateOpenConversationAsync(int userId);
 
-        Task<ChatMessageDto> SendMessageAsync(int conversationId, int userId, bool isAdmin, string content);
+        Task<ChatMessageDto> SendMessageAsync(int conversationId, int userId, bool isAdmin, string content, int? productId = null, int? variantId = null);
 
         Task<(Conversation Conversation, ChatMessageDto Message)> SendMessageForUserAsync(
-            int userId, bool isAdmin, string content, int? conversationId = null);
+            int userId, bool isAdmin, string content, int? conversationId = null, int? productId = null, int? variantId = null);
 
         Task<PagedMessagesResponse> GetMessagesAsync(
             int conversationId, int userId, bool isAdmin, int page = 1, int pageSize = 50);
@@ -24,5 +24,7 @@ namespace THEBOB.Services.Chat
         Task<int> MarkMessagesAsSeenAsync(int conversationId, int userId, bool isAdmin);
 
         Task NotifyTypingAsync(int conversationId, int userId, bool isAdmin, bool isTyping, string? excludeConnectionId = null);
+
+        Task HandleAdminOnlineAsync();
     }
 }

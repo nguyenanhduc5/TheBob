@@ -1,4 +1,5 @@
 import React from 'react';
+import './Pagination.css';
 
 export default function Pagination({
   currentPage,
@@ -16,7 +17,7 @@ export default function Pagination({
     if (currentPage < totalPages) setCurrentPage(currentPage + 1);
   };
 
-  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
   return (
@@ -30,7 +31,7 @@ export default function Pagination({
           <select
             value={itemsPerPage}
             onChange={(e) => {
-              setItemsPerPage(parseInt(e.target.value));
+              setItemsPerPage(parseInt(e.target.value, 10));
               setCurrentPage(1);
             }}
             className="items-select"
@@ -43,27 +44,22 @@ export default function Pagination({
         </div>
       </div>
 
-      <div className="pagination-controls">
-        <button
-          onClick={handlePrevPage}
-          disabled={currentPage === 1}
-          className="btn-prev"
-        >
-          ← Trước
-        </button>
+      {/* Chỉ ẩn nút điều hướng khi chỉ có 1 trang, ô chọn "Mỗi trang" luôn hiển thị */}
+      {totalPages > 1 && (
+        <div className="pagination-controls">
+          <button onClick={handlePrevPage} disabled={currentPage === 1} className="btn-prev">
+            ← Trước
+          </button>
 
-        <div className="page-info">
-          Trang {currentPage} / {totalPages}
+          <div className="page-info">
+            Trang {currentPage} / {totalPages}
+          </div>
+
+          <button onClick={handleNextPage} disabled={currentPage === totalPages} className="btn-next">
+            Tiếp →
+          </button>
         </div>
-
-        <button
-          onClick={handleNextPage}
-          disabled={currentPage === totalPages}
-          className="btn-next"
-        >
-          Tiếp →
-        </button>
-      </div>
+      )}
     </div>
   );
 }

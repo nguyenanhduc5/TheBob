@@ -29,10 +29,17 @@ import AdminOrders from './pages/AdminOrders';
 import AdminPayments from './pages/AdminPayments';
 import AdminUsers from './pages/AdminUsers';
 import AdminCoupons from './pages/AdminCoupons';
+import AdminPromotions from './pages/AdminPromotions';
+import MyVouchers from './pages/MyVouchers';
+import AdminSettings from './pages/AdminSettings';
+import AdminChat from './pages/AdminChat';
+import AdminFaqs from './pages/AdminFaqs';
+import ChatWidget from './components/chat/ChatWidget';
 import './App.css';
 
 function AppLayout() {
 const location = useLocation();
+const isAdminRoute = location.pathname.startsWith('/admin');
 
   React.useEffect(() => {
     // ✅ Chỉ reset overflow, KHÔNG scroll về đầu ở đây
@@ -64,6 +71,7 @@ const location = useLocation();
           <Route path="/payment/failed" element={<ProtectedRoute><PaymentFailed /></ProtectedRoute>} />
           <Route path="/payment/expired" element={<ProtectedRoute><PaymentExpired /></ProtectedRoute>} />
           <Route path="/user/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/user/vouchers" element={<ProtectedRoute><MyVouchers /></ProtectedRoute>} />
           
           {/* Admin Routes - Nested with shared AdminLayoutWrapper */}
           <Route
@@ -82,12 +90,18 @@ const location = useLocation();
             <Route path="orders" element={<AdminOrders />} />
             <Route path="payments" element={<AdminPayments />} />
             <Route path="coupons" element={<AdminCoupons />} />
+            <Route path="promotions" element={<AdminPromotions />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="chat" element={<AdminChat />} />
+            <Route path="faqs" element={<AdminFaqs />} />
           </Route>
         </Routes>
       </main>
-      <Footer />
+      
+      {!isAdminRoute && <Footer />}
+      {!isAdminRoute && <ChatWidget />}
     </>
   );
 }

@@ -563,3 +563,99 @@ html, body, #root {
     letter-spacing: 0.06em;
   }
 }
+
+/* ====================== SEARCH SUGGESTIONS & PRICE PRESETS ====================== */
+.search-filter-section {
+  position: relative;
+}
+
+.search-suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #000;
+  border-top: none;
+  z-index: 100;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background-color: #fafafa;
+}
+
+.suggestion-item img {
+  width: 40px;
+  height: 50px;
+  object-fit: cover;
+  border: 1px solid #ddd;
+}
+
+.suggestion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.suggestion-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #000;
+}
+
+.suggestion-price {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.price-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.price-preset-btn {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #333;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.price-preset-btn:hover {
+  border-color: #000;
+  color: #000;
+}
+
+.price-preset-btn.active {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+
+/* loading opacity state for products grid to prevent screen flashes */
+.grid-loading {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}

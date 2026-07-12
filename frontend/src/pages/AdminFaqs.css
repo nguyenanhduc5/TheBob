@@ -1,0 +1,62 @@
+.admin-faqs {
+  padding: 20px;
+}
+
+.admin-faqs__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.admin-faqs__header h2 {
+  margin: 0;
+}
+
+.faq-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.faq-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.faq-form .form-row {
+  display: flex;
+  gap: 20px;
+}
+
+.faq-form .checkbox-group {
+  flex-direction: row;
+  align-items: center;
+  margin-top: 25px;
+}
+
+.faq-form input[type="text"],
+.faq-form input[type="number"],
+.faq-form textarea {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.badge-success {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.badge-danger {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
