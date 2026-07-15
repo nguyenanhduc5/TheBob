@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
+import { notificationsAPI } from '../api/app';
 
 const NotificationContext = createContext();
 
@@ -17,9 +18,54 @@ export const NotificationProvider = ({ children }) => {
     return saved ? parseInt(saved, 10) : 0;
   });
 
-  // ✅ FIX: useCallback với deps rỗng → addNotification có stable reference
-  // Trước đây: function thường → tạo reference mới mỗi render
-  // → mọi component dùng addNotification trong useCallback/useEffect deps đều re-run liên tục
+  // Database persistent notifications
+  const [dbNotifications, setDbNotifications] = useState([]);
+  const [dbUnreadCount, setDbUnreadCount] = useState(0);
+
+  const fetchDbNotifications = useCallback(async () => {
+    const token = localStorage.getItem('thebob-token');
+    if (!token) {
+      setDbNotifications([]);
+      setDbUnreadCount(0);
+      return;
+    }
+    try {
+      const res = await notificationsAPI.getAll();
+      if (res && res.success) {
+        setDbNotifications(res.data || []);
+        const unread = (res.data || []).filter(n => !n.isRead || n.isRead === false).length;
+        setDbUnreadCount(unread);
+      }
+    } catch (err) {
+      console.error('Failed to fetch persistent notifications:', err);
+    }
+  }, []);
+
+  const markDbAsRead = useCallback(async (id) => {
+    try {
+      await notificationsAPI.markAsRead(id);
+      setDbNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      setDbUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  }, []);
+
+  const markAllDbAsRead = useCallback(async () => {
+    try {
+      await notificationsAPI.markAllAsRead();
+      setDbNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setDbUnreadCount(0);
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
+    }
+  }, []);
+
+  // Fetch notifications on mount if token exists
+  useEffect(() => {
+    fetchDbNotifications();
+  }, [fetchDbNotifications]);
+
   const removeNotification = useCallback((id) => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
   }, []);
@@ -32,14 +78,12 @@ export const NotificationProvider = ({ children }) => {
 
     if (duration > 0) {
       setTimeout(() => {
-        // Dùng functional form setNotifications thay vì gọi removeNotification
-        // để tránh closure stale
         setNotifications(prev => prev.filter(n => n.id !== id));
       }, duration);
     }
 
     return id;
-  }, []); // stable reference — không bao giờ thay đổi
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     setNotifications([]);
@@ -58,9 +102,6 @@ export const NotificationProvider = ({ children }) => {
     localStorage.setItem('thebob-unread-count', 0);
   }, []);
 
-  // ✅ FIX: useMemo cho value object → không tạo object mới mỗi render
-  // Trước đây: value = { ... } inline → object mới mỗi render
-  // → tất cả consumer (useNotification) re-render theo dù data không đổi
   const value = useMemo(() => ({
     notifications,
     addNotification,
@@ -69,6 +110,13 @@ export const NotificationProvider = ({ children }) => {
     unreadCount,
     incrementUnread,
     resetUnread,
+
+    // Expose persistent notifications
+    dbNotifications,
+    dbUnreadCount,
+    fetchDbNotifications,
+    markDbAsRead,
+    markAllDbAsRead
   }), [
     notifications,
     addNotification,
@@ -77,6 +125,12 @@ export const NotificationProvider = ({ children }) => {
     unreadCount,
     incrementUnread,
     resetUnread,
+
+    dbNotifications,
+    dbUnreadCount,
+    fetchDbNotifications,
+    markDbAsRead,
+    markAllDbAsRead
   ]);
 
   return (

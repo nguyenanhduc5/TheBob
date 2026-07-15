@@ -28,3 +28,341 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ==========================================
+   NEW PREMIUM COLLECTION LIST & DETAIL PAGES
+   ========================================== */
+
+.collections-page {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.collections-header {
+  text-align: center;
+  margin-bottom: 60px;
+  animation: fadeIn 0.8s ease;
+}
+
+.collections-tag {
+  font-size: 0.75rem;
+  letter-spacing: 0.25em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 12px;
+}
+
+.collections-header h1 {
+  font-size: 2.8rem;
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  color: var(--text);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+
+.collections-header p {
+  max-width: 600px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.8;
+  font-weight: 400;
+}
+
+/* Custom Grid */
+.collections-grid-custom {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 40px;
+  width: 100%;
+}
+
+.collection-card-custom {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.collection-card-custom:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}
+
+.collection-card-image-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/10;
+  overflow: hidden;
+  background: #eaeaea;
+}
+
+.collection-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.collection-card-custom:hover .collection-card-image {
+  transform: scale(1.06);
+}
+
+.collection-card-badge {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: var(--text);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  padding: 6px 12px;
+  text-transform: uppercase;
+  border-radius: 4px;
+  z-index: 2;
+}
+
+.collection-card-overlay-hover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: 1;
+}
+
+.collection-card-custom:hover .collection-card-overlay-hover {
+  opacity: 1;
+}
+
+.collection-card-btn {
+  color: #fff;
+  border: 1.5px solid #fff;
+  padding: 10px 24px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: transparent;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.collection-card-btn:hover {
+  background: #fff;
+  color: #000;
+}
+
+.collection-card-info {
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.collection-card-subtitle {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.collection-card-title {
+  font-size: 1.6rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.collection-card-desc {
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.6;
+  font-weight: 400;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ==========================================
+   COLLECTION DETAIL PAGE STYLES
+   ========================================== */
+
+.collection-detail-page {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+/* Hero Banner */
+.collection-hero {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  margin-bottom: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.collection-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.6));
+  z-index: 1;
+}
+
+.collection-hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  color: #fff;
+  max-width: 700px;
+  padding: 0 20px;
+  animation: fadeInUp 0.8s ease;
+}
+
+.collection-hero-tag {
+  font-size: 0.75rem;
+  letter-spacing: 0.25em;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 15px;
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.collection-hero-title {
+  font-size: 3.5rem;
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+}
+
+.collection-hero-desc {
+  font-size: 1rem;
+  line-height: 1.8;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+/* Back Link */
+.back-to-collections {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin: 30px 0;
+  transition: opacity 0.2s ease;
+}
+
+.back-to-collections:hover {
+  opacity: 0.6;
+}
+
+/* Loading & Empty States */
+.collection-loading,
+.collection-empty {
+  text-align: center;
+  padding: 100px 0;
+  font-size: 1rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.collection-empty h3 {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Custom Grid */
+@media (max-width: 1024px) {
+  .collections-header h1 {
+    font-size: 2.3rem;
+  }
+  .collections-grid-custom {
+    gap: 24px;
+  }
+  .collection-hero {
+    height: 320px;
+  }
+  .collection-hero-title {
+    font-size: 2.6rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .collections-grid-custom {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .collections-header h1 {
+    font-size: 2rem;
+  }
+  .collection-hero {
+    height: 250px;
+    margin-bottom: 40px;
+  }
+  .collection-hero-title {
+    font-size: 2rem;
+  }
+  .collection-hero-desc {
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+}

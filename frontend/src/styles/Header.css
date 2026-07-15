@@ -196,3 +196,185 @@
   .logo { font-size: 1.2rem; }
   .header-actions { gap: 10px; }
 }
+
+/* ==========================================================================
+   SHOPEE-STYLE NOTIFICATION DROPDOWN SYSTEM
+   ========================================================================== */
+
+.notif-dropdown {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  width: 400px;
+  background: #ffffff;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: notifSlideDown 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@keyframes notifSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notif-header {
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.06);
+  background: #fafafa;
+}
+
+.notif-header span {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #666666;
+  letter-spacing: 0.02em;
+}
+
+.notif-mark-all {
+  background: transparent !important;
+  border: none !important;
+  color: #e53e3e;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0 !important;
+}
+
+.notif-mark-all:hover {
+  text-decoration: underline;
+  opacity: 0.8;
+}
+
+.notif-list {
+  max-height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.notif-item {
+  display: flex;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.04);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  position: relative;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.notif-item:hover {
+  background-color: #f7f7f8;
+}
+
+.notif-item.unread {
+  background-color: #f0f5ff; /* Light blue background for unread like Shopee */
+}
+
+.notif-item.unread:hover {
+  background-color: #e6eefc;
+}
+
+.notif-icon-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f1f3f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.notif-item.unread .notif-icon-circle {
+  background: #dbebff;
+}
+
+.notif-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notif-message {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #2d3748;
+  margin: 0;
+  font-weight: 400;
+  text-align: left;
+}
+
+.notif-item.unread .notif-message {
+  font-weight: 600; /* Bold message for unread like Shopee */
+  color: #0f172a;
+}
+
+.notif-time {
+  font-size: 0.72rem;
+  color: #a0aec0;
+  text-align: left;
+}
+
+.notif-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #e53e3e; /* Red dot for unread */
+  position: absolute;
+  right: 18px;
+  top: calc(50% - 4px);
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.notif-footer {
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
+}
+
+.notif-footer button {
+  width: 100%;
+  padding: 14px;
+  background: #ffffff !important;
+  border: none !important;
+  color: #3182ce;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.notif-footer button:hover {
+  background-color: #f7f9fc !important;
+  text-decoration: underline;
+}
+
+/* Responsive adjustment for mobile */
+@media (max-width: 480px) {
+  .notif-dropdown {
+    width: calc(100vw - 32px);
+    right: -60px; /* shift dropdown to fit screen */
+  }
+}

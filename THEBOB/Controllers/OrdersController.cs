@@ -692,6 +692,28 @@ await NotifyAdminNewOrder(order, _hubContext);
             order.Status = newStatus;
             order.UpdatedAt = DateTime.UtcNow;
 
+            // Save persistent notification in database
+            string statusVietnamese = newStatus switch
+            {
+                OrderStatus.Pending => "Chờ xử lý",
+                OrderStatus.Processing => "Đang xử lý",
+                OrderStatus.Paid => "Đã thanh toán",
+                OrderStatus.Shipped => "Đang giao hàng",
+                OrderStatus.Delivered => "Đã giao hàng",
+                OrderStatus.Cancelled => "Đã hủy",
+                OrderStatus.PendingPayment => "Chờ thanh toán",
+                _ => newStatus.ToString()
+            };
+
+            _context.Notifications.Add(new Notification
+            {
+                UserId = order.UserId,
+                Message = $"Đơn hàng #{order.Id} của bạn đã chuyển sang trạng thái: [{statusVietnamese}]",
+                Type = "Info",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
             await _context.SaveChangesAsync();
 
             // Notify customer in real-time via SignalR

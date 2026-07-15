@@ -286,6 +286,14 @@ export const ORDER_HUB_URL =
 export const CHAT_HUB_URL =
   API_BASE_URL.replace(/\/api\/?$/, '') + '/hubs/chat';
 
+// ─── Notifications API ────────────────────────────────────────────────────────
+
+export const notificationsAPI = {
+  getAll: () => apiClient('/notifications', { auth: true }),
+  markAsRead: (id) => apiClient(`/notifications/${id}/read`, { method: 'PUT', auth: true }),
+  markAllAsRead: () => apiClient('/notifications/read-all', { method: 'PUT', auth: true }),
+};
+
 // ─── FAQ API ─────────────────────────────────────────────────────────────────
 
 export const faqAPI = {

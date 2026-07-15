@@ -146,6 +146,16 @@ public class ShippingController : ControllerBase
             order.ShippingStatus = "ready_to_pick";
             order.Status = OrderStatus.Shipped;
             order.UpdatedAt = DateTime.UtcNow;
+
+            _context.Notifications.Add(new Notification
+            {
+                UserId = order.UserId,
+                Message = $"Đơn hàng #{order.Id} của bạn đã chuyển sang trạng thái: [Đang giao hàng] (Mã vận đơn: {result.OrderCode})",
+                Type = "Info",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
             await _context.SaveChangesAsync();
 
             _logger.LogInformation(
@@ -213,6 +223,16 @@ public class ShippingController : ControllerBase
             order.ShippingStatus = "cancel";
             order.Status = OrderStatus.Processing;
             order.UpdatedAt = DateTime.UtcNow;
+
+            _context.Notifications.Add(new Notification
+            {
+                UserId = order.UserId,
+                Message = $"Đơn hàng #{order.Id} của bạn đã chuyển sang trạng thái: [Đang xử lý] (Vận đơn giao hàng đã bị hủy)",
+                Type = "Info",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
             await _context.SaveChangesAsync();
 
             // Notify khách hàng
@@ -252,14 +272,29 @@ public class ShippingController : ControllerBase
                 order.ShippingStatus = payload.Status;
 
                 // Tự động cập nhật OrderStatus khi GHN webhook delivered
+                bool isDelivered = false;
                 if (payload.Status == "delivered" && order.Status == OrderStatus.Shipped)
                 {
                     order.Status = OrderStatus.Delivered;
                     if (order.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase))
                         order.PaymentStatus = "Completed";
+                    isDelivered = true;
                 }
 
                 order.UpdatedAt = DateTime.UtcNow;
+
+                if (isDelivered)
+                {
+                    _context.Notifications.Add(new Notification
+                    {
+                        UserId = order.UserId,
+                        Message = $"Đơn hàng #{order.Id} của bạn đã được giao thành công!",
+                        Type = "Success",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+
                 await _context.SaveChangesAsync();
 
                 // Notify khách hàng

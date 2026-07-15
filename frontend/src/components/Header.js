@@ -12,17 +12,39 @@ export default function Header() {
   const location = useLocation();
   const { user, token, isAdmin } = useAuth();
   const { cartItems } = useCart();
-  const { addNotification, unreadCount, incrementUnread, resetUnread } = useNotification();
+  const { 
+    addNotification, 
+    dbNotifications, 
+    dbUnreadCount, 
+    fetchDbNotifications, 
+    markDbAsRead, 
+    markAllDbAsRead 
+  } = useNotification();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const dropdownRef = useRef(null);
   
   // Use refs to keep stable references to notification helpers for the SignalR callback
   const addNotificationRef = useRef(addNotification);
-  const incrementUnreadRef = useRef(incrementUnread);
+  const fetchDbNotificationsRef = useRef(fetchDbNotifications);
   
   useEffect(() => {
     addNotificationRef.current = addNotification;
-    incrementUnreadRef.current = incrementUnread;
-  }, [addNotification, incrementUnread]);
+    fetchDbNotificationsRef.current = fetchDbNotifications;
+  }, [addNotification, fetchDbNotifications]);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowNotifDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     let connection = null;
@@ -61,7 +83,7 @@ export default function Header() {
         const statusVietnamese = statusMap[statusText] || statusText;
 
         addNotificationRef.current(`Đơn hàng #${orderId} của bạn đã chuyển sang trạng thái: [${statusVietnamese}]`, 'info');
-        incrementUnreadRef.current();
+        fetchDbNotificationsRef.current();
 
         // Dispatch browser custom event so Profile.js can reload immediately
         const event = new CustomEvent('order-status-updated', { detail: { orderId, statusText } });
@@ -71,7 +93,7 @@ export default function Header() {
       connection.on('ReceivePaymentSuccess', (orderId, message) => {
         console.log(`Received payment success for order ${orderId}: ${message}`);
         addNotificationRef.current(message, 'success');
-        incrementUnreadRef.current();
+        fetchDbNotificationsRef.current();
 
         // Dispatch browser custom event so PaymentPage.js can receive it in real-time
         const event = new CustomEvent('payment-success-received', { detail: { orderId, message } });
@@ -140,18 +162,90 @@ export default function Header() {
             🛒
             {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
-          <button
-            className="icon-button notification-icon"
-            onClick={() => {
-              resetUnread();
-              handleNavigate('/user/profile?menu=orders');
-            }}
-            aria-label="Notifications"
-            style={{ position: 'relative' }}
-          >
-            🔔
-            {unreadCount > 0 && <span className="cart-badge" style={{ backgroundColor: '#e53e3e' }}>{unreadCount}</span>}
-          </button>
+          <div className="notification-wrapper" ref={dropdownRef} style={{ position: 'relative' }}>
+            <button
+              className="icon-button notification-icon"
+              onClick={() => {
+                setShowNotifDropdown(prev => !prev);
+                fetchDbNotifications();
+              }}
+              aria-label="Notifications"
+            >
+              🔔
+              {dbUnreadCount > 0 && (
+                <span className="cart-badge" style={{ backgroundColor: '#e53e3e' }}>
+                  {dbUnreadCount}
+                </span>
+              )}
+            </button>
+
+            {showNotifDropdown && (
+              <div className="notif-dropdown">
+                <div className="notif-header">
+                  <span>Thông báo mới nhận</span>
+                  {dbUnreadCount > 0 && (
+                    <button className="notif-mark-all" onClick={markAllDbAsRead}>
+                      Đánh dấu tất cả đã đọc
+                    </button>
+                  )}
+                </div>
+
+                <div className="notif-list">
+                  {dbNotifications.length === 0 ? (
+                    <div className="notif-empty">Không có thông báo mới</div>
+                  ) : (
+                    dbNotifications.slice(0, 10).map((notif) => (
+                      <div
+                        key={notif.id}
+                        className={`notif-item ${!notif.isRead ? 'unread' : ''}`}
+                        onClick={async () => {
+                          if (!notif.isRead) {
+                            await markDbAsRead(notif.id);
+                          }
+                          // If notification message contains order ID, navigate to it!
+                          const orderIdMatch = notif.message.match(/#(\d+)/);
+                          if (orderIdMatch) {
+                            navigate(`/orders/${orderIdMatch[1]}`);
+                            setShowNotifDropdown(false);
+                          } else if (notif.message.toLowerCase().includes('voucher') || notif.message.toLowerCase().includes('coupon')) {
+                            navigate('/user/profile');
+                            setShowNotifDropdown(false);
+                          }
+                        }}
+                      >
+                        <div className="notif-icon-circle">
+                          {notif.type === 'Success' ? '✅' : notif.type === 'Warning' ? '⚠️' : '📢'}
+                        </div>
+                        <div className="notif-content">
+                          <p className="notif-message">{notif.message}</p>
+                          <span className="notif-time">
+                            {new Date(notif.createdAt).toLocaleString('vi-VN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        {!notif.isRead && <span className="notif-unread-dot" />}
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="notif-footer">
+                  <button 
+                    onClick={() => {
+                      setShowNotifDropdown(false);
+                      navigate('/user/profile');
+                    }}
+                  >
+                    Xem tất cả thông báo
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           <button
             className="icon-button user-icon"
             onClick={handleUserIconClick}
@@ -167,7 +261,7 @@ export default function Header() {
           <button onClick={() => handleNavigate('/products')} className="mobile-nav-item">
             SHOP
           </button>
-          <a href="#collection" className="mobile-nav-item">COLLECTION</a>
+          <button onClick={() => handleNavigate('/collections')} className="mobile-nav-item">COLLECTION</button>
           <a href="#about" className="mobile-nav-item">ABOUT US</a>
           <a href="#outlet" className="mobile-nav-item">OUTLET</a>
         </nav>

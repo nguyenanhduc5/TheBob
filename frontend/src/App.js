@@ -15,6 +15,8 @@ import Register from './pages/Register';
 import Profile from './pages/Profile';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
+import CollectionList from './pages/Collection';
+import CollectionDetail from './pages/CollectionDetail';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import OrderDetail from './pages/OrderDetail';
@@ -63,6 +65,8 @@ const isAdminRoute = location.pathname.startsWith('/admin');
           <Route path="/register" element={<Register />} />
           <Route path="/products" element={<Products />} />
           <Route path="/products/:id" element={<ProductDetail />} />
+          <Route path="/collections" element={<CollectionList />} />
+          <Route path="/collections/:collectionId" element={<CollectionDetail />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           <Route path="/orders/:orderId" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
