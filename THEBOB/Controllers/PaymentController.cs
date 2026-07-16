@@ -501,11 +501,15 @@ namespace THEBOB.Controllers
                     {
                         try
                         {
+                            // Load User để builder có thể lấy tên và số điện thoại
+                            order.User = await _context.Users.FindAsync(order.UserId) ?? order.User;
+
                             var orderItemsForGhn = await _context.OrderItems
                                 .Include(oi => oi.Variant).ThenInclude(v => v!.Product)
                                 .Where(oi => oi.OrderId == order.Id)
                                 .ToListAsync();
 
+                            // PaymentTypeId=2 (chưa thu tiền), CodAmount=0 (đã thanh toán online)
                             var ghnRequest = GhnOrderRequestBuilder.FromOrder(order, orderItemsForGhn);
                             var ghnResult = await _ghnService.CreateShippingOrderAsync(ghnRequest);
 
@@ -513,11 +517,18 @@ namespace THEBOB.Controllers
                             order.ShippingStatus = "ready_to_pick";
                             await _context.SaveChangesAsync();
 
-                            _logger.LogInformation("Đã tạo đơn GHN {Code} cho order SePay #{OrderId}", ghnResult.OrderCode, order.Id);
+                            _logger.LogInformation(
+                                "Đã tạo đơn GHN {Code} (PaymentTypeId=2, CodAmount=0) cho order #{OrderId}",
+                                ghnResult.OrderCode, order.Id);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Tạo đơn GHN thất bại sau thanh toán cho order #{OrderId}", order.Id);
+                            // Không block luồng chính — admin có thể nhập mã GHN thủ công
+                            // qua PATCH /api/admin/orders/{id}/ghn-code
+                            _logger.LogError(ex,
+                                "Tạo đơn GHN thất bại sau thanh toán cho order #{OrderId}. " +
+                                "Admin có thể liên kết thủ công qua PATCH /api/admin/orders/{OrderId}/ghn-code",
+                                order.Id, order.Id);
                         }
                     }
 

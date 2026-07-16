@@ -105,39 +105,16 @@ public class ShippingController : ControllerBase
             if (!order.GhnDistrictId.HasValue || string.IsNullOrWhiteSpace(order.GhnWardCode))
                 return BadRequest(new { message = "Đơn thiếu mã địa chỉ GHN (district/ward)." });
 
+            // Builder.FromOrder() tự xử lý PaymentTypeId và CodAmount dựa trên PaymentMethod:
+            // COD → PaymentTypeId=1, CodAmount=TotalAmount
+            // Chuyển khoản → PaymentTypeId=2, CodAmount=0
             var ghnRequest = request ?? GhnOrderRequestBuilder.FromOrder(order, order.OrderItems);
 
             if (string.IsNullOrWhiteSpace(ghnRequest.ToName))
                 ghnRequest.ToName = order.User?.FullName ?? order.User?.Email ?? "Khách hàng";
 
-            // Some versions of GhnCreateOrderRequest may not expose ClientOrderCode / CodAmount
-            // Use reflection to set them if present to avoid compile-time dependency issues.
-            var reqType = ghnRequest.GetType();
-            var propClientOrderCode = reqType.GetProperty("ClientOrderCode");
-            if (propClientOrderCode != null)
-            {
-                var current = propClientOrderCode.GetValue(ghnRequest) as string;
-                if (string.IsNullOrWhiteSpace(current))
-                    propClientOrderCode.SetValue(ghnRequest, order.OrderNumber);
-            }
-
-            var propCodAmount = reqType.GetProperty("CodAmount");
-            if (propCodAmount != null)
-            {
-                var currentVal = propCodAmount.GetValue(ghnRequest);
-                long currentLong = 0;
-                if (currentVal is int i) currentLong = i;
-                else if (currentVal is long l) currentLong = l;
-
-                if (currentLong == 0 && order.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase))
-                {
-                    // set as int if property type is int, otherwise set as long
-                    if (propCodAmount.PropertyType == typeof(int))
-                        propCodAmount.SetValue(ghnRequest, (int)Math.Round(order.TotalAmount));
-                    else if (propCodAmount.PropertyType == typeof(long))
-                        propCodAmount.SetValue(ghnRequest, (long)Math.Round(order.TotalAmount));
-                }
-            }
+            if (string.IsNullOrWhiteSpace(ghnRequest.ClientOrderCode))
+                ghnRequest.ClientOrderCode = order.OrderNumber;
 
             var result = await _ghn.CreateShippingOrderAsync(ghnRequest);
 
@@ -186,6 +163,61 @@ public class ShippingController : ControllerBase
             _logger.LogWarning("GHN create error (order #{OrderId}): {Message}", orderId, ex.Message);
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    // ── Nhập mã GHN thủ công (fallback khi tự động tạo thất bại) ─────────────
+    // Dùng khi: admin đã tạo đơn tay trên web GHN và muốn liên kết vào hệ thống.
+
+    [Authorize(Roles = "Admin")]
+    [HttpPatch("orders/{orderId}/ghn-code")]
+    [HttpPatch("/api/admin/orders/{orderId}/ghn-code")]
+    public async Task<IActionResult> SetGhnCodeManually(
+        int orderId,
+        [FromBody] SetGhnCodeRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.GhnOrderCode))
+            return BadRequest(new { message = "Mã GHN không được để trống." });
+
+        var order = await _context.Orders.FindAsync(orderId);
+        if (order == null)
+            return NotFound(new { message = "Không tìm thấy đơn hàng." });
+
+        if (!string.IsNullOrWhiteSpace(order.GhnOrderCode))
+            return BadRequest(new { message = $"Đơn đã có mã GHN: {order.GhnOrderCode}. Hủy vận đơn cũ trước." });
+
+        order.GhnOrderCode = request.GhnOrderCode.Trim();
+        order.ShippingStatus = "ready_to_pick";
+        order.Status = OrderStatus.Shipped;
+        order.UpdatedAt = DateTime.UtcNow;
+
+        _context.Notifications.Add(new Notification
+        {
+            UserId = order.UserId,
+            Message = $"Đơn hàng #{order.Id} của bạn đã chuyển sang trạng thái: [Đang giao hàng] (Mã vận đơn: {request.GhnOrderCode.Trim()})",
+            Type = "Info",
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Admin nhập thủ công mã GHN {GhnCode} cho đơn hàng #{OrderId} → Shipped",
+            request.GhnOrderCode, orderId);
+
+        try
+        {
+            await _hubContext.Clients.User(order.UserId.ToString())
+                .SendAsync("ReceiveStatusUpdate", order.Id, OrderStatus.Shipped.ToString());
+        }
+        catch { /* ignore SignalR errors */ }
+
+        return Ok(new
+        {
+            ghnOrderCode = order.GhnOrderCode,
+            orderStatus = OrderStatus.Shipped.ToString(),
+            message = $"Đã liên kết mã GHN {order.GhnOrderCode} với đơn hàng #{orderId}."
+        });
     }
 
     // ── Tra cứu tracking ──────────────────────────────────────────────────────
@@ -276,8 +308,9 @@ public class ShippingController : ControllerBase
                 if (payload.Status == "delivered" && order.Status == OrderStatus.Shipped)
                 {
                     order.Status = OrderStatus.Delivered;
-                    if (order.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase))
-                        order.PaymentStatus = "Completed";
+                    // COD: GHN thu tiền khi giao → Completed
+                    // Chuyển khoản: đã thanh toán từ trước → cũng Completed
+                    order.PaymentStatus = "Completed";
                     isDelivered = true;
                 }
 
@@ -315,4 +348,10 @@ public class ShippingController : ControllerBase
 
         return Ok();
     }
+}
+
+/// <summary>DTO để admin nhập mã GHN thủ công (fallback).</summary>
+public class SetGhnCodeRequest
+{
+    public string GhnOrderCode { get; set; } = string.Empty;
 }

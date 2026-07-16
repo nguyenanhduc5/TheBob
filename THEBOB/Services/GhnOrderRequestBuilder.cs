@@ -4,6 +4,11 @@ namespace THEBOB.Services;
 
 public static class GhnOrderRequestBuilder
 {
+    /// <summary>
+    /// Tạo GHN request từ Order đã lưu (dùng cho PaymentController và ShippingController).
+    /// - COD: PaymentTypeId=1, CodAmount=TotalAmount (GHN thu tiền khi giao)
+    /// - Bank transfer / đã thanh toán: PaymentTypeId=2, CodAmount=0 (GHN không thu tiền)
+    /// </summary>
     public static GhnCreateOrderRequest FromOrder(
         Order order,
         IEnumerable<OrderItem> items,
@@ -17,7 +22,8 @@ public static class GhnOrderRequestBuilder
 
         return new GhnCreateOrderRequest
         {
-            PaymentTypeId = 1,
+            // 1 = Người nhận trả (COD) | 2 = Người gửi trả (đã thanh toán online)
+            PaymentTypeId = isCod ? 1 : 2,
             Note = $"Đơn hàng {order.OrderNumber}",
             RequiredNote = "KHONGCHOXEMHANG",
             ToName = toName ?? order.User?.FullName ?? order.User?.Email ?? "Khách hàng",
@@ -31,6 +37,7 @@ public static class GhnOrderRequestBuilder
             Height = 10,
             InsuranceValue = (long)Math.Round(order.TotalAmount),
             ServiceTypeId = 2,
+            // CodAmount = số tiền GHN thu hộ. Chuyển khoản đã trả rồi → 0
             CodAmount = isCod ? (int)Math.Round(order.TotalAmount) : 0,
             ClientOrderCode = order.OrderNumber,
             Content = string.Join(", ", itemList.Select(i => i.ProductName)),
@@ -48,6 +55,11 @@ public static class GhnOrderRequestBuilder
         };
     }
 
+    /// <summary>
+    /// Tạo GHN request từ dữ liệu checkout (dùng trong OrdersController ngay khi tạo đơn).
+    /// - COD: PaymentTypeId=1, CodAmount=TotalAmount
+    /// - Bank transfer: PaymentTypeId=2, CodAmount=0
+    /// </summary>
     public static GhnCreateOrderRequest FromCheckout(
         Order order,
         IEnumerable<(CartItem Item, int WeightGrams)> cartLines,
@@ -58,10 +70,12 @@ public static class GhnOrderRequestBuilder
     {
         var lines = cartLines.ToList();
         var weight = Math.Max(totalWeight, 200);
+        var isCod = order.PaymentMethod.Equals("cod", StringComparison.OrdinalIgnoreCase);
 
         return new GhnCreateOrderRequest
         {
-            PaymentTypeId = 1, // ✅ đã sửa: số nguyên, không phải chuỗi
+            // 1 = Người nhận trả (COD) | 2 = Người gửi trả (đã thanh toán online)
+            PaymentTypeId = isCod ? 1 : 2,
             Note = $"Đơn hàng {order.OrderNumber}",
             RequiredNote = "KHONGCHOXEMHANG",
             ToName = toName,
@@ -75,7 +89,8 @@ public static class GhnOrderRequestBuilder
             Height = 10,
             InsuranceValue = (long)Math.Round(order.TotalAmount),
             ServiceTypeId = 2,
-            CodAmount = (int)Math.Round(order.TotalAmount),
+            // CodAmount = số tiền GHN thu hộ. Chuyển khoản đã trả rồi → 0
+            CodAmount = isCod ? (int)Math.Round(order.TotalAmount) : 0,
             ClientOrderCode = order.OrderNumber,
             Content = string.Join(", ", lines.Select(l => l.Item.Variant!.Product!.Name)),
             Items = lines.Select(l => new GhnOrderItem
