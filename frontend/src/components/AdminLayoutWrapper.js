@@ -59,6 +59,9 @@ const AdminLayoutWrapper = () => {
         <Link to="/admin/faqs" className={getNavLinkClass('/admin/faqs')}>
            Quản Lý FAQ
         </Link>
+        <Link to="/admin/blog" className={getNavLinkClass('/admin/blog')}>
+           Bài Viết Blog
+        </Link>
         <Link to="/admin/profile" className={getNavLinkClass('/admin/profile')}>
           Tài Khoản
         </Link>

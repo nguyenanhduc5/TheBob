@@ -1,17 +1,46 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { promotionsAPI } from '../api/app';
+import { useCart } from '../context/CartContext';
+import { useNotification } from '../context/NotificationContext';
+import EligibleProductsModal from '../components/EligibleProductsModal';
 import '../styles/MyVouchers.css';
 
 export default function MyVouchers() {
+  const navigate = useNavigate();
+  const { getTotalPrice } = useCart();
+  const { addNotification } = useNotification();
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all | available | used | expired
   const [copied, setCopied] = useState(null);
+  const [selectedPromoId, setSelectedPromoId] = useState(null);
+  const [selectedPromoName, setSelectedPromoName] = useState('');
+
+  const handleUseNow = (v) => {
+    const cartTotal = getTotalPrice();
+    if (v.minOrderValue > 0 && cartTotal < v.minOrderValue) {
+      addNotification(
+        `💡 Giỏ hàng hiện tại (${cartTotal.toLocaleString('vi-VN')}₫) chưa đạt mốc ${v.minOrderValue.toLocaleString('vi-VN')}₫. Hãy chọn thêm sản phẩm gợi ý!`,
+        'info'
+      );
+      setSelectedPromoId(v.promotionId);
+      setSelectedPromoName(v.promotionName);
+    } else {
+      navigate('/checkout');
+    }
+  };
 
   useEffect(() => {
     promotionsAPI.getMyVouchers()
-      .then(data => setVouchers(Array.isArray(data) ? data : []))
-      .catch(() => {})
+      .then(res => {
+        const raw = res?.data ?? res;
+        setVouchers(Array.isArray(raw) ? raw : (raw?.items || []));
+      })
+      .catch((err) => {
+        console.error('Failed to fetch my vouchers:', err);
+        setVouchers([]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -111,9 +140,25 @@ export default function MyVouchers() {
                 ) : v.isExpired ? (
                   <div className="mv-status expired">✕ Đã hết hạn</div>
                 ) : (
-                  <div className="mv-action-row">
-                    <div className="mv-status available">✅ Khả dụng</div>
-                    <span className="mv-hint">Voucher tự động áp dụng khi thanh toán</span>
+                  <div className="mv-action-row" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="mv-eligible-btn"
+                      onClick={() => {
+                        setSelectedPromoId(v.promotionId);
+                        setSelectedPromoName(v.promotionName);
+                      }}
+                    >
+                      🛍️ Sản phẩm áp dụng
+                    </button>
+                    <button
+                      type="button"
+                      className="mv-use-now-btn"
+                      style={{ backgroundColor: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      onClick={() => handleUseNow(v)}
+                    >
+                      🛒 Dùng ngay
+                    </button>
                   </div>
                 )}
               </div>
@@ -126,6 +171,14 @@ export default function MyVouchers() {
           </div>
         ))}
       </div>
+
+      {selectedPromoId && (
+        <EligibleProductsModal
+          promotionId={selectedPromoId}
+          promotionName={selectedPromoName}
+          onClose={() => setSelectedPromoId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -198,6 +198,234 @@ namespace THEBOB.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogCategory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("varchar(250)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("BlogCategories");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogNotification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("BlogPostId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Body")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("CreatedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SegmentConfig")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<int>("TargetType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BlogPostId");
+
+                    b.HasIndex("CreatedByAdminId");
+
+                    b.ToTable("BlogNotifications");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogPost", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("HomeDisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsFeaturedHome")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("varchar(600)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("Thumbnail")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("BlogPosts");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogPostClick", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BlogPostId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ClickedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SessionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BlogPostId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("BlogPostClicks");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogPostProduct", b =>
+                {
+                    b.Property<int>("BlogPostId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("BlogPostId", "ProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("BlogPostProducts");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.UserBlogNotification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BlogNotificationId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("BlogNotificationId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("UserBlogNotifications");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Brand", b =>
                 {
                     b.Property<int>("Id")
@@ -688,6 +916,15 @@ namespace THEBOB.Migrations
 
                     b.Property<bool>("IsRead")
                         .HasColumnType("tinyint(1)");
+
+                    b.Property<int>("MessageType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("longtext");
+
+                    b.Property<int?>("ReferenceId")
+                        .HasColumnType("int");
 
                     b.Property<int?>("ReferencedOrderId")
                         .HasColumnType("int");
@@ -1808,6 +2045,95 @@ namespace THEBOB.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogNotification", b =>
+                {
+                    b.HasOne("THEBOB.Models.Blog.BlogPost", "BlogPost")
+                        .WithMany()
+                        .HasForeignKey("BlogPostId");
+
+                    b.HasOne("THEBOB.Models.User", "CreatedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("CreatedByAdminId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BlogPost");
+
+                    b.Navigation("CreatedByAdmin");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogPost", b =>
+                {
+                    b.HasOne("THEBOB.Models.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("THEBOB.Models.Blog.BlogCategory", "Category")
+                        .WithMany("BlogPosts")
+                        .HasForeignKey("CategoryId");
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogPostClick", b =>
+                {
+                    b.HasOne("THEBOB.Models.Blog.BlogPost", "BlogPost")
+                        .WithMany("Clicks")
+                        .HasForeignKey("BlogPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("THEBOB.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("BlogPost");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogPostProduct", b =>
+                {
+                    b.HasOne("THEBOB.Models.Blog.BlogPost", "BlogPost")
+                        .WithMany("BlogPostProducts")
+                        .HasForeignKey("BlogPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("THEBOB.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BlogPost");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.UserBlogNotification", b =>
+                {
+                    b.HasOne("THEBOB.Models.Blog.BlogNotification", "BlogNotification")
+                        .WithMany("UserBlogNotifications")
+                        .HasForeignKey("BlogNotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("THEBOB.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BlogNotification");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("THEBOB.Models.Cart", b =>
                 {
                     b.HasOne("THEBOB.Models.User", "User")
@@ -2279,6 +2605,23 @@ namespace THEBOB.Migrations
                     b.Navigation("CustomerGroup");
 
                     b.Navigation("RoleEntity");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogCategory", b =>
+                {
+                    b.Navigation("BlogPosts");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogNotification", b =>
+                {
+                    b.Navigation("UserBlogNotifications");
+                });
+
+            modelBuilder.Entity("THEBOB.Models.Blog.BlogPost", b =>
+                {
+                    b.Navigation("BlogPostProducts");
+
+                    b.Navigation("Clicks");
                 });
 
             modelBuilder.Entity("THEBOB.Models.Brand", b =>

@@ -36,6 +36,9 @@ import MyVouchers from './pages/MyVouchers';
 import AdminSettings from './pages/AdminSettings';
 import AdminChat from './pages/AdminChat';
 import AdminFaqs from './pages/AdminFaqs';
+import AdminBlog from './pages/AdminBlog';
+import BlogList from './pages/BlogList';
+import BlogDetail from './pages/BlogDetail';
 import ChatWidget from './components/chat/ChatWidget';
 import './App.css';
 
@@ -65,6 +68,8 @@ const isAdminRoute = location.pathname.startsWith('/admin');
           <Route path="/register" element={<Register />} />
           <Route path="/products" element={<Products />} />
           <Route path="/products/:id" element={<ProductDetail />} />
+          <Route path="/blog" element={<BlogList />} />
+          <Route path="/blog/:slug" element={<BlogDetail />} />
           <Route path="/collections" element={<CollectionList />} />
           <Route path="/collections/:collectionId" element={<CollectionDetail />} />
           <Route path="/cart" element={<Cart />} />
@@ -76,6 +81,7 @@ const isAdminRoute = location.pathname.startsWith('/admin');
           <Route path="/payment/expired" element={<ProtectedRoute><PaymentExpired /></ProtectedRoute>} />
           <Route path="/user/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/user/vouchers" element={<ProtectedRoute><MyVouchers /></ProtectedRoute>} />
+          <Route path="/my-vouchers" element={<ProtectedRoute><MyVouchers /></ProtectedRoute>} />
           
           {/* Admin Routes - Nested with shared AdminLayoutWrapper */}
           <Route
@@ -100,6 +106,7 @@ const isAdminRoute = location.pathname.startsWith('/admin');
             <Route path="settings" element={<AdminSettings />} />
             <Route path="chat" element={<AdminChat />} />
             <Route path="faqs" element={<AdminFaqs />} />
+            <Route path="blog" element={<AdminBlog />} />
           </Route>
         </Routes>
       </main>

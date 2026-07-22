@@ -9,6 +9,9 @@ namespace THEBOB.DTOs.Chat
         public string? SenderName { get; set; }
         public string Content { get; set; } = string.Empty;
         public string? ImageUrl { get; set; }
+        public string MessageType { get; set; } = "Text";
+        public int? ReferenceId { get; set; }
+        public string? Metadata { get; set; }
         public DateTime CreatedAt { get; set; }
         public bool IsRead { get; set; }
     }

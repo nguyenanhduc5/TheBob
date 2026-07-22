@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using THEBOB.Models.Blog;
 
 namespace THEBOB.Models.LiveChat
 {
@@ -37,6 +38,20 @@ namespace THEBOB.Models.LiveChat
 
         [MaxLength(2000)]
         public string? ImageUrl { get; set; }
+
+        /// <summary>Loại tin nhắn: Text (default), BlogPost, Product, Image.</summary>
+        public MessageType MessageType { get; set; } = MessageType.Text;
+
+        /// <summary>ID tham chiếu — BlogPostId khi MessageType=BlogPost.</summary>
+        public int? ReferenceId { get; set; }
+
+        /// <summary>
+        /// JSON snapshot của nội dung tham chiếu tại thời điểm gửi.
+        /// Ví dụ: {"title":"...","slug":"...","thumbnail":"...","summary":"..."}
+        /// Đảm bảo lịch sử chat không vỡ nếu bài viết gốc bị sửa/xóa.
+        /// </summary>
+        [Column(TypeName = "longtext")]
+        public string? Metadata { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

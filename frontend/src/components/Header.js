@@ -155,6 +155,13 @@ export default function Header() {
 
         <div className="header-actions">
           <button
+            className="header-link-button"
+            onClick={() => handleNavigate('/blog')}
+            aria-label="Blog"
+          >
+            BLOG
+          </button>
+          <button
             className="icon-button cart-icon"
             onClick={() => handleNavigate('/cart')}
             aria-label="View cart"
@@ -208,7 +215,7 @@ export default function Header() {
                             navigate(`/orders/${orderIdMatch[1]}`);
                             setShowNotifDropdown(false);
                           } else if (notif.message.toLowerCase().includes('voucher') || notif.message.toLowerCase().includes('coupon')) {
-                            navigate('/user/profile');
+                            navigate('/my-vouchers');
                             setShowNotifDropdown(false);
                           }
                         }}
@@ -263,7 +270,7 @@ export default function Header() {
           </button>
           <button onClick={() => handleNavigate('/collections')} className="mobile-nav-item">COLLECTION</button>
           <a href="#about" className="mobile-nav-item">ABOUT US</a>
-          <a href="#outlet" className="mobile-nav-item">OUTLET</a>
+          <button onClick={() => handleNavigate('/blog')} className="mobile-nav-item">BLOG</button>
         </nav>
       </div>
 

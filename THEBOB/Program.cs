@@ -9,9 +9,11 @@ using THEBOB.Models;
 using THEBOB.Repositories;
 using THEBOB.Services;
 using THEBOB.Services.Background;
+using THEBOB.Services.Blog;
 using THEBOB.Services.Chat;
 using THEBOB.Services.Promotion;
 using THEBOB.Services.Recommendation;
+using System.Threading.Channels;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,7 +42,8 @@ builder.Services.AddSignalR();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        var jwtKey = builder.Configuration["Jwt:Key"] ?? "THEBOB_JWT_SECRET_KEY_2026_SUPER_SECRET";
+        var jwtKey = builder.Configuration["Jwt:Key"]
+            ?? throw new InvalidOperationException("Jwt:Key is missing from configuration. Set it in appsettings or environment variables.");
         var issuer = builder.Configuration["Jwt:Issuer"] ?? "THEBOB";
         var audience = builder.Configuration["Jwt:Audience"] ?? "THEBOB_API";
 
@@ -124,19 +127,26 @@ builder.Services.AddScoped<PromotionScopeChecker>();
 builder.Services.AddScoped<PromotionCalculator>();
 builder.Services.AddScoped<PromotionStackingResolver>();
 
+// Register Blog Services
+builder.Services.AddScoped<IBlogService, BlogService>();
+builder.Services.AddSingleton(Channel.CreateUnbounded<BlogNotificationJob>());
+builder.Services.AddScoped<IBlogNotificationService, BlogNotificationService>();
+
 builder.Services.AddHostedService<RecommendationBackgroundService>();
 builder.Services.AddHostedService<PromotionExpireService>();
 builder.Services.AddHostedService<FlashSaleNotificationService>();
+builder.Services.AddHostedService<BlogNotificationBackgroundService>();
 
 builder.Services.AddHttpClient<SepayService>(client =>
 {
-    client.BaseAddress = new Uri("https://userapi.sepay.vn/v2/");
+    client.BaseAddress = new Uri(
+        (builder.Configuration["SePay:BaseUrl"] ?? "https://userapi.sepay.vn/v2").TrimEnd('/') + "/");
     client.DefaultRequestHeaders.Add(
         "Authorization",
-        $"Bearer {builder.Configuration["SePay:ApiToken"]}"
-    );
+        $"Bearer {builder.Configuration["SePay:ApiToken"] ?? "DEFAULT_TOKEN"}");
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
 });
-builder.Services.AddScoped<SepayService>();
+// NOTE: SepayService is already registered via AddHttpClient<SepayService> above — no need for a second AddScoped.
 // GHN HttpClient — base address tự động chuyển giữa sandbox / production
 var ghnBaseUrl = builder.Environment.IsDevelopment()
     ? "https://dev-online-gateway.ghn.vn"   // Sandbox
@@ -203,7 +213,9 @@ using (var scope = app.Services.CreateScope())
         {
             adminUser.RoleId = adminRole.Id;
             adminUser.IsActive = true;
-            adminUser.PasswordHash = authService.HashPassword(adminPassword);
+            // Chỉ re-hash password khi có thay đổi để tránh ghi DB thừa mỗi lần restart
+            if (!authService.VerifyPassword(adminPassword, adminUser.PasswordHash))
+                adminUser.PasswordHash = authService.HashPassword(adminPassword);
             adminUser.FullName = adminName ?? adminUser.FullName;
             adminUser.Phone = adminPhone ?? adminUser.Phone;
             db.SaveChanges();
@@ -235,38 +247,14 @@ app.MapControllers();
 app.MapHub<THEBOB.Hubs.OrderHub>("/hubs/order").RequireCors("AllowReactApp");
 app.MapHub<THEBOB.Hubs.ChatHub>("/hubs/chat").RequireCors("AllowReactApp");
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<THEBOB.Data.ThebobDbContext>();
-    
+
     // Clear stale AdminPresence records on startup
     context.Database.ExecuteSqlRaw("UPDATE AdminPresences SET IsOnline = 0, ConnectionId = NULL");
 }
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
 

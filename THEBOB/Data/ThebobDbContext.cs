@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using THEBOB.Models;
+using THEBOB.Models.Blog;
 using THEBOB.Models.LiveChat;
 using THEBOB.Models.Promotion;
 
@@ -53,16 +54,43 @@ namespace THEBOB.Data
         public DbSet<PromotionUsage> PromotionUsages { get; set; }
         public DbSet<OrderPromotion> OrderPromotions { get; set; }
 
-        // ── Live Chat Tables ─────────────────────────────────────────────────
+        // ── Live Chat Tables ──────────────────────────────────────────────────────
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<Message> Messages { get; set; }
         public DbSet<AdminPresence> AdminPresences { get; set; }
         public DbSet<Faq> Faqs { get; set; }
 
+        // ── Blog Module Tables ───────────────────────────────────────────────────
+        public DbSet<BlogCategory> BlogCategories { get; set; }
+        public DbSet<BlogPost> BlogPosts { get; set; }
+        public DbSet<BlogPostProduct> BlogPostProducts { get; set; }
+        public DbSet<BlogPostClick> BlogPostClicks { get; set; }
+        public DbSet<BlogNotification> BlogNotifications { get; set; }
+        public DbSet<UserBlogNotification> UserBlogNotifications { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(ThebobDbContext).Assembly);
+
+            // BlogPostProduct — composite PK
+            modelBuilder.Entity<BlogPostProduct>()
+                .HasKey(bp => new { bp.BlogPostId, bp.ProductId });
+
+            // UserBlogNotification — unique index per (NotificationId, UserId)
+            modelBuilder.Entity<UserBlogNotification>()
+                .HasIndex(u => new { u.BlogNotificationId, u.UserId })
+                .IsUnique();
+
+            // BlogPost — unique slug index
+            modelBuilder.Entity<BlogPost>()
+                .HasIndex(b => b.Slug)
+                .IsUnique();
+
+            // BlogCategory — unique slug index
+            modelBuilder.Entity<BlogCategory>()
+                .HasIndex(c => c.Slug)
+                .IsUnique();
         }
 
         public override int SaveChanges()

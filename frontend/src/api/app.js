@@ -317,6 +317,59 @@ export const chatAPI = {
       body: { content, conversationId: conversationId ?? undefined, productId: productId ?? undefined },
     }),
   searchProduct: (q) => apiClient(`/chat/search-product?q=${encodeURIComponent(q)}`, { auth: true }),
+  sendBlogPost: (conversationId, blogPostId) =>
+    apiClient('/chat/send-blog-post', {
+      method: 'POST',
+      auth: true,
+      body: { conversationId, blogPostId },
+    }),
+};
+
+// ─── Blog API ─────────────────────────────────────────────────────────────────
+
+export const blogAPI = {
+  // Public
+  getPublished: (page = 1, pageSize = 12, categoryId, search) => {
+    const params = new URLSearchParams({ page, pageSize });
+    if (categoryId) params.append('categoryId', categoryId);
+    if (search) params.append('search', search);
+    return apiClient(`/blog?${params}`);
+  },
+  getFeatured: () => apiClient('/blog/featured'),
+  getBySlug: (slug) => apiClient(`/blog/${encodeURIComponent(slug)}`),
+  getCategories: () => apiClient('/blog/categories'),
+  trackClick: (id, source = 'Direct', productId = null, sessionId = null) =>
+    apiClient(`/blog/${id}/click`, {
+      method: 'POST',
+      body: { source, productId, sessionId },
+    }),
+
+  // Admin
+  adminGetAll: (page = 1, pageSize = 20, status, categoryId, search) => {
+    const params = new URLSearchParams({ page, pageSize });
+    if (status) params.append('status', status);
+    if (categoryId) params.append('categoryId', categoryId);
+    if (search) params.append('search', search);
+    return apiClient(`/blog/admin/all?${params}`, { auth: true });
+  },
+  adminGetById: (id) => apiClient(`/blog/admin/${id}`, { auth: true }),
+  create: (data) => apiClient('/blog', { method: 'POST', auth: true, body: data }),
+  update: (id, data) => apiClient(`/blog/${id}`, { method: 'PUT', auth: true, body: data }),
+  delete: (id) => apiClient(`/blog/${id}`, { method: 'DELETE', auth: true }),
+  createCategory: (data) => apiClient('/blog/categories', { method: 'POST', auth: true, body: data }),
+  searchPublishedPosts: (q, limit = 10) =>
+    apiClient(`/blog/admin/search-posts?q=${encodeURIComponent(q || '')}&limit=${limit}`, { auth: true }),
+};
+
+// ─── Blog Notifications API ───────────────────────────────────────────────────
+
+export const blogNotificationsAPI = {
+  send: (data) => apiClient('/blog-notifications/send', { method: 'POST', auth: true, body: data }),
+  getMyNotifications: (page = 1, pageSize = 20) =>
+    apiClient(`/blog-notifications?page=${page}&pageSize=${pageSize}`, { auth: true }),
+  getUnreadCount: () => apiClient('/blog-notifications/unread-count', { auth: true }),
+  markAsRead: (id) => apiClient(`/blog-notifications/${id}/read`, { method: 'PUT', auth: true }),
+  markAllAsRead: () => apiClient('/blog-notifications/read-all', { method: 'PUT', auth: true }),
 };
 
 // ─── Promotions API ───────────────────────────────────────────────────────────
@@ -343,22 +396,18 @@ export const promotionsAPI = {
 
   // User
   validateCoupon: (couponCode) => apiClient('/promotions/validate-coupon', { method: 'POST', auth: true, body: { couponCode } }),
-  /**
-   * Tính khuyến mãi cho giỏ hàng hiện tại.
-   * @param {string} [couponCode] - Mã giảm giá (nếu có)
-   * @param {number} [shippingFee] - Phí vận chuyển thực tế (đã tính từ GHN), gửi lên để
-   *   backend cộng vào finalAmount và tính đúng shippingDiscount (nếu khuyến mãi giảm ship).
-   */
-  calculatePromotions: (couponCode, shippingFee) => apiClient('/promotions/calculate', {
+  calculatePromotions: (couponCode, shippingFee, userCouponId) => apiClient('/promotions/calculate', {
     method: 'POST',
     auth: true,
     body: {
       couponCode: couponCode || undefined,
       shippingFee: typeof shippingFee === 'number' ? shippingFee : undefined,
+      userCouponId: userCouponId ? Number(userCouponId) : undefined,
     },
   }),
   getMyVouchers: () => apiClient('/promotions/my-vouchers', { auth: true }),
   getApplicable: () => apiClient('/promotions/applicable', { auth: true }),
+  getEligibleProducts: (id) => apiClient(`/promotions/${id}/eligible-products`),
 };
 
 // ─── Users API extended ───────────────────────────────────────────────────────

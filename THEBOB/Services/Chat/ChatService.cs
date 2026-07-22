@@ -478,6 +478,9 @@ namespace THEBOB.Services.Chat
                 SenderName = senderName,
                 Content = message.Content,
                 ImageUrl = message.ImageUrl,
+                MessageType = message.MessageType.ToString(),
+                ReferenceId = message.ReferenceId,
+                Metadata = message.Metadata,
                 CreatedAt = message.CreatedAt,
                 IsRead = message.IsRead
             };

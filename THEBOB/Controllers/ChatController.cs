@@ -1,10 +1,16 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using THEBOB.Data;
+using THEBOB.DTOs.Blog;
 using THEBOB.DTOs.Chat;
 using THEBOB.Models;
+using THEBOB.Models.Blog;
+using THEBOB.Models.LiveChat;
 using THEBOB.Services.Chat;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 
 namespace THEBOB.Controllers
 {
@@ -143,6 +149,75 @@ namespace THEBOB.Controllers
             var userId = int.TryParse(userIdClaim, out var id) ? id : (int?)null;
             var isAdmin = User.IsInRole("Admin");
             return (userId, isAdmin);
+        }
+
+        /// <summary>Admin: gửi bài viết blog vào một đoạn chat 1-1.</summary>
+        [HttpPost("send-blog-post")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> SendBlogPost([FromBody] SendBlogPostInChatRequest request)
+        {
+            var (userId, _) = GetCallerContext();
+            if (!userId.HasValue) return Unauthorized(ApiResponse<object>.Fail("Phên đăng nhập không hợp lệ."));
+
+            var conversation = await _db.Conversations.FindAsync(request.ConversationId);
+            if (conversation == null)
+                return NotFound(ApiResponse<object>.Fail("Không tìm thấy cuộc hội thoại."));
+
+            var blogPost = await _db.BlogPosts.FindAsync(request.BlogPostId);
+            if (blogPost == null)
+                return NotFound(ApiResponse<object>.Fail("Không tìm thấy bài viết."));
+
+            // Snapshot metadata tại thời điểm gửi (bảo tồn lịch sử nếu bài viết thay đổi sau)
+            var metadata = JsonSerializer.Serialize(new
+            {
+                title = blogPost.Title,
+                slug = blogPost.Slug,
+                thumbnail = blogPost.Thumbnail,
+                summary = blogPost.Summary,
+            });
+
+            var message = new Message
+            {
+                ConversationId = request.ConversationId,
+                SenderType = SenderType.Admin,
+                SenderId = userId.Value,
+                Content = $"[Bài viết] {blogPost.Title}",
+                MessageType = MessageType.BlogPost,
+                ReferenceId = blogPost.Id,
+                Metadata = metadata,
+                CreatedAt = DateTime.UtcNow,
+                IsRead = false,
+            };
+
+            _db.Messages.Add(message);
+
+            // Cập nhật UpdatedAt của conversation
+            conversation.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            // Map sang DTO để gửi qua SignalR
+            var msgDto = new ChatMessageDto
+            {
+                Id = message.Id,
+                ConversationId = message.ConversationId,
+                SenderType = message.SenderType.ToString(),
+                SenderId = message.SenderId,
+                Content = message.Content,
+                CreatedAt = message.CreatedAt,
+                IsRead = message.IsRead,
+                MessageType = message.MessageType.ToString(),
+                ReferenceId = message.ReferenceId,
+                Metadata = message.Metadata,
+            };
+
+            // Bắn SignalR tới group conversation (bao gồm cả user đang online lẫn offline)
+            await _db.Entry(message).ReloadAsync();
+            var hubContext = HttpContext.RequestServices.GetRequiredService<Microsoft.AspNetCore.SignalR.IHubContext<THEBOB.Hubs.ChatHub>>();
+            await hubContext.Clients
+                .Group(IChatService.ConversationGroup(request.ConversationId))
+                .SendAsync("ReceiveMessage", msgDto);
+
+            return Ok(ApiResponse<ChatMessageDto>.Ok(msgDto));
         }
     }
 }

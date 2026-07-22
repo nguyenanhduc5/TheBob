@@ -142,6 +142,7 @@ namespace THEBOB.Services.Promotion
                     var (ucDisc, ucShipDisc, ucInfo) = ucResult.Value;
                     result.CouponDiscount += ucDisc;
                     result.ShippingDiscount = Math.Min(result.ShippingDiscount + ucShipDisc, context.ShippingFee);
+                    result.AppliedCouponCode = ucInfo.CouponCode ?? ucInfo.PromotionName;
                     result.AppliedPromotions.Add(ucInfo);
                 }
             }
@@ -382,11 +383,21 @@ namespace THEBOB.Services.Promotion
                     .ThenInclude(p => p.PromotionCategories)
                 .Include(u => u.Promotion)
                     .ThenInclude(p => p.PromotionBrands)
-                .FirstAsync(u => u.Id == context.UserCouponId!.Value, ct);
+                .Include(u => u.Promotion)
+                    .ThenInclude(p => p.PromotionCustomerGroups)
+                .FirstOrDefaultAsync(u => u.Id == context.UserCouponId!.Value, ct);
+
+            if (uc == null || uc.Promotion == null) return null;
 
             var promo = uc.Promotion;
             var eligibleItems = _scopeChecker.GetEligibleItems(promo, context.CartItems);
+
+            // Kiểm tra đầy đủ điều kiện (Scope, MinOrderValue, MaxOrderValue, MinQuantity, v.v.)
+            var isEligible = await _evaluator.IsEligibleAsync(promo, context, eligibleItems, ct);
+            if (!isEligible) return null;
+
             var (disc, shipDisc) = _calculator.Calculate(promo, eligibleItems, context.Subtotal, context.ShippingFee);
+            if (disc <= 0 && shipDisc <= 0) return null;
 
             return (disc, shipDisc, new AppliedPromotionInfo
             {

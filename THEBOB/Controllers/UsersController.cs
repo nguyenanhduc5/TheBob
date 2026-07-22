@@ -41,6 +41,35 @@ namespace THEBOB.Controllers
             return Ok(new { success = true, data = users });
         }
 
+        // GET: api/users/by-email?email=user@example.com
+        [HttpGet("by-email")]
+        public async Task<ActionResult> GetUserByEmail([FromQuery] string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return BadRequest(new { success = false, message = "Email không được để trống" });
+
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == email.Trim().ToLower());
+
+            if (user == null)
+                return NotFound(new { success = false, message = $"Không tìm thấy người dùng với email: {email}" });
+
+            return Ok(new
+            {
+                success = true,
+                id = user.Id,
+                email = user.Email,
+                name = user.FullName ?? user.Email,
+                username = user.Username,
+                data = new
+                {
+                    id = user.Id,
+                    email = user.Email
+                }
+            });
+        }
+
         // PUT: api/users/{id}/role
         [HttpPut("{id}/role")]
         public async Task<ActionResult> UpdateUserRole(int id, [FromBody] UpdateRoleRequest req)

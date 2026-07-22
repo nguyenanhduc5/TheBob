@@ -49,12 +49,25 @@ export default function Checkout() {
   const submittingRef = useRef(false);
   const [formErrors, setFormErrors] = useState({});
 
-  // ── Coupon / Promotion ─────────────────────────────────────────
   const [couponCode, setCouponCode] = useState('');
   const [couponInput, setCouponInput] = useState('');
   const [promoPreview, setPromoPreview] = useState(null);  // { totalDiscount, couponDiscount, appliedCouponCode, ... }
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError]   = useState('');
+  const [myVouchers, setMyVouchers] = useState([]);
+  // Voucher cá nhân (UserCoupon) — tách riêng khỏi couponCode thông thường
+  const [selectedVoucherId, setSelectedVoucherId] = useState(null);
+  const [selectedVoucherLabel, setSelectedVoucherLabel] = useState('');
+
+  useEffect(() => {
+    promotionsAPI.getMyVouchers()
+      .then(res => {
+        const raw = res?.data ?? res;
+        const list = Array.isArray(raw) ? raw : (raw?.items || []);
+        setMyVouchers(list.filter(v => !v.isUsed && !v.isExpired));
+      })
+      .catch(() => setMyVouchers([]));
+  }, []);
 
   const [provinces, setProvinces] = useState([]);
   const [districts, setDistricts] = useState([]);
@@ -211,9 +224,7 @@ export default function Checkout() {
     })();
   }, [pendingProfileAddress, provinces, selectedProvince.id, calculateShippingFee]);
 
-  // ✅ FIX: Fetch and calculate promotions when cart, coupon, OR shipping fee changes.
-  // Trước đây effect này không phụ thuộc `shippingFee` và không gửi phí ship lên backend,
-  // nên `finalAmount` trả về không cộng phí vận chuyển => Tổng Cộng bị thiếu tiền ship.
+  // Tính khuyến mãi: couponCode (mã nhập tay) HOẶC selectedVoucherId (voucher cá nhân)
   useEffect(() => {
     async function fetchAndCalculatePromotions() {
       if (cartItems.length === 0) {
@@ -222,8 +233,23 @@ export default function Checkout() {
       }
 
       try {
-        // Gửi kèm phí ship thực tế (shipping) để backend tính đúng shippingDiscount/finalAmount
-        const result = await promotionsAPI.calculatePromotions(couponCode, shipping);
+        // Đồng bộ giỏ hàng lên backend DB trước để backend có CartItems thực tế nhằm kiểm tra Scope/Điều kiện
+        try {
+          const syncItems = cartItems
+            .filter((item) => item.variantId)
+            .map((item) => ({
+              variantId: item.variantId,
+              quantity: item.quantity,
+            }));
+          if (syncItems.length > 0) {
+            await cartAPI.syncCart(syncItems);
+          }
+        } catch (syncErr) {
+          console.warn('Sync cart before promo calc warning:', syncErr);
+        }
+
+        // Gửi kèm phí ship và userCouponId (nếu có) để backend tính đúng
+        const result = await promotionsAPI.calculatePromotions(couponCode, shipping, selectedVoucherId);
 
         setPromoPreview({
           automaticDiscount: result.automaticDiscount || 0,
@@ -243,12 +269,17 @@ export default function Checkout() {
           setCouponInput('');
           setCouponError('Mã giảm giá không còn hợp lệ');
         }
+        if (selectedVoucherId) {
+          setSelectedVoucherId(null);
+          setSelectedVoucherLabel('');
+          setCouponError('Voucher không còn hợp lệ cho đơn hàng này');
+        }
       }
     }
 
     fetchAndCalculatePromotions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartItems, couponCode, shipping]);
+  }, [cartItems, couponCode, shipping, selectedVoucherId]);
 
   const fullShippingAddress = useMemo(() => {
     return [
@@ -343,6 +374,8 @@ export default function Checkout() {
       // Validate coupon first
       const validResult = await promotionsAPI.validateCoupon(code);
       if (validResult?.isValid) {
+        setSelectedVoucherId(null);
+        setSelectedVoucherLabel('');
         setCouponCode(code);
         // After coupon code is set, the useEffect will call calculatePromotions
         // and update promoPreview with the full calculation
@@ -360,6 +393,8 @@ export default function Checkout() {
   const handleRemoveCoupon = () => {
     setCouponCode('');
     setCouponInput('');
+    setSelectedVoucherId(null);
+    setSelectedVoucherLabel('');
     setPromoPreview(null);
     setCouponError('');
   };
@@ -407,6 +442,7 @@ export default function Checkout() {
         ghnDistrictId: selectedDistrict.id,
         ghnWardCode: selectedWard.code,
         couponCode: couponCode || undefined,
+        userCouponId: selectedVoucherId ? Number(selectedVoucherId) : undefined,
       };
 
       const order = await ordersAPI.createOrder(orderData);
@@ -625,34 +661,77 @@ export default function Checkout() {
             {/* ── Coupon Input ──────────────────────────────────── */}
             <div className="form-section coupon-section">
               <h2>🎟️ Mã Giảm Giá</h2>
-              {couponCode ? (
+
+              {/* Hiển thị trạng thái đã áp dụng */}
+              {(couponCode || selectedVoucherId) ? (
                 <div className="coupon-applied">
-                  <span className="coupon-tag">✅ {couponCode}</span>
+                  <span className="coupon-tag">
+                    ✅ {selectedVoucherId ? selectedVoucherLabel : couponCode}
+                  </span>
                   {promoPreview?.couponDiscount > 0 && (
                     <span className="coupon-saving">Tiết kiệm {promoPreview.couponDiscount.toLocaleString('vi-VN')}₫</span>
                   )}
                   <button type="button" className="coupon-remove" onClick={handleRemoveCoupon}>✕ Xóa</button>
                 </div>
               ) : (
-                <div className="coupon-input-row">
-                  <input
-                    type="text"
-                    value={couponInput}
-                    onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleApplyCoupon())}
-                    placeholder="Nhập mã giảm giá..."
-                    className="coupon-input"
-                    disabled={couponLoading}
-                  />
-                  <button
-                    type="button"
-                    className="coupon-apply-btn"
-                    onClick={handleApplyCoupon}
-                    disabled={couponLoading || !couponInput.trim()}
-                  >
-                    {couponLoading ? '...' : 'Áp dụng'}
-                  </button>
-                </div>
+                <>
+                  {/* Dropdown chọn Voucher cá nhân (UserCoupon) */}
+                  {myVouchers.length > 0 && (
+                    <div style={{ marginBottom: '10px' }}>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                        🎁 Chọn từ kho Voucher đã lưu của bạn:
+                      </label>
+                      <select
+                        className="coupon-input"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                        value={selectedVoucherId || ''}
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          if (!selectedId) {
+                            handleRemoveCoupon();
+                            return;
+                          }
+                          const v = myVouchers.find(x => String(x.id) === String(selectedId));
+                          if (!v) return;
+                          setCouponError('');
+                          setCouponCode(''); // Xóa mã nhập tay nếu có
+                          setCouponInput('');
+                          setSelectedVoucherId(v.id);
+                          setSelectedVoucherLabel(v.promotionName + (v.note ? ` (${v.note})` : ''));
+                          addNotification(`🎁 Đã chọn voucher "${v.promotionName}"! Hệ thống đang kiểm tra điều kiện...`, 'info');
+                        }}
+                      >
+                        <option value="">-- Bấm vào đây để chọn Voucher của bạn --</option>
+                        {myVouchers.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.promotionName}{v.note ? ` (${v.note})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Ô nhập mã thủ công */}
+                  <div className="coupon-input-row">
+                    <input
+                      type="text"
+                      value={couponInput}
+                      onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleApplyCoupon())}
+                      placeholder="Hoặc nhập mã giảm giá..."
+                      className="coupon-input"
+                      disabled={couponLoading}
+                    />
+                    <button
+                      type="button"
+                      className="coupon-apply-btn"
+                      onClick={handleApplyCoupon}
+                      disabled={couponLoading || !couponInput.trim()}
+                    >
+                      {couponLoading ? '...' : 'Áp dụng'}
+                    </button>
+                  </div>
+                </>
               )}
               {couponError && <p className="coupon-error">{couponError}</p>}
             </div>

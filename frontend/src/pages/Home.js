@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { recommendationAPI } from '../api/app';
+import FeaturedBlogSection from '../components/blog/FeaturedBlogSection';
 import '../styles/Home.css';
 import '../styles/Products.css'; // Reuse product card styles
 
@@ -158,6 +159,9 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {/* 3.6 FEATURED BLOG POSTS */}
+      <FeaturedBlogSection />
 
       {/* 4. WIDE BANNER TRÀN KHUNG PHÍA DƯỚI */}
       <section className="bob-wide-banner" style={{ backgroundImage: `url(${wideBanner.image})` }}>

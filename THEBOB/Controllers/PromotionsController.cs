@@ -489,7 +489,7 @@ namespace THEBOB.Controllers
             var userId = GetUserId();
             if (!userId.HasValue) return Unauthorized();
 
-            var context = await BuildContextAsync(userId.Value, req.CouponCode);
+            var context = await BuildContextAsync(userId.Value, req.CouponCode, req.UserCouponId, req.ShippingFee);
             var result = await _engine.CalculateAsync(context);
 
             return Ok(new
@@ -521,23 +521,28 @@ namespace THEBOB.Controllers
                 .OrderByDescending(uc => uc.CreatedAt)
                 .ToListAsync();
 
-            return Ok(vouchers.Select(uc => new UserCouponDto
-            {
-                Id = uc.Id,
-                PromotionId = uc.PromotionId,
-                PromotionName = uc.Promotion.Name,
-                Description = uc.Promotion.Description,
-                DiscountType = uc.Promotion.DiscountType.ToString(),
-                DiscountValue = uc.Promotion.DiscountValue,
-                MaxDiscountAmount = uc.Promotion.MaxDiscountAmount,
-                MinOrderValue = uc.Promotion.MinOrderValue,
-                IsUsed = uc.IsUsed,
-                UsedAt = uc.UsedAt,
-                ExpiresAt = uc.ExpiresAt,
-                PromotionEndDate = uc.Promotion.EndDate,
-                IsExpired = (uc.ExpiresAt.HasValue && uc.ExpiresAt < now) || uc.Promotion.EndDate < now,
-                Note = uc.Note
-            }));
+            var list = vouchers
+                .Where(uc => uc.Promotion != null)
+                .Select(uc => new UserCouponDto
+                {
+                    Id = uc.Id,
+                    PromotionId = uc.PromotionId,
+                    PromotionName = uc.Promotion.Name,
+                    Description = uc.Promotion.Description ?? string.Empty,
+                    DiscountType = uc.Promotion.DiscountType.ToString(),
+                    DiscountValue = uc.Promotion.DiscountValue,
+                    MaxDiscountAmount = uc.Promotion.MaxDiscountAmount,
+                    MinOrderValue = uc.Promotion.MinOrderValue,
+                    IsUsed = uc.IsUsed,
+                    UsedAt = uc.UsedAt,
+                    ExpiresAt = uc.ExpiresAt,
+                    PromotionEndDate = uc.Promotion.EndDate,
+                    IsExpired = (uc.ExpiresAt.HasValue && uc.ExpiresAt < now) || uc.Promotion.EndDate < now,
+                    Note = uc.Note,
+                    CouponCode = uc.Promotion.CouponCode
+                }).ToList();
+
+            return Ok(list);
         }
 
         /// <summary>GET api/promotions/applicable — User: promotions hợp lệ cho cart</summary>
@@ -563,6 +568,131 @@ namespace THEBOB.Controllers
                 DiscountValue = p.DiscountValue,
                 EndDate = p.EndDate
             }));
+        }
+
+        /// <summary>GET api/promotions/{id}/eligible-products — Lấy sản phẩm đủ điều kiện cho voucher</summary>
+        [HttpGet("{id:int}/eligible-products")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetEligibleProducts(int id)
+        {
+            var promo = await _db.Promotions
+                .Include(p => p.PromotionProducts)
+                .Include(p => p.PromotionCategories)
+                .Include(p => p.PromotionBrands)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (promo == null) return NotFound(new { message = "Không tìm thấy chương trình khuyến mãi" });
+
+            var query = _db.Products
+                .Include(p => p.ProductVariants)
+                .Where(p => !p.IsDeleted && p.IsAvailable);
+
+            switch (promo.Scope)
+            {
+                case PromotionScope.AllShop:
+                case PromotionScope.User:
+                case PromotionScope.CustomerGroup:
+                    break;
+
+                case PromotionScope.Product:
+                    var targetProductIds = promo.PromotionProducts
+                        .Where(pp => !pp.IsExcluded)
+                        .Select(pp => pp.ProductId)
+                        .ToList();
+                    var excludedProductIds = promo.PromotionProducts
+                        .Where(pp => pp.IsExcluded)
+                        .Select(pp => pp.ProductId)
+                        .ToList();
+
+                    if (targetProductIds.Any())
+                        query = query.Where(p => targetProductIds.Contains(p.Id));
+                    else if (excludedProductIds.Any())
+                        query = query.Where(p => !excludedProductIds.Contains(p.Id));
+                    break;
+
+                case PromotionScope.Category:
+                    var targetCategoryIds = promo.PromotionCategories
+                        .Where(pc => !pc.IsExcluded)
+                        .Select(pc => pc.CategoryId)
+                        .ToList();
+                    var excludedCategoryIds = promo.PromotionCategories
+                        .Where(pc => pc.IsExcluded)
+                        .Select(pc => pc.CategoryId)
+                        .ToList();
+
+                    if (targetCategoryIds.Any())
+                        query = query.Where(p => p.CategoryId.HasValue && targetCategoryIds.Contains(p.CategoryId.Value));
+                    else if (excludedCategoryIds.Any())
+                        query = query.Where(p => !p.CategoryId.HasValue || !excludedCategoryIds.Contains(p.CategoryId.Value));
+                    break;
+
+                case PromotionScope.Brand:
+                    var targetBrandIds = promo.PromotionBrands
+                        .Where(pb => !pb.IsExcluded)
+                        .Select(pb => pb.BrandId)
+                        .ToList();
+                    var excludedBrandIds = promo.PromotionBrands
+                        .Where(pb => pb.IsExcluded)
+                        .Select(pb => pb.BrandId)
+                        .ToList();
+
+                    if (targetBrandIds.Any())
+                        query = query.Where(p => p.BrandId.HasValue && targetBrandIds.Contains(p.BrandId.Value));
+                    else if (excludedBrandIds.Any())
+                        query = query.Where(p => !p.BrandId.HasValue || !excludedBrandIds.Contains(p.BrandId.Value));
+                    break;
+
+                default:
+                    break;
+            }
+
+            var rawList = await query
+                .Take(100)
+                .Select(p => new
+                {
+                    id = p.Id,
+                    name = p.Name,
+                    mainImageUrl = p.MainImageUrl,
+                    minPrice = p.ProductVariants.Any() ? p.ProductVariants.Min(v => v.Price) : 0,
+                    maxPrice = p.ProductVariants.Any() ? p.ProductVariants.Max(v => v.Price) : 0,
+                    inStock = p.ProductVariants.Any(v => v.Stock > 0)
+                })
+                .ToListAsync();
+
+            var minOrderVal = promo.MinOrderValue;
+            var result = rawList
+                .Select(p =>
+                {
+                    var price = p.minPrice > 0 ? p.minPrice : 1;
+                    var suggestedQty = minOrderVal > 0 ? (int)Math.Ceiling(minOrderVal / price) : 1;
+                    var meetsMinOrderSingle = minOrderVal <= 0 || p.minPrice >= minOrderVal;
+                    return new
+                    {
+                        p.id,
+                        p.name,
+                        p.mainImageUrl,
+                        p.minPrice,
+                        p.maxPrice,
+                        p.inStock,
+                        suggestedQty,
+                        meetsMinOrderSingle
+                    };
+                })
+                .OrderByDescending(p => p.meetsMinOrderSingle)
+                .ThenByDescending(p => p.minPrice)
+                .ToList();
+
+            return Ok(new
+            {
+                promotionId = promo.Id,
+                promotionName = promo.Name,
+                scope = promo.Scope.ToString(),
+                isAllShop = promo.Scope == PromotionScope.AllShop || promo.Scope == PromotionScope.User || promo.Scope == PromotionScope.CustomerGroup,
+                minOrderValue = promo.MinOrderValue,
+                discountType = promo.DiscountType.ToString(),
+                discountValue = promo.DiscountValue,
+                products = result
+            });
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -591,7 +721,7 @@ namespace THEBOB.Controllers
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
 
-        private async Task<PromotionContext> BuildContextAsync(int userId, string? couponCode)
+        private async Task<PromotionContext> BuildContextAsync(int userId, string? couponCode, int? userCouponId = null, decimal? shippingFee = null)
         {
             var user = await _db.Users
                 .AsNoTracking()
@@ -633,7 +763,9 @@ namespace THEBOB.Controllers
                     PreviousOrderCount = orderCount
                 },
                 CartItems = cartItems,
-                CouponCode = couponCode
+                CouponCode = couponCode,
+                UserCouponId = userCouponId,
+                ShippingFee = shippingFee ?? 0
             };
         }
 

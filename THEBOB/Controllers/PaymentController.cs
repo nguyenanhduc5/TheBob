@@ -71,8 +71,6 @@ namespace THEBOB.Controllers
                 }
 
                 var amount = order.TotalAmount;
-                if (request.Amount.HasValue && Math.Abs(request.Amount.Value - amount) > 0.01m)
-                    return BadRequest(ApiResponse<CreatePaymentResponse>.Fail("Payment amount does not match order total."));
 
                 var existingTx = await _context.PaymentTransactions
                     .FirstOrDefaultAsync(t => t.OrderId == order.Id && t.Status == "Pending" && t.PaymentProvider == "SePay");

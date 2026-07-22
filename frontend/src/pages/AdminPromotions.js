@@ -59,6 +59,7 @@ export default function AdminPromotions() {
   const [filterType, setFilterType] = useState('');
   const [sendCouponModal, setSendCouponModal] = useState(null); // promotionId
   const [sendEmail, setSendEmail] = useState('');
+  const [userList, setUserList] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -68,18 +69,21 @@ export default function AdminPromotions() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [promos, prods, cats, brnds, groups] = await Promise.all([
+      const [promos, prods, cats, brnds, groups, uRes] = await Promise.all([
         promotionsAPI.getAll({ status: filterStatus, type: filterType }),
         productsAPI.getProducts(),
         categoriesAPI.getAll(),
         brandsAPI.getAll(),
         promotionsAPI.getCustomerGroups(),
+        usersAPI.getAll(1, 100).catch(() => null),
       ]);
       setPromotions(promos.items || []);
       setProducts(prods || []);
       setCategories(cats || []);
       setBrands(brnds || []);
       setCustomerGroups(groups || []);
+      const rawUsers = uRes?.data || uRes?.items || uRes;
+      setUserList(Array.isArray(rawUsers) ? rawUsers : []);
     } catch {
       addNotification('Lỗi tải dữ liệu', 'error');
     } finally {
@@ -171,13 +175,18 @@ export default function AdminPromotions() {
     if (!sendEmail.trim()) return;
     try {
       // Find user by email
-      const user = await usersAPI.findByEmail(sendEmail.trim());
-      await promotionsAPI.sendUserCoupon({ promotionId: sendCouponModal, userId: user.id });
+      const res = await usersAPI.findByEmail(sendEmail.trim());
+      const userId = res?.id || res?.data?.id;
+      if (!userId) {
+        addNotification('Không tìm thấy người dùng với email này', 'error');
+        return;
+      }
+      await promotionsAPI.sendUserCoupon({ promotionId: sendCouponModal, userId: userId });
       addNotification(`Đã gửi voucher đến ${sendEmail}`, 'success');
       setSendCouponModal(null);
       setSendEmail('');
     } catch (err) {
-      addNotification(err.message || 'Lỗi gửi voucher', 'error');
+      addNotification(err?.message || 'Lỗi gửi voucher', 'error');
     }
   };
 
@@ -468,15 +477,45 @@ export default function AdminPromotions() {
       {/* Send Coupon Modal */}
       {sendCouponModal && (
         <div className="ap-modal-overlay" onClick={() => setSendCouponModal(null)}>
-          <div className="ap-modal" onClick={e => e.stopPropagation()}>
-            <h3>📤 Gửi Voucher cho User</h3>
+          <div className="ap-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', width: '90%' }}>
+            <h3>📤 Gửi Voucher Cá Nhân cho User</h3>
+            
+            {userList.length > 0 && (
+              <div className="ap-field" style={{ marginBottom: '14px' }}>
+                <label>Chọn từ Danh sách Người dùng:</label>
+                <select
+                  className="ap-input"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) setSendEmail(e.target.value);
+                  }}
+                >
+                  <option value="">-- Bấm để chọn User trong danh sách --</option>
+                  {userList.map((u) => (
+                    <option key={u.id} value={u.email}>
+                      {u.name || u.username ? `${u.name || u.username} (${u.email})` : u.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="ap-field">
-              <label>Email người dùng</label>
-              <input type="email" value={sendEmail} onChange={e => setSendEmail(e.target.value)} placeholder="user@example.com" autoFocus />
+              <label>Hoặc Nhập Gmail / Email người dùng:</label>
+              <input
+                type="email"
+                className="ap-input"
+                value={sendEmail}
+                onChange={e => setSendEmail(e.target.value)}
+                placeholder="user@example.com / user@gmail.com"
+                autoFocus
+              />
             </div>
-            <div className="ap-modal-actions">
+
+            <div className="ap-modal-actions" style={{ marginTop: '16px' }}>
               <button className="ap-btn ap-btn-ghost" onClick={() => setSendCouponModal(null)}>Hủy</button>
-              <button className="ap-btn ap-btn-primary" onClick={handleSendCoupon}>Gửi Voucher</button>
+              <button className="ap-btn ap-btn-primary" onClick={handleSendCoupon}>🎁 Gửi Voucher Ngay</button>
             </div>
           </div>
         </div>

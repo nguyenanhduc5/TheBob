@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import { notificationsAPI } from '../api/app';
+import { notificationsAPI, blogNotificationsAPI } from '../api/app';
 
 const NotificationContext = createContext();
 
@@ -22,11 +22,17 @@ export const NotificationProvider = ({ children }) => {
   const [dbNotifications, setDbNotifications] = useState([]);
   const [dbUnreadCount, setDbUnreadCount] = useState(0);
 
+  // Blog persistent notifications
+  const [blogNotifications, setBlogNotifications] = useState([]);
+  const [blogUnreadCount, setBlogUnreadCount] = useState(0);
+
   const fetchDbNotifications = useCallback(async () => {
     const token = localStorage.getItem('thebob-token');
     if (!token) {
       setDbNotifications([]);
       setDbUnreadCount(0);
+      setBlogNotifications([]);
+      setBlogUnreadCount(0);
       return;
     }
     try {
@@ -39,6 +45,15 @@ export const NotificationProvider = ({ children }) => {
     } catch (err) {
       console.error('Failed to fetch persistent notifications:', err);
     }
+
+    try {
+      const blogRes = await blogNotificationsAPI.getMyNotifications();
+      const items = blogRes?.data || blogRes || [];
+      setBlogNotifications(items);
+      setBlogUnreadCount(items.filter(n => !n.isRead).length);
+    } catch (err) {
+      console.error('Failed to fetch blog notifications:', err);
+    }
   }, []);
 
   const markDbAsRead = useCallback(async (id) => {
@@ -48,6 +63,16 @@ export const NotificationProvider = ({ children }) => {
       setDbUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
+    }
+  }, []);
+
+  const markBlogAsRead = useCallback(async (id) => {
+    try {
+      await blogNotificationsAPI.markAsRead(id);
+      setBlogNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      setBlogUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Failed to mark blog notification as read:', err);
     }
   }, []);
 
@@ -114,8 +139,11 @@ export const NotificationProvider = ({ children }) => {
     // Expose persistent notifications
     dbNotifications,
     dbUnreadCount,
+    blogNotifications,
+    blogUnreadCount,
     fetchDbNotifications,
     markDbAsRead,
+    markBlogAsRead,
     markAllDbAsRead
   }), [
     notifications,
@@ -128,8 +156,11 @@ export const NotificationProvider = ({ children }) => {
 
     dbNotifications,
     dbUnreadCount,
+    blogNotifications,
+    blogUnreadCount,
     fetchDbNotifications,
     markDbAsRead,
+    markBlogAsRead,
     markAllDbAsRead
   ]);
 

@@ -63,6 +63,8 @@ namespace THEBOB.DTOs.Promotion
     public class CalculatePromotionsRequest
     {
         public string? CouponCode { get; set; }
+        public int? UserCouponId { get; set; }
+        public decimal? ShippingFee { get; set; }
     }
 
     public class SendUserCouponRequest
@@ -188,6 +190,7 @@ namespace THEBOB.DTOs.Promotion
         public DateTime PromotionEndDate { get; set; }
         public bool IsExpired { get; set; }
         public string Note { get; set; } = string.Empty;
+        public string? CouponCode { get; set; }
     }
 
     public class PromotionStatsDto

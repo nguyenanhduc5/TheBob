@@ -66,6 +66,8 @@ export default function AdminChat() {
               key={selected.id}
               conversationId={selected.id}
               currentUserId={user?.id}
+              targetUserId={selected.userId}
+              targetUserName={selected.userName || selected.userEmail || `Khách #${selected.userId}`}
               isAdmin
               title={selected.userName || selected.userEmail || `Khách #${selected.userId}`}
             />

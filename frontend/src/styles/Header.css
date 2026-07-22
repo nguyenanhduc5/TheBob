@@ -83,6 +83,27 @@
   gap: 16px;
 }
 
+.header-link-button {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  padding: 8px 4px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #111;
+  text-transform: uppercase;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.header-link-button:hover {
+  background: transparent !important;
+  opacity: 0.6;
+  transform: translateY(-1px);
+}
+
 .icon-button {
   background: transparent !important;
   border: none !important;

@@ -4,6 +4,8 @@ import { chatAPI, CHAT_HUB_URL } from '../../api/app';
 import MessageList from './MessageList';
 import ProductContextCard from './ProductContextCard';
 import SuggestedQuestions from './SuggestedQuestions';
+import SendVoucherModal from './SendVoucherModal';
+import AttachBlogModal from '../blog/AttachBlogModal';
 import '../../styles/Chat.css';
 
 const unwrap = (res) => res?.data ?? res;
@@ -12,6 +14,8 @@ export default function ChatWindow({
   conversationId,
   onConversationChange,
   currentUserId,
+  targetUserId,
+  targetUserName,
   isAdmin = false,
   title = 'Hỗ trợ trực tuyến',
   onClose,
@@ -26,6 +30,8 @@ export default function ChatWindow({
   const [typingUserId, setTypingUserId] = useState(null);
   const [connected, setConnected] = useState(false);
   const [isAdminOnline, setIsAdminOnline] = useState(false);
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
+  const [showBlogModal, setShowBlogModal] = useState(false);
   const connectionRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const seenSentRef = useRef(false);
@@ -234,18 +240,67 @@ export default function ChatWindow({
             </span>
           )}
         </div>
-        {onClose && (
-          <button type="button" className="chat-window__close" onClick={onClose} aria-label="Đóng chat">
-            ✕
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                className="chat-window__voucher-header-btn"
+                onClick={() => setShowBlogModal(true)}
+                title="Đính kèm bài viết Blog"
+              >
+                📝 Đính kèm Blog
+              </button>
+              <button
+                type="button"
+                className="chat-window__voucher-header-btn"
+                onClick={() => setShowVoucherModal(true)}
+                title="Tặng Voucher riêng cho khách hàng này"
+              >
+                🎁 Tặng Voucher
+              </button>
+            </>
+          )}
+          {onClose && (
+            <button type="button" className="chat-window__close" onClick={onClose} aria-label="Đóng chat">
+              ✕
+            </button>
+          )}
+        </div>
       </div>
+
+      {showBlogModal && (
+        <AttachBlogModal
+          onClose={() => setShowBlogModal(false)}
+          onSelect={async (blogPost) => {
+            if (!activeConversationId) return;
+            try {
+              const res = unwrap(await chatAPI.sendBlogPost(activeConversationId, blogPost.id));
+              if (res) {
+                setMessages((prev) => [...prev, res]);
+              }
+            } catch (err) {
+              console.error('Failed to send blog post in chat:', err);
+            }
+          }}
+        />
+      )}
+
+      {showVoucherModal && (
+        <SendVoucherModal
+          userId={targetUserId}
+          userName={targetUserName}
+          onClose={() => setShowVoucherModal(false)}
+          onSendSuccess={(voucherMsg) => handleSend(null, voucherMsg)}
+        />
+      )}
 
       {!isAdmin && (
         <ProductContextCard 
           productId={activeProductId} 
           onSelectProduct={(id) => setActiveProductId(id)}
           onClearProduct={() => setActiveProductId(null)}
+          onSendOrderMessage={(text) => handleSend(null, text)}
         />
       )}
 
