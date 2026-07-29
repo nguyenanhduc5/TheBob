@@ -16,8 +16,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Render tự động inject biến PORT (mặc định 10000 hoặc 8080)
+# Tắt FileSystemWatcher để tránh tràn inotify limit trên Linux Container Render
+ENV DOTNET_USE_POLLING_FILE_WATCHER=false
+ENV ASPNETCORE_HOSTINGSTARTUPASSEMBLIES=""
 ENV ASPNETCORE_URLS=http://+:8080
+
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "THEBOB.dll"]
