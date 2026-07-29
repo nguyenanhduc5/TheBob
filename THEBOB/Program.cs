@@ -14,21 +14,20 @@ using THEBOB.Services.Chat;
 using THEBOB.Services.Promotion;
 using THEBOB.Services.Recommendation;
 using System.Threading.Channels;
-var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions
 {
     Args = args,
     ContentRootPath = AppContext.BaseDirectory
 });
 
-// Tắt hoàn toàn FileSystemWatcher trên Linux Container (tránh lỗi inotify limit 128 của Render)
-builder.Configuration.Sources.Clear();
+// Thêm các dịch vụ Web mặc định
+builder.WebHost.UseKestrel();
+
+// Cấu hình không tự động reloadOnChange để tránh lỗi inotify limit trên Render/Linux Container
 builder.Configuration
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: false)
     .AddEnvironmentVariables();
-builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
-                     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: false)
-                     .AddEnvironmentVariables();
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
