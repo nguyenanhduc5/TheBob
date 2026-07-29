@@ -288,7 +288,7 @@ export default function Register() {
 
       // Auto-login after registration
       const { data } = result;
-      login(data, data.token);
+      login(data, data.token, data.refreshToken);
 
       addNotification('Đăng ký tài khoản thành công!', 'success');
       navigate('/');

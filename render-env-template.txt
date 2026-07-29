@@ -1,0 +1,15 @@
+# Render environment configuration reference
+# Không đẩy file chứa mật khẩu thật lên Git public!
+
+# 1. Chuỗi kết nối Database MySQL
+ConnectionStrings__DefaultConnection="Server=YOUR_MYSQL_HOST;Port=3306;Database=thebob_db;Uid=YOUR_USER;Pwd=YOUR_PASSWORD;SslMode=Preferred;"
+
+# 2. JWT Configuration
+Jwt__Key="THEBOB_JWT_SECRET_KEY_2026_SUPER_SECRET_MIN_32_CHARS"
+Jwt__Issuer="THEBOB"
+Jwt__Audience="THEBOB_API"
+
+# 3. Third-party integrations
+SePay__ApiToken="YOUR_SEPAY_API_TOKEN"
+GHN__Token="YOUR_GHN_TOKEN"
+OpenAI__ApiKey="YOUR_OPENAI_KEY"

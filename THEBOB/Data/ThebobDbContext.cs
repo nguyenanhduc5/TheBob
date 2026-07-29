@@ -38,6 +38,7 @@ namespace THEBOB.Data
         public DbSet<HighUtilityItemsetEntity> HighUtilityItemsets { get; set; }
         public DbSet<RecommendationCache> Recommendations { get; set; }
         public DbSet<RecommendationLog> RecommendationLogs { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         // ── Legacy (kept for backward-compat during migration) ───────────────
         public DbSet<Coupon> Coupons { get; set; }

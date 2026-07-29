@@ -327,6 +327,7 @@ namespace THEBOB.Controllers
         }
 
         [HttpPost("confirm")]
+        [HttpPost("orders/{orderId}/confirm")]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<ApiResponse<object>>> ConfirmPayment([FromBody] ConfirmPaymentRequest request)
         {

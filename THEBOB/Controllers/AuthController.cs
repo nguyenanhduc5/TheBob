@@ -24,7 +24,8 @@ namespace THEBOB.Controllers
             _emailService = emailService;
         }
 
-        [HttpPost("send-otp")]
+        [HttpPost("send-otp")]         // Giữ backward compat cho FE cũ
+        [HttpPost("otp")]               // RESTful alias: POST /api/auth/otp
         public async Task<ActionResult<object>> SendOtp([FromBody] SendOtpRequest request)
         {
             var email = (request.Email ?? string.Empty).Trim().ToLowerInvariant();
@@ -143,7 +144,9 @@ namespace THEBOB.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            var token = _authService.GenerateJwtToken(user);
+            var token = _authService.GenerateJwtToken(user, out var jti);
+            var refreshToken = await _authService.GenerateRefreshTokenAsync(user.Id, jti);
+
             return Ok(new
             {
                 success = true,
@@ -151,6 +154,7 @@ namespace THEBOB.Controllers
                 data = new
                 {
                     token,
+                    refreshToken = refreshToken.Token,
                     id = user.Id,
                     userId = user.Id,
                     username = user.Username,
@@ -164,7 +168,7 @@ namespace THEBOB.Controllers
         }
 
         [HttpPost("login")]
-        public ActionResult<object> Login([FromBody] LoginRequest request)
+        public async Task<ActionResult<object>> Login([FromBody] LoginRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
                 return BadRequest(new { success = false, message = "Email và mật khẩu là bắt buộc" });
@@ -180,7 +184,9 @@ namespace THEBOB.Controllers
             if (!user.IsActive)
                 return Unauthorized(new { success = false, message = "User account is inactive" });
 
-            var token = _authService.GenerateJwtToken(user);
+            var token = _authService.GenerateJwtToken(user, out var jti);
+            var refreshToken = await _authService.GenerateRefreshTokenAsync(user.Id, jti);
+
             return Ok(new
             {
                 success = true,
@@ -188,6 +194,7 @@ namespace THEBOB.Controllers
                 data = new
                 {
                     token,
+                    refreshToken = refreshToken.Token,
                     id = user.Id,
                     userId = user.Id,
                     username = user.Username,
@@ -198,6 +205,30 @@ namespace THEBOB.Controllers
                     role = user.RoleEntity?.RoleName ?? user.Role.ToString()
                 }
             });
+        }
+
+        [HttpPost("refresh-token")]
+        public async Task<ActionResult<object>> RefreshToken([FromBody] THEBOB.DTOs.Auth.RefreshTokenRequestDto request)
+        {
+            if (string.IsNullOrWhiteSpace(request.RefreshToken))
+                return BadRequest(new { success = false, message = "Refresh token là bắt buộc" });
+
+            var result = await _authService.RefreshTokenAsync(request.Token, request.RefreshToken);
+            if (result == null)
+                return Unauthorized(new { success = false, message = "Refresh token không hợp lệ hoặc đã hết hạn" });
+
+            return Ok(new { success = true, data = result });
+        }
+
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<ActionResult<object>> Logout([FromBody] THEBOB.DTOs.Auth.RefreshTokenRequestDto request)
+        {
+            if (!string.IsNullOrWhiteSpace(request.RefreshToken))
+            {
+                await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
+            }
+            return Ok(new { success = true, message = "Đã đăng xuất thành công và vô hiệu hóa token." });
         }
 
        [Authorize]

@@ -132,6 +132,11 @@ builder.Services.AddScoped<IBlogService, BlogService>();
 builder.Services.AddSingleton(Channel.CreateUnbounded<BlogNotificationJob>());
 builder.Services.AddScoped<IBlogNotificationService, BlogNotificationService>();
 
+// Register High-Performance Channels & Background Processing Services
+builder.Services.AddSingleton<AiChatProcessingQueue>();
+builder.Services.AddSingleton<BlogClickProcessingQueue>();
+builder.Services.AddHostedService<BackgroundQueueProcessingService>();
+
 builder.Services.AddHostedService<RecommendationBackgroundService>();
 builder.Services.AddHostedService<PromotionExpireService>();
 builder.Services.AddHostedService<FlashSaleNotificationService>();

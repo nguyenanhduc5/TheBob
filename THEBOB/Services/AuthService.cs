@@ -1,8 +1,14 @@
+using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using THEBOB.Data;
+using THEBOB.DTOs.Auth;
 using THEBOB.Models;
 
 namespace THEBOB.Services
@@ -11,16 +17,21 @@ namespace THEBOB.Services
     {
         string HashPassword(string password);
         bool VerifyPassword(string password, string hash);
-        string GenerateJwtToken(User user);
+        string GenerateJwtToken(User user, out string jti);
+        Task<RefreshToken> GenerateRefreshTokenAsync(int userId, string jti);
+        Task<TokenResponseDto?> RefreshTokenAsync(string token, string refreshTokenStr);
+        Task<bool> RevokeRefreshTokenAsync(string refreshTokenStr);
     }
 
     public class AuthService : IAuthService
     {
         private readonly IConfiguration _configuration;
+        private readonly ThebobDbContext _db;
 
-        public AuthService(IConfiguration configuration)
+        public AuthService(IConfiguration configuration, ThebobDbContext db)
         {
             _configuration = configuration;
+            _db = db;
         }
 
         public string HashPassword(string password)
@@ -54,8 +65,9 @@ namespace THEBOB.Services
                 Encoding.UTF8.GetBytes(hash));
         }
 
-        public string GenerateJwtToken(User user)
+        public string GenerateJwtToken(User user, out string jti)
         {
+            jti = Guid.NewGuid().ToString();
             var jwtKey = _configuration["Jwt:Key"] ?? "THEBOB_JWT_SECRET_KEY_2026_SUPER_SECRET";
             var issuer = _configuration["Jwt:Issuer"] ?? "THEBOB";
             var audience = _configuration["Jwt:Audience"] ?? "THEBOB_API";
@@ -67,6 +79,7 @@ namespace THEBOB.Services
             {
                 new Claim("sub", user.Id.ToString()),
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.Jti, jti),
                 new Claim("username", user.Username),
                 new Claim("email", user.Email),
                 new Claim("role", role),
@@ -77,11 +90,89 @@ namespace THEBOB.Services
                 issuer: issuer,
                 audience: audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(24),
+                expires: DateTime.UtcNow.AddMinutes(30), // Short-lived 30 mins JWT + Refresh Token
                 signingCredentials: credentials
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        public async Task<RefreshToken> GenerateRefreshTokenAsync(int userId, string jti)
+        {
+            var randomNumber = new byte[64];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            var tokenStr = Convert.ToBase64String(randomNumber);
+
+            var refreshToken = new RefreshToken
+            {
+                UserId = userId,
+                JwtId = jti,
+                Token = tokenStr,
+                IsRevoked = false,
+                CreatedAt = DateTime.UtcNow,
+                ExpiredAt = DateTime.UtcNow.AddDays(7) // 7 days Refresh Token
+            };
+
+            _db.RefreshTokens.Add(refreshToken);
+            await _db.SaveChangesAsync();
+            return refreshToken;
+        }
+
+        public async Task<TokenResponseDto?> RefreshTokenAsync(string token, string refreshTokenStr)
+        {
+            var storedToken = await _db.RefreshTokens
+                .Include(r => r.User).ThenInclude(u => u!.RoleEntity)
+                .FirstOrDefaultAsync(r => r.Token == refreshTokenStr);
+
+            if (storedToken == null || storedToken.IsRevoked || storedToken.ExpiredAt < DateTime.UtcNow)
+            {
+                return null;
+            }
+
+            var user = storedToken.User;
+            if (user == null || !user.IsActive)
+            {
+                return null;
+            }
+
+            // Revoke old refresh token (Token Rotation for Security)
+            storedToken.IsRevoked = true;
+            _db.RefreshTokens.Update(storedToken);
+
+            // Generate new Jwt + Refresh Token pair
+            var newJwt = GenerateJwtToken(user, out var newJti);
+            var newRefreshToken = await GenerateRefreshTokenAsync(user.Id, newJti);
+
+            return new TokenResponseDto
+            {
+                Success = true,
+                Message = "Token refreshed successfully",
+                Token = newJwt,
+                RefreshToken = newRefreshToken.Token,
+                JwtExpiresAt = DateTime.UtcNow.AddMinutes(30),
+                User = new
+                {
+                    id = user.Id,
+                    userId = user.Id,
+                    username = user.Username,
+                    email = user.Email,
+                    name = user.Name,
+                    phone = user.Phone,
+                    address = user.Address,
+                    role = user.RoleEntity?.RoleName ?? user.Role.ToString()
+                }
+            };
+        }
+
+        public async Task<bool> RevokeRefreshTokenAsync(string refreshTokenStr)
+        {
+            var storedToken = await _db.RefreshTokens.FirstOrDefaultAsync(r => r.Token == refreshTokenStr);
+            if (storedToken == null) return false;
+
+            storedToken.IsRevoked = true;
+            await _db.SaveChangesAsync();
+            return true;
         }
     }
 }

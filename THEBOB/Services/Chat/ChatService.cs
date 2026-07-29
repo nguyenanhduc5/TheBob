@@ -5,6 +5,7 @@ using THEBOB.Data;
 using THEBOB.DTOs.Chat;
 using THEBOB.Hubs;
 using THEBOB.Models.LiveChat;
+using THEBOB.Services.Background;
 
 namespace THEBOB.Services.Chat
 {
@@ -18,7 +19,9 @@ namespace THEBOB.Services.Chat
         private readonly ILogger<ChatService> _logger;
         private readonly Microsoft.Extensions.DependencyInjection.IServiceScopeFactory _scopeFactory;
 
-        public ChatService(ThebobDbContext db, IHubContext<ChatHub> hubContext, IPresenceService presenceService, IFaqService faqService, IAiChatService aiChatService, ILogger<ChatService> logger, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory scopeFactory)
+        private readonly AiChatProcessingQueue _aiQueue;
+
+        public ChatService(ThebobDbContext db, IHubContext<ChatHub> hubContext, IPresenceService presenceService, IFaqService faqService, IAiChatService aiChatService, ILogger<ChatService> logger, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory scopeFactory, AiChatProcessingQueue aiQueue)
         {
             _db = db;
             _hubContext = hubContext;
@@ -27,6 +30,7 @@ namespace THEBOB.Services.Chat
             _aiChatService = aiChatService;
             _logger = logger;
             _scopeFactory = scopeFactory;
+            _aiQueue = aiQueue;
         }
 
         public async Task<bool> CanAccessConversationAsync(int conversationId, int userId, bool isAdmin)
@@ -133,110 +137,12 @@ namespace THEBOB.Services.Chat
                         // but it sets the conversation chat mode.
                     }
 
-                    // Execute AI/FAQ reply in background so it doesn't block the client
-                    _ = Task.Run(async () =>
+                    // Push job vào System.Threading.Channels Queue an toàn thay vì Task.Run Anti-pattern
+                    await _aiQueue.EnqueueAsync(new Services.Background.AiChatJob
                     {
-                        try
-                        {
-                            using var scope = _scopeFactory.CreateScope();
-                            var scopedFaqService = scope.ServiceProvider.GetRequiredService<IFaqService>();
-                            var scopedAiChatService = scope.ServiceProvider.GetRequiredService<IAiChatService>();
-                            var scopedDb = scope.ServiceProvider.GetRequiredService<ThebobDbContext>();
-                            var scopedHubContext = scope.ServiceProvider.GetRequiredService<IHubContext<ChatHub>>();
-
-                            // Phase 3: Try match FAQ first
-                            var matchedFaq = await scopedFaqService.TryMatchFaqAsync(content);
-                            string aiResponseContent;
-
-                            if (matchedFaq != null)
-                            {
-                                aiResponseContent = matchedFaq.Answer;
-                            }
-                            else
-                            {
-                                // Phase 4: Call OpenAI if no FAQ matches
-                                var lastMessages = await scopedDb.Messages
-                                    .AsNoTracking()
-                                    .Where(m => m.ConversationId == conversationId)
-                                    .OrderByDescending(m => m.CreatedAt)
-                                    .Take(10)
-                                    .ToListAsync();
-
-                                lastMessages.Reverse();
-
-                                var history = lastMessages
-                                    .Where(m => m.SenderType != SenderType.System)
-                                    .Select(m => (
-                                        role: m.SenderType == SenderType.User ? "user" : "assistant",
-                                        content: m.Content
-                                    ))
-                                    .ToList();
-
-                                var scopedProductService = scope.ServiceProvider.GetRequiredService<IProductContextService>();
-
-                                // Send AI typing indicator
-                                await scopedHubContext.Clients.Group(IChatService.ConversationGroup(conversationId))
-                                    .SendAsync("ReceiveTyping", conversationId, true);
-
-                                string systemPrompt = "Bạn là nhân viên tư vấn của cửa hàng thời trang THEBOB. Trả lời thân thiện, ngắn gọn, tiếng Việt. Nếu không chắc thông tin, đề nghị khách chờ nhân viên hỗ trợ.";
-                                
-                                if (conversation.CurrentProductId.HasValue)
-                                {
-                                    var productCtx = await scopedProductService.BuildContextAsync(conversation.CurrentProductId.Value);
-                                    if (productCtx != null)
-                                    {
-                                        systemPrompt += $"\n\nTHÔNG TIN SẢN PHẨM KHÁCH ĐANG XEM:\n" +
-                                                        $"- Tên: {productCtx.Name}\n" +
-                                                        $"- Phân loại: {productCtx.CategoryName} - Thương hiệu: {productCtx.BrandName}\n" +
-                                                        $"- Chất liệu: {productCtx.Material}\n" +
-                                                        $"- Đánh giá: {productCtx.Rating}/5 ({productCtx.ReviewCount} lượt)\n" +
-                                                        $"- Khoảng giá: {productCtx.MinPrice:N0} - {productCtx.MaxPrice:N0} đ\n";
-                                        
-                                        if (productCtx.PromotionPercent > 0)
-                                        {
-                                            systemPrompt += $"- KHUYẾN MÃI: Đang giảm {productCtx.PromotionPercent}%\n";
-                                        }
-
-                                        systemPrompt += "\nDANH SÁCH MÀU VÀ SIZE ĐANG BÁN:\n";
-                                        foreach (var v in productCtx.Variants)
-                                        {
-                                            systemPrompt += $" + Size {v.Size}, Màu {v.Color}: {v.Price:N0} đ (Còn {v.Stock} chiếc)\n";
-                                        }
-                                        systemPrompt += "\nMô tả sản phẩm: " + productCtx.Description;
-                                    }
-                                }
-                                else
-                                {
-                                    systemPrompt += "\n\nKhách hàng hiện chưa chọn sản phẩm nào. Nếu khách hỏi về sản phẩm, hãy hỏi khách muốn tư vấn sản phẩm nào và gợi ý dùng thanh tìm kiếm sản phẩm. Không tự bịa ra tên sản phẩm.";
-                                }
-
-                                aiResponseContent = await scopedAiChatService.GenerateReplyAsync(systemPrompt, history, content);
-                            }
-
-                            var aiMessage = new Message
-                            {
-                                ConversationId = conversationId,
-                                SenderType = SenderType.AI,
-                                Content = aiResponseContent,
-                                CreatedAt = DateTime.UtcNow,
-                                IsRead = false
-                            };
-                            scopedDb.Messages.Add(aiMessage);
-                            await scopedDb.SaveChangesAsync();
-
-                            var aiDto = MapMessage(aiMessage, "AI Assistant");
-                            await scopedHubContext.Clients
-                                .Group(IChatService.ConversationGroup(conversationId))
-                                .SendAsync("ReceiveMessage", aiDto);
-
-                            // Turn off typing indicator
-                            await scopedHubContext.Clients.Group(IChatService.ConversationGroup(conversationId))
-                                .SendAsync("ReceiveTyping", conversationId, false);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Error processing background AI message");
-                        }
+                        ConversationId = conversationId,
+                        UserId = userId,
+                        Content = content.Trim()
                     });
                 }
                 else

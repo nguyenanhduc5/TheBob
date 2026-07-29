@@ -3,6 +3,7 @@ const API_BASE_URL =
 
 const TOKEN_KEY = 'thebob-token';
 const USER_KEY  = 'thebob-current-user';
+const REFRESH_TOKEN_KEY = 'thebob-refresh-token';
 
 // ─── OrderStatus enum — phải khớp với backend C# ─────────────────────────────
 const ORDER_STATUS_MAP = {
@@ -40,6 +41,7 @@ const buildUrl = (path) => {
 const redirectToLogin = () => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   if (!window.location.pathname.startsWith('/login')) {
     const returnUrl = window.location.pathname + window.location.search;
     window.location.assign(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
@@ -65,10 +67,47 @@ const parseResponse = async (response) => {
   try { return JSON.parse(text); } catch { return text; }
 };
 
+// ─── Token Refresh logic ──────────────────────────────────────────────────────
+
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const onRefreshed = (newToken) => {
+  refreshSubscribers.forEach((cb) => cb(newToken));
+  refreshSubscribers = [];
+};
+
+const subscribeTokenRefresh = (cb) => {
+  refreshSubscribers.push(cb);
+};
+
+const tryRefreshToken = async () => {
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!refreshToken) return null;
+
+  const response = await fetch(buildUrl('/auth/refresh-token'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ token: token || '', refreshToken }),
+  });
+
+  if (!response.ok) return null;
+
+  const payload = await response.json();
+  const data = payload?.data;
+  if (!data?.token) return null;
+
+  localStorage.setItem(TOKEN_KEY, data.token);
+  if (data.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+  if (data.user) localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  return data.token;
+};
+
 // ─── Core client ─────────────────────────────────────────────────────────────
 
 const apiClient = async (path, options = {}) => {
-  const { auth = false, headers = {}, body, ...rest } = options;
+  const { auth = false, headers = {}, body, _isRetry = false, ...rest } = options;
 
   const requestHeaders = { Accept: 'application/json', ...headers };
   let requestBody = body;
@@ -90,6 +129,34 @@ const apiClient = async (path, options = {}) => {
   });
 
   const payload = await parseResponse(response);
+
+  // ── Auto Refresh Token khi JWT hết hạn (401) ──────────────────────────────
+  if (response.status === 401 && auth && !_isRetry) {
+    if (isRefreshing) {
+      // Đợi token mới từ luồng refresh đang chạy
+      return new Promise((resolve, reject) => {
+        subscribeTokenRefresh(async (newToken) => {
+          try {
+            resolve(await apiClient(path, { ...options, _isRetry: true }));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+    }
+
+    isRefreshing = true;
+    const newToken = await tryRefreshToken();
+    isRefreshing = false;
+
+    if (newToken) {
+      onRefreshed(newToken);
+      return apiClient(path, { ...options, _isRetry: true });
+    } else {
+      redirectToLogin();
+      throw new ApiError('Phiên đăng nhập đã hết hạn', 401, payload);
+    }
+  }
 
   if (response.status === 401) {
     redirectToLogin();
@@ -116,6 +183,15 @@ export const authAPI = {
   login:    (data) => apiClient('/auth/login',    { method: 'POST', body: data }),
   getProfile:      () => apiClient('/auth/profile', { auth: true }),
   updateProfile: (data) => apiClient('/auth/profile', { method: 'PUT', auth: true, body: data }),
+  refreshToken: (token, refreshToken) => apiClient('/auth/refresh-token', {
+    method: 'POST',
+    body: { token, refreshToken },
+  }),
+  logout: (refreshToken) => apiClient('/auth/logout', {
+    method: 'POST',
+    auth: true,
+    body: { token: localStorage.getItem(TOKEN_KEY) || '', refreshToken: refreshToken || '' },
+  }),
 };
 
 // ─── Products ─────────────────────────────────────────────────────────────────

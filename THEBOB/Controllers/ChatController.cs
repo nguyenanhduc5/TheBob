@@ -30,7 +30,8 @@ namespace THEBOB.Controllers
             _db = db;
         }
 
-        [HttpGet("search-product")]
+        [HttpGet("search-product")]          // Giữ backward compat cho FE cũ
+        [HttpGet("products")]                  // RESTful alias: GET /api/chat/products?q=...
         public async Task<IActionResult> SearchProduct([FromQuery] string q)
         {
             if (string.IsNullOrWhiteSpace(q))

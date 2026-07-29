@@ -67,9 +67,9 @@ export default function Login() {
         return;
       }
 
-      // Save user and token
+      // Save user, token and refresh token
       const { data } = result;
-      login(data, data.token);
+      login(data, data.token, data.refreshToken);
 
       addNotification('Đăng nhập thành công!', 'success');
       

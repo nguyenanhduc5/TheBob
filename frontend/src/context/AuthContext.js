@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { authAPI } from '../api/app';
 
 const AuthContext = createContext();
+
+const TOKEN_KEY         = 'thebob-token';
+const USER_KEY          = 'thebob-current-user';
+const REFRESH_TOKEN_KEY = 'thebob-refresh-token';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -11,60 +16,78 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [user, setUser]       = useState(null);
+  const [token, setToken]     = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('thebob-current-user');
-    const savedToken = localStorage.getItem('thebob-token');
+    const savedUser         = localStorage.getItem(USER_KEY);
+    const savedToken        = localStorage.getItem(TOKEN_KEY);
 
     if (savedUser && savedToken) {
       try {
         setUser(JSON.parse(savedUser));
         setToken(savedToken);
       } catch {
-        // token/user bị corrupt → clear
-        localStorage.removeItem('thebob-current-user');
-        localStorage.removeItem('thebob-token');
+        // token/user bị corrupt → clear toàn bộ
+        localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
       }
     }
     setLoading(false);
   }, []);
 
-  const login = useCallback((userData, authToken) => {
+  /**
+   * Gọi sau khi login/register thành công.
+   * Lưu cả JWT + Refresh Token vào localStorage.
+   */
+  const login = useCallback((userData, authToken, refreshToken) => {
     setUser(userData);
     setToken(authToken);
-    localStorage.setItem('thebob-current-user', JSON.stringify(userData));
-    localStorage.setItem('thebob-token', authToken);
+    localStorage.setItem(USER_KEY,  JSON.stringify(userData));
+    localStorage.setItem(TOKEN_KEY, authToken);
+    if (refreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    }
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('thebob-current-user');
-    localStorage.removeItem('thebob-token');
+  /**
+   * Đăng xuất: gọi BE revoke Refresh Token trước rồi mới xóa localStorage.
+   * Kể cả nếu API lỗi (mạng yếu), vẫn clear local state để tránh treo UI.
+   */
+  const logout = useCallback(async () => {
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    try {
+      if (refreshToken) {
+        await authAPI.logout(refreshToken); // Gọi BE revoke token trong DB
+      }
+    } catch {
+      // Dù BE lỗi vẫn clear local để đăng xuất được
+    } finally {
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    }
   }, []);
 
   const updateUser = useCallback((userData) => {
     setUser((prev) => {
       const updated = { ...prev, ...userData };
-      localStorage.setItem('thebob-current-user', JSON.stringify(updated));
+      localStorage.setItem(USER_KEY, JSON.stringify(updated));
       return updated;
     });
   }, []);
 
-  // ✅ FIX: dùng boolean thay vì function để tránh tạo reference mới mỗi render
-  // Trước đây: isAdmin = () => user?.role === 'Admin'
-  // → mỗi lần AuthContext render, isAdmin là function MỚI
-  // → component con gọi isAdmin() trong useEffect deps sẽ re-run liên tục
+  // ✅ Boolean thay vì function để tránh tạo reference mới mỗi render
   const isAdminBool = user?.role === 'Admin';
   const isUserBool  = user?.role === 'User';
 
   // Giữ dạng function để không break code cũ đang gọi isAdmin()
-  // nhưng dùng useCallback để stable reference
-  const isAdmin = useCallback(() => isAdminBool, [isAdminBool]);
-  const isUser  = useCallback(() => isUserBool,  [isUserBool]);
+  const isAdmin        = useCallback(() => isAdminBool,  [isAdminBool]);
+  const isUser         = useCallback(() => isUserBool,   [isUserBool]);
   const isAuthenticated = useCallback(() => !!user && !!token, [user, token]);
 
   const value = useMemo(() => ({
@@ -78,8 +101,7 @@ export const AuthProvider = ({ children }) => {
     isUser,
     isAuthenticated,
     // ✅ Thêm boolean trực tiếp để dùng trong JSX điều kiện (nhanh hơn gọi fn)
-    // VD: {isAdminUser && <AdminLayout>} thay vì {isAdmin() && <AdminLayout>}
-    isAdminUser: isAdminBool,
+    isAdminUser:   isAdminBool,
     isRegularUser: isUserBool,
   }), [user, token, loading, login, logout, updateUser, isAdmin, isUser, isAuthenticated, isAdminBool, isUserBool]);
 

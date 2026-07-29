@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using THEBOB.DTOs.Blog;
 using THEBOB.Models;
 using THEBOB.Services.Blog;
+using THEBOB.Services.Background;
 
 namespace THEBOB.Controllers
 {
@@ -14,10 +15,35 @@ namespace THEBOB.Controllers
         private readonly IBlogService _blog;
         private readonly ILogger<BlogPostsController> _logger;
 
-        public BlogPostsController(IBlogService blog, ILogger<BlogPostsController> logger)
+        private readonly BlogClickProcessingQueue _blogClickQueue;
+
+        public BlogPostsController(IBlogService blog, ILogger<BlogPostsController> logger, BlogClickProcessingQueue blogClickQueue)
         {
             _blog = blog;
             _logger = logger;
+            _blogClickQueue = blogClickQueue;
+        }
+
+        // ── Public endpoints ───────────────────────────────────────────────────
+        
+        // ...
+
+        /// <summary>Ghi nhận click vào bài viết hoặc ProductCard trong bài viết qua High-performance Background Queue.</summary>
+        [HttpPost("{id:int}/click")]
+        [AllowAnonymous]
+        public async Task<IActionResult> TrackClick(int id, [FromBody] TrackBlogClickRequest request)
+        {
+            var userId = GetCurrentUserId();
+            await _blogClickQueue.EnqueueAsync(new BlogClickJob
+            {
+                BlogPostId = id,
+                UserId = userId,
+                SessionId = request.SessionId,
+                Source = request.Source ?? "Direct",
+                ProductId = request.ProductId
+            });
+
+            return Ok(ApiResponse<bool>.Ok(true));
         }
 
         // ── Public endpoints ───────────────────────────────────────────────────
@@ -163,22 +189,7 @@ namespace THEBOB.Controllers
             return Ok(ApiResponse<List<BlogPostListItemDto>>.Ok(items));
         }
 
-        // ── Click tracking (fire-and-forget) ──────────────────────────────────
 
-        /// <summary>Ghi nhận click vào bài viết hoặc ProductCard trong bài viết. Fire-and-forget.</summary>
-        [HttpPost("{id:int}/click")]
-        [AllowAnonymous]
-        public IActionResult TrackClick(int id, [FromBody] TrackBlogClickRequest request)
-        {
-            var userId = GetCurrentUserId();
-            // Fire-and-forget — không await, không block response
-            _ = _blog.TrackClickAsync(id, userId, request).ContinueWith(t =>
-            {
-                if (t.IsFaulted)
-                    _logger.LogWarning(t.Exception, "TrackClick failed for blog {Id}", id);
-            });
-            return Ok(ApiResponse<bool>.Ok(true));
-        }
 
         private int? GetCurrentUserId()
         {
