@@ -23,12 +23,13 @@
   --shadow:     0 2px 12px rgba(0,0,0,.06);
 }
 
-/* ── Page shell ───────────────────────────────────────────────────────────── */
+/* ── Page shell (USER) ───────────────────────────────────────────────────── */
 .account-page-container {
   max-width: 1080px;
   margin: 0 auto;
   padding: 32px 20px 64px;
   background: var(--paper);
+  width: 100%;
 }
 
 .account-page {
@@ -40,6 +41,7 @@
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: var(--shadow);
+  width: 100%;
 }
 
 /* ── Sidebar ──────────────────────────────────────────────────────────────── */
@@ -461,6 +463,7 @@
 .order-history-items-container {
   width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .order-history-items-table {
@@ -587,34 +590,95 @@
   border-left: 3px solid var(--rule);
 }
 
-/* ── Admin profile section ────────────────────────────────────────────────── */
-.admin-profile-section { padding: 16px 0; }
+/* ══════════════════════════════════════════════════════════════════════════
+   ADMIN PROFILE SECTION — layout riêng, căn giữa, không lệch trái
+   ══════════════════════════════════════════════════════════════════════════ */
 
-.admin-profile-section .account-form input,
-.admin-profile-section .account-form select {
-  border-radius: 8px !important;
-  border: 1px solid #cbd5e0 !important;
+.admin-profile-section {
+  width: 100%;
+  padding: 32px 24px 64px;
+  display: flex;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
-.admin-profile-section .btn-update {
-  border-radius: 8px !important;
+.admin-profile-wrap {
+  width: 100%;
+  max-width: 720px;
+}
+
+.admin-profile-wrap .success-message {
+  margin-bottom: 20px;
+}
+
+.admin-profile-card {
+  background: #ffffff;
+  padding: 36px 40px;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  border: 1px solid #eef0f3;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-profile-card h2 {
+  margin: 0 0 28px 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1a202c;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e8e6e2;
+}
+
+.admin-profile-card .account-form {
+  max-width: 100%;
+}
+
+.admin-profile-card .account-form input,
+.admin-profile-card .account-form select {
+  border-radius: 8px;
+  border: 1px solid #cbd5e0;
+  padding: 11px 14px;
+}
+
+.admin-profile-card .btn-update {
+  border-radius: 8px;
   font-weight: 600;
-  padding: 10px 22px;
+  padding: 12px 28px;
+  font-size: 0.8rem;
 }
 
-/* Trong trang Admin, form đã nằm sẵn trong 1 card trắng có shadow riêng —
-   bỏ nền/viền/bo góc của address-block để tránh kiểu "hộp lồng trong hộp",
-   thay bằng đường kẻ trên đơn giản để phân tách khu vực. */
-.admin-profile-section .address-block {
+.admin-profile-card .address-block {
   background: transparent;
   border: none;
   border-top: 1px solid #e2e8f0;
   border-radius: 0;
-  padding: 20px 0 0;
-  margin-top: 4px;
+  padding: 24px 0 0;
+  margin-top: 8px;
 }
 
-/* ── Responsive ───────────────────────────────────────────────────────────── */
+.admin-profile-back-wrap {
+  margin-top: 16px;
+}
+
+.btn-back-dashboard {
+  background: #e2e8f0;
+  color: #2d3748;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: 0.2s;
+}
+
+.btn-back-dashboard:hover {
+  background: #cbd5e0;
+  transform: translateY(-1px);
+}
+
+/* ── Responsive (USER side) ───────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .account-page {
     grid-template-columns: 1fr;
@@ -688,7 +752,6 @@
   }
 
   .address-block { padding: 14px; }
-  .admin-profile-section .address-block { padding: 16px 0 0; }
 
   /* Vùng chạm cho menu sidebar đủ lớn trên di động */
   .menu-item { min-height: 40px; }
@@ -705,10 +768,56 @@
   .btn-shop-now { width: 100%; text-align: center; min-height: 44px; }
 }
 
-/* Màn hình rất nhỏ (iPhone SE, ~360px) — thắt chặt thêm khoảng đệm */
+/* ── Responsive (ADMIN side) ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .admin-profile-section {
+    padding: 20px 16px 40px;
+  }
+
+  .admin-profile-card {
+    padding: 24px 20px;
+    border-radius: 12px;
+  }
+
+  .admin-profile-card h2 {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+  }
+
+  .admin-profile-card .form-row.two-cols {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .admin-profile-card .account-form input[type="text"],
+  .admin-profile-card .account-form input[type="email"],
+  .admin-profile-card .account-form input[type="tel"],
+  .admin-profile-card .account-form select {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .admin-profile-card .btn-update {
+    width: 100%;
+    text-align: center;
+    min-height: 46px;
+  }
+
+  .btn-back-dashboard {
+    width: 100%;
+    text-align: center;
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 380px) {
   .avatar-name { font-size: 0.78rem; }
   .avatar-email { font-size: 0.66rem; }
   .account-section h2 { font-size: 1.05rem; }
   .address-block-title { font-size: 0.74rem; }
+
+  .admin-profile-card {
+    padding: 18px 14px;
+  }
 }

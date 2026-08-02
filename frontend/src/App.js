@@ -39,6 +39,7 @@ import AdminFaqs from './pages/AdminFaqs';
 import AdminBlog from './pages/AdminBlog';
 import BlogList from './pages/BlogList';
 import BlogDetail from './pages/BlogDetail';
+import AboutUs from './pages/AboutUs';
 import ChatWidget from './components/chat/ChatWidget';
 import './App.css';
 
@@ -70,6 +71,7 @@ const isAdminRoute = location.pathname.startsWith('/admin');
           <Route path="/products/:id" element={<ProductDetail />} />
           <Route path="/blog" element={<BlogList />} />
           <Route path="/blog/:slug" element={<BlogDetail />} />
+          <Route path="/about" element={<AboutUs />} />
           <Route path="/collections" element={<CollectionList />} />
           <Route path="/collections/:collectionId" element={<CollectionDetail />} />
           <Route path="/cart" element={<Cart />} />

@@ -102,21 +102,22 @@ export default function Home() {
 
       {/* 2.5 RECOMMENDATIONS - PERSONALIZED */}
       {isLoggedIn && personalized.length > 0 && (
-        <section className="products-page" style={{ padding: '60px 5%', background: '#fafafa' }}>
-          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '2rem', fontWeight: 300, letterSpacing: '0.1em', margin: '0 0 10px 0' }}>DÀNH RIÊNG CHO BẠN</h2>
-            <p style={{ color: '#666', fontSize: '0.95rem' }}>Gợi ý cá nhân hóa dựa trên hành vi duyệt web và mua sắm của bạn</p>
+        <section className="rec-section rec-section--alt">
+          <div className="rec-section-header">
+            <span className="rec-section-label">For You</span>
+            <h2 className="rec-section-title">DÀNH RIÊNG CHO BẠN</h2>
+            <p className="rec-section-sub">Gợi ý cá nhân hóa dựa trên hành vi duyệt web và mua sắm của bạn</p>
           </div>
-          <div className="products-grid">
+          <div className="rec-grid">
             {personalized.map((product) => (
-              <div key={product.id} className="product-card" style={{ background: '#fff' }}>
-                <div className="product-image-container" onClick={() => navigate(`/products/${product.id}`)}>
-                  <img src={product.mainImageUrl || '/placeholder.jpg'} alt={product.name} className="product-image" />
+              <div key={product.id} className="rec-card" onClick={() => navigate(`/products/${product.id}`)}>
+                <div className="rec-card-img">
+                  <img src={product.mainImageUrl || '/placeholder.jpg'} alt={product.name} />
                 </div>
-                <div className="product-info">
-                  <h3 className="product-name" onClick={() => navigate(`/products/${product.id}`)}>{product.name}</h3>
-                  <div className="product-price">{product.price?.toLocaleString('vi-VN')} VNĐ</div>
-                  <button onClick={() => navigate(`/products/${product.id}`)} className="btn-add-to-cart">Xem chi tiết</button>
+                <div className="rec-card-info">
+                  <h3 className="rec-card-name">{product.name}</h3>
+                  <div className="rec-card-price">{product.price?.toLocaleString('vi-VN')} VNĐ</div>
+                  <button className="rec-card-btn" onClick={(e) => { e.stopPropagation(); navigate(`/products/${product.id}`); }}>Xem chi tiết</button>
                 </div>
               </div>
             ))}
@@ -138,21 +139,22 @@ export default function Home() {
 
       {/* 3.5 RECOMMENDATIONS - TRENDING */}
       {trending.length > 0 && (
-        <section className="products-page" style={{ padding: '60px 5%' }}>
-          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '2rem', fontWeight: 300, letterSpacing: '0.1em', margin: '0 0 10px 0' }}>XU HƯỚNG MUA SẮM</h2>
-            <p style={{ color: '#666', fontSize: '0.95rem' }}>Những sản phẩm đang được yêu thích nhất thời gian qua</p>
+        <section className="rec-section">
+          <div className="rec-section-header">
+            <span className="rec-section-label">Trending</span>
+            <h2 className="rec-section-title">XU HƯỚNG MUA SẮM</h2>
+            <p className="rec-section-sub">Những sản phẩm đang được yêu thích nhất thời gian qua</p>
           </div>
-          <div className="products-grid">
+          <div className="rec-grid">
             {trending.map((product) => (
-              <div key={product.id} className="product-card">
-                <div className="product-image-container" onClick={() => navigate(`/products/${product.id}`)}>
-                  <img src={product.mainImageUrl || '/placeholder.jpg'} alt={product.name} className="product-image" />
+              <div key={product.id} className="rec-card" onClick={() => navigate(`/products/${product.id}`)}>
+                <div className="rec-card-img">
+                  <img src={product.mainImageUrl || '/placeholder.jpg'} alt={product.name} />
                 </div>
-                <div className="product-info">
-                  <h3 className="product-name" onClick={() => navigate(`/products/${product.id}`)}>{product.name}</h3>
-                  <div className="product-price">{product.price?.toLocaleString('vi-VN')} VNĐ</div>
-                  <button onClick={() => navigate(`/products/${product.id}`)} className="btn-add-to-cart">Xem chi tiết</button>
+                <div className="rec-card-info">
+                  <h3 className="rec-card-name">{product.name}</h3>
+                  <div className="rec-card-price">{product.price?.toLocaleString('vi-VN')} VNĐ</div>
+                  <button className="rec-card-btn" onClick={(e) => { e.stopPropagation(); navigate(`/products/${product.id}`); }}>Xem chi tiết</button>
                 </div>
               </div>
             ))}

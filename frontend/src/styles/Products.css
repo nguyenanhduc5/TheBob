@@ -659,3 +659,167 @@ html, body, #root {
   pointer-events: none;
   transition: opacity 0.2s ease;
 }
+
+/* ==========================================================================
+   RECOMMENDATION / RELATED SECTIONS
+   ========================================================================== */
+
+.rec-section {
+  padding: 72px 5%;
+  background: #fff;
+}
+
+.rec-section--alt {
+  background: #f8f8f8;
+}
+
+.rec-section-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.rec-section-label {
+  display: block;
+  font-size: 0.68rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #999;
+  margin-bottom: 12px;
+}
+
+.rec-section-title {
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+
+.rec-section-sub {
+  font-size: 0.88rem;
+  color: #888;
+  margin-top: 8px;
+}
+
+/* Grid: 4 cột desktop → 3 → 2 → 1 */
+.rec-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+
+/* Card */
+.rec-card {
+  background: #fff;
+  border-right: 1px solid #e8e8e8;
+  border-bottom: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.rec-card:first-child {
+  border-left: 1px solid #e8e8e8;
+}
+
+.rec-card:hover {
+  background: #fafafa;
+}
+
+/* Ảnh — dùng aspect-ratio 3:4 giống trang sản phẩm, KHÔNG fixed height */
+.rec-card-img {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: #f2f2f2;
+}
+
+.rec-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  transition: transform 0.55s ease;
+}
+
+.rec-card:hover .rec-card-img img {
+  transform: scale(1.04);
+}
+
+/* Info */
+.rec-card-info {
+  padding: 16px 18px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.rec-card-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1.4;
+  margin: 0 0 8px;
+}
+
+.rec-card-price {
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.rec-card-btn {
+  width: 100%;
+  padding: 11px;
+  margin-top: 12px;
+  background: #000;
+  color: #fff;
+  border: 1px solid #000;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+  font-family: inherit;
+}
+
+.rec-card-btn:hover {
+  background: #fff;
+  color: #000;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 1200px) {
+  .rec-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .rec-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rec-section {
+    padding: 52px 4%;
+  }
+}
+
+@media (max-width: 480px) {
+  .rec-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rec-card-info {
+    padding: 12px 12px 16px;
+  }
+
+  .rec-card-name {
+    font-size: 0.78rem;
+  }
+}

@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import '../styles/ProductDetail.css';
+import '../styles/Products.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL;
 
@@ -495,48 +496,50 @@ try {
 
       {/* Frequently Bought Together */}
       {fbt.length > 0 && (
-        <div className="recommendations-section-custom" style={{ padding: '60px 10%', borderTop: '1px solid #eee' }}>
-          <h2 style={{ fontSize: '1.8rem', fontWeight: 300, letterSpacing: '0.05em', marginBottom: '30px', textAlign: 'center' }}>
-            THƯỜNG MUA CÙNG NHAU
-          </h2>
-          <div className="products-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '30px' }}>
+        <section className="rec-section">
+          <div className="rec-section-header">
+            <span className="rec-section-label">Bundle</span>
+            <h2 className="rec-section-title">THƯỜNG MUA CÙNG NHAU</h2>
+          </div>
+          <div className="rec-grid">
             {fbt.map((item) => (
-              <div key={item.id} className="product-card" style={{ border: '1px solid #eee', padding: '15px', background: '#fff' }}>
-                <div className="product-image-container" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer' }}>
-                  <img src={item.mainImageUrl || '/placeholder.jpg'} alt={item.name} className="product-image" style={{ width: '100%', height: '220px', objectFit: 'cover' }} />
+              <div key={item.id} className="rec-card" onClick={() => navigate(`/products/${item.id}`)}>
+                <div className="rec-card-img">
+                  <img src={item.mainImageUrl || '/placeholder.jpg'} alt={item.name} />
                 </div>
-                <div className="product-info" style={{ marginTop: '15px' }}>
-                  <h3 className="product-name" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer', fontSize: '1rem', fontWeight: 400, minHeight: '40px' }}>{item.name}</h3>
-                  <div className="product-price" style={{ fontWeight: 600, margin: '8px 0', fontSize: '1.1rem' }}>{item.price?.toLocaleString('vi-VN')} VNĐ</div>
-                  <button onClick={() => navigate(`/products/${item.id}`)} className="btn-add-to-cart" style={{ width: '100%', padding: '12px' }}>Xem chi tiết</button>
+                <div className="rec-card-info">
+                  <h3 className="rec-card-name">{item.name}</h3>
+                  <div className="rec-card-price">{item.price?.toLocaleString('vi-VN')} VNĐ</div>
+                  <button className="rec-card-btn" onClick={(e) => { e.stopPropagation(); navigate(`/products/${item.id}`); }}>Xem chi tiết</button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Related Products */}
       {related.length > 0 && (
-        <div className="recommendations-section-custom" style={{ padding: '60px 10%', borderTop: '1px solid #eee', background: '#fafafa' }}>
-          <h2 style={{ fontSize: '1.8rem', fontWeight: 300, letterSpacing: '0.05em', marginBottom: '30px', textAlign: 'center' }}>
-            SẢN PHẨM LIÊN QUAN
-          </h2>
-          <div className="products-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '30px' }}>
+        <section className="rec-section rec-section--alt">
+          <div className="rec-section-header">
+            <span className="rec-section-label">You May Also Like</span>
+            <h2 className="rec-section-title">SẢN PHẨM LIÊN QUAN</h2>
+          </div>
+          <div className="rec-grid">
             {related.map((item) => (
-              <div key={item.id} className="product-card" style={{ border: '1px solid #eee', padding: '15px', background: '#fff' }}>
-                <div className="product-image-container" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer' }}>
-                  <img src={item.mainImageUrl || '/placeholder.jpg'} alt={item.name} className="product-image" style={{ width: '100%', height: '220px', objectFit: 'cover' }} />
+              <div key={item.id} className="rec-card" onClick={() => navigate(`/products/${item.id}`)}>
+                <div className="rec-card-img">
+                  <img src={item.mainImageUrl || '/placeholder.jpg'} alt={item.name} />
                 </div>
-                <div className="product-info" style={{ marginTop: '15px' }}>
-                  <h3 className="product-name" onClick={() => navigate(`/products/${item.id}`)} style={{ cursor: 'pointer', fontSize: '1rem', fontWeight: 400, minHeight: '40px' }}>{item.name}</h3>
-                  <div className="product-price" style={{ fontWeight: 600, margin: '8px 0', fontSize: '1.1rem' }}>{item.price?.toLocaleString('vi-VN')} VNĐ</div>
-                  <button onClick={() => navigate(`/products/${item.id}`)} className="btn-add-to-cart" style={{ width: '100%', padding: '12px' }}>Xem chi tiết</button>
+                <div className="rec-card-info">
+                  <h3 className="rec-card-name">{item.name}</h3>
+                  <div className="rec-card-price">{item.price?.toLocaleString('vi-VN')} VNĐ</div>
+                  <button className="rec-card-btn" onClick={(e) => { e.stopPropagation(); navigate(`/products/${item.id}`); }}>Xem chi tiết</button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

@@ -100,7 +100,8 @@ export default function AdminUsers() {
           <p>Không có người dùng nào</p>
         </div>
       ) : (
-        <div className="users-table">
+        <div className="users-table-wrap">
+          <div className="users-table">
           <div className="table-header">
             <span className="col-id">ID</span>
             <span className="col-username">Tên Đăng Nhập</span>
@@ -163,6 +164,7 @@ export default function AdminUsers() {
               </span>
             </div>
           ))}
+        </div>
         </div>
       )}
     </div>

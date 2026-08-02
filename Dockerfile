@@ -16,10 +16,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Tắt FileSystemWatcher để tránh tràn inotify limit trên Linux Container Render
-ENV DOTNET_USE_POLLING_FILE_WATCHER=false
+# Bật Polling File Watcher & Tắt reload config trên Linux Container Render để tránh tràn inotify limit (128)
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
+ENV DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false
 ENV ASPNETCORE_HOSTINGSTARTUPASSEMBLIES=""
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 
 EXPOSE 8080
 

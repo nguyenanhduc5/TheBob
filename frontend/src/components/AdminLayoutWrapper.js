@@ -41,33 +41,27 @@ const AdminLayoutWrapper = () => {
         <Link to="/admin/orders" className={getNavLinkClass('/admin/orders')}>
           Đơn Hàng
         </Link>
-        <Link to="/admin/payments" className={getNavLinkClass('/admin/payments')}>
-          Thanh Toán
-        </Link>
-        <Link to="/admin/coupons" className={getNavLinkClass('/admin/coupons')}>
-          Mã Giảm Giá
-        </Link>
         <Link to="/admin/promotions" className={getNavLinkClass('/admin/promotions')}>
-           Khuyến Mãi
+          Khuyến Mãi
         </Link>
         <Link to="/admin/users" className={getNavLinkClass('/admin/users')}>
           Người Dùng
         </Link>
         <Link to="/admin/chat" className={getNavLinkClass('/admin/chat')}>
-           Hỗ Trợ Chat
+          Chat
         </Link>
         <Link to="/admin/faqs" className={getNavLinkClass('/admin/faqs')}>
-           Quản Lý FAQ
+          FAQ
         </Link>
         <Link to="/admin/blog" className={getNavLinkClass('/admin/blog')}>
-           Bài Viết Blog
+          Bài Viết Blog
         </Link>
         <Link to="/admin/profile" className={getNavLinkClass('/admin/profile')}>
           Tài Khoản
         </Link>
-<Link to="/admin/settings" className={getNavLinkClass('/admin/settings')}>
-  Cài Đặt
-</Link>
+        <Link to="/admin/settings" className={getNavLinkClass('/admin/settings')}>
+          Cài Đặt
+        </Link>
       </nav>
     </aside>
   ), [sidebarOpen, getNavLinkClass]);

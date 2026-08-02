@@ -154,13 +154,7 @@ export default function Header() {
         </button>
 
         <div className="header-actions">
-          <button
-            className="header-link-button"
-            onClick={() => handleNavigate('/blog')}
-            aria-label="Blog"
-          >
-            BLOG
-          </button>
+         
           <button
             className="icon-button cart-icon"
             onClick={() => handleNavigate('/cart')}
@@ -269,7 +263,7 @@ export default function Header() {
             SHOP
           </button>
           <button onClick={() => handleNavigate('/collections')} className="mobile-nav-item">COLLECTION</button>
-          <a href="#about" className="mobile-nav-item">ABOUT US</a>
+          <button onClick={() => handleNavigate('/about')} className="mobile-nav-item">ABOUT US</button>
           <button onClick={() => handleNavigate('/blog')} className="mobile-nav-item">BLOG</button>
         </nav>
       </div>

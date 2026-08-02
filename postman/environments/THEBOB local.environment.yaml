@@ -1,0 +1,6 @@
+name: THEBOB Local
+values:
+  - key: baseUrl
+    value: ''
+  - key: jwt_token
+    value: ''

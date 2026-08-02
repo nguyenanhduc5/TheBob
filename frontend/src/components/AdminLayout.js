@@ -53,11 +53,11 @@ export default function AdminLayout({ title, children, hideTopbar = false }) {
           <Link to="/admin/products"   className={getNavLinkClass('/admin/products')}>Sản Phẩm</Link>
           <Link to="/admin/categories" className={getNavLinkClass('/admin/categories')}>Danh Mục</Link>
           <Link to="/admin/orders"     className={getNavLinkClass('/admin/orders')}>Đơn Hàng</Link>
-          <Link to="/admin/coupons"    className={getNavLinkClass('/admin/coupons')}>Mã Giảm Giá </Link>
           <Link to="/admin/promotions" className={getNavLinkClass('/admin/promotions')}>Khuyến Mãi</Link>
           <Link to="/admin/users"      className={getNavLinkClass('/admin/users')}>Người Dùng</Link>
-          <Link to="/admin/chat"       className={getNavLinkClass('/admin/chat')}>Hỗ Trợ Chat</Link>
-          <Link to="/admin/faqs"       className={getNavLinkClass('/admin/faqs')}>Quản Lý FAQ</Link>
+          <Link to="/admin/chat"       className={getNavLinkClass('/admin/chat')}>Chat</Link>
+          <Link to="/admin/faqs"       className={getNavLinkClass('/admin/faqs')}>FAQ</Link>
+          <Link to="/admin/blog"       className={getNavLinkClass('/admin/blog')}>Bài Viết Blog</Link>
           <Link to="/admin/profile"    className={getNavLinkClass('/admin/profile')}>Tài Khoản</Link>
           <Link to="/admin/settings"   className={getNavLinkClass('/admin/settings')}>Cài Đặt</Link>
         </nav>

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { authAPI, ordersAPI, shippingAPI } from '../api/app';
 import AdminLayout from '../components/AdminLayout';
-import './Profile.css';
+import '../styles/Profile.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const STATUS_MAP = {
@@ -395,25 +395,18 @@ export default function Profile() {
     return (
       <AdminLayout title="Hồ Sơ Admin" hideTopbar>
         <div className="admin-profile-section">
-          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <div className="admin-profile-wrap">
             {successMessage && (
               <div className="success-message">✓ {successMessage}</div>
             )}
-            <div style={{
-              background: 'white', padding: '32px',
-              borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-            }}>
-              <h2 style={{ marginBottom: '24px', color: '#1a202c' }}>Thông Tin Hồ Sơ</h2>
+            <div className="admin-profile-card">
+              <h2>Thông Tin Hồ Sơ</h2>
               {profileForm}
-              <div style={{ marginTop: '12px' }}>
+              <div className="admin-profile-back-wrap">
                 <button
                   type="button"
+                  className="btn-back-dashboard"
                   onClick={() => navigate('/admin')}
-                  style={{
-                    background: '#e2e8f0', color: '#2d3748', border: 'none',
-                    padding: '12px 24px', borderRadius: '8px',
-                    cursor: 'pointer', fontWeight: '600',
-                  }}
                 >
                   ← Quay lại Bảng Điều Khiển
                 </button>

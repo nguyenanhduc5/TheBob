@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { faqAPI } from '../api/app';
 import { useNotification } from '../context/NotificationContext';
-import './AdminFaqs.css';
+import '../styles/AdminFaqs.css';
 
 const unwrap = (res) => res?.data ?? res;
 
