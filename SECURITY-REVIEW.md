@@ -10,8 +10,8 @@ Reviewed the current project tree, configuration templates, tracked dependency/b
 
 A fixed JWT signing key was present in the environment template and as a fallback in the authentication service. If that value was used by a deployment, an attacker with access to it could forge signed tokens, including tokens with elevated roles.
 
-- Fixed in the current `production` tree: the template now contains only a placeholder, and token generation fails when `Jwt:Key` is missing.
-- The older version remains reachable from `main` and previous `production` commits. Updating the current file does not remove it from Git history.
+- Fixed in the current `main` and `production` snapshot: the template now contains only a placeholder, and token generation fails when `Jwt:Key` is missing.
+- The histories of both remote branches were rewritten to remove the affected commits. Existing clones, forks, cached commit URLs, or other copies may still contain the old value.
 - Rotate the deployed JWT signing key and invalidate existing tokens if the old value was ever used.
 - References in the earlier tree: `render-env-template.txt:8` and `THEBOB/Features/Auth/AuthService.cs:81`.
 
@@ -23,5 +23,5 @@ A fixed JWT signing key was present in the environment template and as a fallbac
 
 - The root `.gitignore` now covers local `appsettings` files, `.env` files, dependency folders, build output, and local tooling caches while retaining example configuration files.
 - No `node_modules`, `bin`, `obj`, `dist`, `build`, or coverage directories are tracked in the current tree.
-- Generated test/build artifacts were committed in an earlier `production` commit and later removed from the current tree. They remain in Git history.
-- A historical Firebase client API key was found in a removed frontend configuration file. Client API keys are not server-side secrets by themselves; verify provider restrictions and Firebase security rules.
+- Generated test/build artifacts and a historical Firebase client API key were present in earlier commits; the remote branch histories were rewritten to remove those commits. Existing clones or forks may still retain them.
+- Firebase client API keys are not server-side secrets by themselves; verify provider restrictions and Firebase security rules.
