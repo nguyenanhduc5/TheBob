@@ -821,3 +821,328 @@
     padding: 18px 14px;
   }
 }
+
+/* Refined account area */
+.account-page-container {
+  max-width: 1160px;
+  padding: 36px 24px 64px;
+  background: #f8f7f5;
+}
+
+.account-page-heading {
+  margin: 0 0 20px;
+}
+
+.account-page-heading p {
+  margin: 0 0 7px;
+  color: #a33a46;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.account-page-heading h1 {
+  margin: 0;
+  color: #171717;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.account-page-heading span {
+  display: block;
+  margin-top: 7px;
+  color: #717171;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.account-page {
+  grid-template-columns: 248px minmax(0, 1fr);
+  border-color: #e7e4df;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 30px rgba(20, 18, 16, 0.055);
+}
+
+.account-sidebar {
+  background: #fbfaf8;
+  border-right-color: #ebe8e3;
+}
+
+.sidebar-header {
+  padding: 16px 20px;
+  color: #85817c;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+}
+
+.sidebar-avatar {
+  padding: 24px 18px 20px;
+  gap: 8px;
+}
+
+.avatar-circle {
+  width: 60px;
+  height: 60px;
+  background: #171717;
+  font-size: 1.05rem;
+}
+
+.avatar-name {
+  max-width: 100%;
+  font-size: 0.9rem;
+}
+
+.avatar-email {
+  max-width: 100%;
+  color: #77736f;
+  font-size: 0.72rem;
+}
+
+.sidebar-avatar-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar-menu {
+  padding: 12px;
+  gap: 4px;
+}
+
+.menu-item {
+  min-height: 44px;
+  padding: 10px 12px;
+  gap: 11px;
+  border-radius: 8px;
+  color: #55524e;
+  font-size: 0.82rem;
+  transition: color .18s, background-color .18s;
+}
+
+.menu-icon {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  color: #77736f;
+}
+
+.menu-item:hover {
+  background: #f1efeb;
+  color: #171717;
+}
+
+.menu-item.active {
+  background: #eeeae5;
+  color: #171717;
+}
+
+.menu-item.active .menu-icon {
+  color: #a33a46;
+}
+
+.menu-item.logout {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top-color: #e7e3de;
+}
+
+.account-section {
+  padding: 32px 38px 40px;
+}
+
+.account-section-title {
+  margin-bottom: 5px;
+  color: #a33a46;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+}
+
+.account-section h2 {
+  margin-bottom: 24px;
+  padding-bottom: 17px;
+  border-bottom-color: #ece9e4;
+  font-size: 1.5rem;
+}
+
+.account-form {
+  max-width: 680px;
+  gap: 19px;
+}
+
+.account-form input[type="text"],
+.account-form input[type="email"],
+.account-form input[type="tel"],
+.account-form select {
+  min-height: 44px;
+  border-color: #e1ded9;
+  border-radius: 7px;
+}
+
+.account-form input:focus,
+.account-form textarea:focus,
+.account-form select:focus {
+  border-color: #a33a46;
+  box-shadow: 0 0 0 3px rgba(163, 58, 70, 0.08);
+}
+
+.address-block {
+  padding: 20px;
+  border-color: #e8e5df;
+  border-radius: 9px;
+  background: #fbfaf8;
+}
+
+.btn-update {
+  min-height: 44px;
+  padding: 11px 24px;
+  border-radius: 7px;
+  background: #171717;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.btn-update:hover:not(:disabled) {
+  background: #a33a46;
+  opacity: 1;
+}
+
+.orders-empty-state .empty-icon {
+  color: #a33a46;
+}
+
+.menu-item:focus-visible,
+.btn-update:focus-visible,
+.btn-shop-now:focus-visible {
+  outline: 3px solid #171717;
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .account-page-container {
+    padding-top: 26px;
+  }
+
+  .account-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .account-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #ebe8e3;
+  }
+
+  .sidebar-header {
+    padding: 14px 18px;
+  }
+
+  .sidebar-avatar {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 14px 18px;
+    text-align: left;
+  }
+
+  .sidebar-avatar-info {
+    align-items: flex-start;
+  }
+
+  .avatar-circle {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    font-size: 0.95rem;
+  }
+
+  .avatar-name,
+  .avatar-email {
+    text-align: left;
+  }
+
+  .avatar-email {
+    max-width: min(100%, 32ch);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-menu {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 10px 12px;
+    gap: 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar-menu::-webkit-scrollbar {
+    display: none;
+  }
+
+  .menu-item {
+    width: auto;
+    min-height: 42px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .menu-item.logout {
+    margin: 0;
+    padding: 10px 12px;
+    border: 0;
+  }
+
+  .account-section {
+    padding: 28px 30px 34px;
+  }
+}
+
+@media (max-width: 576px) {
+  .account-page-container {
+    padding: 22px 12px 36px;
+  }
+
+  .account-page-heading {
+    margin-bottom: 16px;
+  }
+
+  .account-page-heading span {
+    max-width: 34ch;
+    font-size: 0.82rem;
+  }
+
+  .account-page {
+    border-radius: 10px;
+  }
+
+  .sidebar-avatar {
+    padding: 13px 14px;
+  }
+
+  .sidebar-menu {
+    padding: 9px 10px;
+  }
+
+  .menu-item {
+    min-height: 44px;
+    padding: 9px 11px;
+    font-size: 0.76rem;
+  }
+
+  .account-section {
+    padding: 22px 16px 26px;
+  }
+
+  .account-section h2 {
+    margin-bottom: 20px;
+    font-size: 1.25rem;
+  }
+
+  .address-block {
+    padding: 15px;
+  }
+}

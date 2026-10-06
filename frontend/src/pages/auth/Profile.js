@@ -4,6 +4,14 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { authAPI, ordersAPI, shippingAPI } from '../../api/app';
 import AdminLayout from '../../components/AdminLayout';
+import {
+  IconLock,
+  IconLogout,
+  IconPackage,
+  IconShoppingBag,
+  IconTicket,
+  IconUser,
+} from '@tabler/icons-react';
 import '../../styles/Profile.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -421,6 +429,11 @@ export default function Profile() {
   // ── User layout ───────────────────────────────────────────────────────────────
   return (
     <section className="account-page-container">
+      <header className="account-page-heading">
+        <p>THEBOB / TÀI KHOẢN</p>
+        <h1>Tài khoản của tôi</h1>
+        <span>Quản lý thông tin cá nhân và theo dõi đơn hàng của bạn.</span>
+      </header>
       <div className="account-page">
 
         {/* Sidebar */}
@@ -429,37 +442,48 @@ export default function Profile() {
 
           <div className="sidebar-avatar">
             <div className="avatar-circle">{getInitials(formData.name)}</div>
-            <span className="avatar-name">{formData.name || 'Thành viên'}</span>
-            <span className="avatar-email">{formData.email}</span>
+            <div className="sidebar-avatar-info">
+              <span className="avatar-name">{formData.name || 'Thành viên'}</span>
+              <span className="avatar-email">{formData.email}</span>
+            </div>
           </div>
 
           <nav className="sidebar-menu">
             <button
+              type="button"
               className={`menu-item ${activeMenu === 'account' ? 'active' : ''}`}
               onClick={() => setActiveMenu('account')}
             >
-              <span className="menu-icon">👤</span> Thông tin
+              <IconUser className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
+              <span>Thông tin</span>
             </button>
             <button
+              type="button"
               className={`menu-item ${activeMenu === 'orders' ? 'active' : ''}`}
               onClick={() => setActiveMenu('orders')}
             >
-              <span className="menu-icon">📦</span> Đơn hàng
+              <IconPackage className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
+              <span>Đơn hàng</span>
             </button>
             <button
+              type="button"
               className="menu-item"
               onClick={() => navigate('/user/vouchers')}
             >
-              <span className="menu-icon">🎁</span> Voucher của tôi
+              <IconTicket className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
+              <span>Voucher của tôi</span>
             </button>
             <button
+              type="button"
               className={`menu-item ${activeMenu === 'password' ? 'active' : ''}`}
               onClick={() => setActiveMenu('password')}
             >
-              <span className="menu-icon">🔐</span> Mật khẩu
+              <IconLock className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
+              <span>Mật khẩu</span>
             </button>
-            <button className="menu-item logout" onClick={handleLogout}>
-              <span className="menu-icon">🚪</span> Đăng xuất
+            <button type="button" className="menu-item logout" onClick={handleLogout}>
+              <IconLogout className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
+              <span>Đăng xuất</span>
             </button>
           </nav>
         </aside>
@@ -491,7 +515,7 @@ export default function Profile() {
                 </p>
               ) : userOrders.length === 0 ? (
                 <div className="orders-empty-state">
-                  <span className="empty-icon">🛍️</span>
+                  <span className="empty-icon"><IconShoppingBag size={36} stroke={1.4} aria-hidden="true" /></span>
                   <p>Bạn chưa có đơn hàng nào.</p>
                   <button className="btn-shop-now" onClick={() => navigate('/products')}>
                     Mua sắm ngay
@@ -607,4 +631,3 @@ export default function Profile() {
     </section>
   );
 }
-
