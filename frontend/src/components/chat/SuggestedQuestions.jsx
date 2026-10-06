@@ -4,9 +4,8 @@ import '../../styles/SuggestedQuestions.css';
 const SUGGESTIONS = [
   "Sản phẩm này có những màu nào?",
   "Còn size M không shop?",
-  "Phí ship như thế nào?",
-  "Chính sách đổi trả ra sao?",
-  "Có đang được khuyến mãi không?"
+  "SP nổi bật",
+  "Đơn hàng của tôi"
 ];
 
 export default function SuggestedQuestions({ onSelect }) {
@@ -18,6 +17,7 @@ export default function SuggestedQuestions({ onSelect }) {
           type="button" 
           className="suggested-questions__btn"
           onClick={() => onSelect(q)}
+          aria-label={`Gửi gợi ý: ${q}`}
         >
           {q}
         </button>

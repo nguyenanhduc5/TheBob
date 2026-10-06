@@ -15,12 +15,18 @@ export default function ChatWindow({
   conversationId,
   onConversationChange,
   currentUserId,
+  currentUserName,
   targetUserId,
   targetUserName,
   isAdmin = false,
   chatMode,
   title = 'Hỗ trợ trực tuyến',
   onClose,
+  onBack,
+  isClosing = false,
+  onSwitchToAI,
+  isAdminOnline: adminOnlineFromParent,
+  onAdminStatusChange,
   productId,
 }) {
   const [activeConversationId, setActiveConversationId] = useState(conversationId ?? null);
@@ -28,14 +34,21 @@ export default function ChatWindow({
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sending, setSending] = useState(false);
   const [typingUserId, setTypingUserId] = useState(null);
   const [connected, setConnected] = useState(false);
-  const [isAdminOnline, setIsAdminOnline] = useState(false);
+  const [hasConnected, setHasConnected] = useState(false);
+  const [connectionAttemptFailed, setConnectionAttemptFailed] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [isAdminOnline, setIsAdminOnline] = useState(adminOnlineFromParent ?? false);
   const [showVoucherModal, setShowVoucherModal] = useState(false);
   const [showBlogModal, setShowBlogModal] = useState(false);
+  const [showUtilityMenu, setShowUtilityMenu] = useState(false);
+  const [showProductTools, setShowProductTools] = useState(false);
+  const [offlineNoticeDismissed, setOfflineNoticeDismissed] = useState(false);
   const connectionRef = useRef(null);
   const typingNotifierRef = useRef(null);
+  const inputRef = useRef(null);
+  const utilityMenuRef = useRef(null);
   const seenSentRef = useRef(false);
   const activeConversationIdRef = useRef(activeConversationId);
 
@@ -46,12 +59,44 @@ export default function ChatWindow({
   }, [activeConversationId]);
 
   useEffect(() => {
+    setIsAdminOnline(adminOnlineFromParent ?? false);
+  }, [adminOnlineFromParent]);
+
+  useEffect(() => {
     if (!isAdmin) {
       chatAPI.getAdminStatus()
-        .then(res => setIsAdminOnline(unwrap(res) === true))
-        .catch(() => {});
+        .then((res) => {
+          const isOnline = unwrap(res) === true;
+          setIsAdminOnline(isOnline);
+          onAdminStatusChange?.(isOnline);
+        })
+        .catch((error) => console.error('Failed to load support status:', error));
     }
+  }, [isAdmin, onAdminStatusChange]);
+
+  useEffect(() => {
+    if (!isAdmin) inputRef.current?.focus();
   }, [isAdmin]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose?.();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (showUtilityMenu && utilityMenuRef.current && !utilityMenuRef.current.contains(event.target)) {
+        setShowUtilityMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showUtilityMenu]);
 
   const updateConversationId = useCallback((id) => {
     setActiveConversationId(id);
@@ -136,11 +181,15 @@ export default function ChatWindow({
     conn.on('AdminStatusChanged', (isOnline) => {
       if (!isAdmin) {
         setIsAdminOnline(isOnline);
+        onAdminStatusChange?.(isOnline);
       }
     });
 
     conn.onreconnected(() => {
       setConnected(true);
+      setHasConnected(true);
+      setConnectionAttemptFailed(false);
+      setIsReconnecting(false);
       if (activeConversationIdRef.current) {
         conn.invoke('JoinConversation', Number(activeConversationIdRef.current)).catch(() => {});
       }
@@ -148,15 +197,25 @@ export default function ChatWindow({
 
     conn.onclose(() => {
       setConnected(false);
+      setConnectionAttemptFailed(true);
+      setIsReconnecting(false);
+    });
+
+    conn.onreconnecting(() => {
+      setIsReconnecting(true);
     });
 
     conn.start()
       .then(() => {
         setConnected(true);
+        setHasConnected(true);
+        setConnectionAttemptFailed(false);
+        setIsReconnecting(false);
       })
       .catch((err) => {
         console.error('Chat SignalR start failed:', err);
         setConnected(false);
+        setConnectionAttemptFailed(true);
       });
 
     return () => {
@@ -164,7 +223,7 @@ export default function ChatWindow({
       connectionRef.current = null;
       setConnected(false);
     };
-  }, [token, isAdmin]);
+  }, [token, isAdmin, onAdminStatusChange]);
 
   // 2. Tham gia phòng chat khi activeConversationId thay đổi và đã kết nối
   useEffect(() => {
@@ -204,6 +263,10 @@ export default function ChatWindow({
   const handleTyping = useCallback((value) => {
     setInput(value);
     typingNotifierRef.current?.update(value);
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 104)}px`;
+    }
   }, []);
 
   const getSafeProductId = () => {
@@ -218,9 +281,7 @@ export default function ChatWindow({
     if (!text) return;
     typingNotifierRef.current?.stop();
 
-    if (!textOverride) {
-      setInput('');
-    }
+    if (!textOverride) handleTyping('');
 
     const safeProductId = getSafeProductId();
     const tempId = `temp-${Date.now()}`;
@@ -275,47 +336,71 @@ export default function ChatWindow({
   };
 
   return (
-    <div className="chat-window">
-      <div className="chat-window__header">
-        <div>
-          <h3>{title}</h3>
-          <span className={`chat-window__status ${connected ? 'online' : 'offline'}`}>
-            {connected ? 'Đang kết nối' : 'Đang kết nối lại...'}
-          </span>
-          {!isAdmin && (
-            <span className={`chat-window__admin-badge ${isAdminOnline ? 'online' : 'offline'}`}>
-              {isAdminOnline ? '🟢 Admin đang online' : '⚪ Admin đang offline'}
-            </span>
-          )}
+    <div
+      className={`chat-window${!isAdmin ? ' chat-window--floating' : ''}${isClosing ? ' chat-panel--closing' : ''}`}
+      role={!isAdmin ? 'dialog' : undefined}
+      aria-modal={!isAdmin ? 'true' : undefined}
+      aria-label={!isAdmin ? 'Hỗ trợ khách hàng' : undefined}
+    >
+      {isAdmin ? (
+        <div className="chat-window__header">
+          <div>
+            <h3>{title}</h3>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              className="chat-window__voucher-header-btn"
+              onClick={() => setShowBlogModal(true)}
+              title="Đính kèm bài viết Blog"
+            >
+              📝 Đính kèm Blog
+            </button>
+            <button
+              type="button"
+              className="chat-window__voucher-header-btn"
+              onClick={() => setShowVoucherModal(true)}
+              title="Tặng Voucher riêng cho khách hàng này"
+            >
+              🎁 Tặng Voucher
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {isAdmin && (
-            <>
-              <button
-                type="button"
-                className="chat-window__voucher-header-btn"
-                onClick={() => setShowBlogModal(true)}
-                title="Đính kèm bài viết Blog"
-              >
-                📝 Đính kèm Blog
-              </button>
-              <button
-                type="button"
-                className="chat-window__voucher-header-btn"
-                onClick={() => setShowVoucherModal(true)}
-                title="Tặng Voucher riêng cho khách hàng này"
-              >
-                🎁 Tặng Voucher
-              </button>
-            </>
+      ) : (
+      <div className="chat-window__header">
+        <div className="chat-window__identity">
+          {onBack && (
+            <button type="button" className="chat-window__back" onClick={onBack} aria-label="Quay lại chọn hỗ trợ">
+              ←
+            </button>
           )}
+          <span className="chat-window__avatar" aria-hidden="true">{chatMode === 'AI' ? '✦' : 'T'}</span>
+          <div className="chat-window__identity-copy">
+            <h3>{chatMode === 'AI' ? 'TRỢ LÝ AI THEBOB' : 'NHÂN VIÊN THEBOB'}</h3>
+            <span className={`chat-window__status ${chatMode === 'AI' || isAdminOnline ? 'online' : 'offline'}`}>
+              {chatMode === 'AI'
+                ? 'Trợ lý sẵn sàng'
+                : isAdminOnline ? 'Đang hoạt động' : 'Offline, sẽ trả lời khi online'}
+            </span>
+          </div>
+        </div>
+        <div className="chat-window__header-actions">
           {onClose && (
             <button type="button" className="chat-window__close" onClick={onClose} aria-label="Đóng chat">
-              ✕
+              ×
             </button>
           )}
         </div>
       </div>
+      )}
+
+      {!isAdmin && (isReconnecting || (hasConnected && !connected) || connectionAttemptFailed) && (
+        <div className="chat-window__connection-warning" role="status">
+          {isReconnecting
+            ? 'Mất kết nối, đang thử lại...'
+            : hasConnected ? 'Mất kết nối.' : 'Không thể kết nối chat.'}
+        </div>
+      )}
 
       {showBlogModal && (
         <AttachBlogModal
@@ -343,13 +428,15 @@ export default function ChatWindow({
         />
       )}
 
-      {!isAdmin && (
-        <ProductContextCard 
-          productId={activeProductId} 
-          onSelectProduct={(id) => setActiveProductId(id)}
-          onClearProduct={() => setActiveProductId(null)}
-          onSendOrderMessage={(text) => handleSend(null, text)}
-        />
+      {!isAdmin && showProductTools && (
+        <div className="chat-window__product-tools">
+          <ProductContextCard
+            productId={activeProductId}
+            onSelectProduct={(id) => setActiveProductId(id)}
+            onClearProduct={() => setActiveProductId(null)}
+            onSendOrderMessage={(text) => handleSend(null, text)}
+          />
+        </div>
       )}
 
       {loading ? (
@@ -360,26 +447,95 @@ export default function ChatWindow({
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           typingUserId={typingUserId}
+          welcomeName={currentUserName}
+          showWelcome={!isAdmin}
+          onQuickAction={(text) => handleSend(null, text)}
+          adminOffline={chatMode === 'Admin' && !isAdminOnline && !offlineNoticeDismissed}
+          onSwitchToAI={onSwitchToAI}
+          onDismissOfflineNotice={() => {
+            setOfflineNoticeDismissed(true);
+            inputRef.current?.focus();
+          }}
         />
       )}
 
       {!isAdmin && (
-        <SuggestedQuestions 
-          onSelect={(q) => handleSend(null, q)} 
-        />
+        <SuggestedQuestions onSelect={(question) => handleSend(null, question)} />
       )}
 
+      {isAdmin ? (
       <form className="chat-window__input-row" onSubmit={handleSend}>
         <input
           type="text"
           value={input}
-          onChange={(e) => handleTyping(e.target.value)}
+          onChange={(event) => handleTyping(event.target.value)}
           placeholder="Nhập tin nhắn..."
         />
-        <button type="submit" disabled={!input.trim()}>
-          Gửi
+        <button type="submit" disabled={!input.trim()}>Gửi</button>
+      </form>
+      ) : (
+      <form className="chat-window__input-row" onSubmit={handleSend}>
+        <div className="chat-window__utility" ref={utilityMenuRef}>
+          <button
+            type="button"
+            className="chat-window__utility-toggle"
+            onClick={() => setShowUtilityMenu((visible) => !visible)}
+            aria-label="Mở công cụ chat"
+            aria-expanded={showUtilityMenu}
+          >
+            +
+          </button>
+          {showUtilityMenu && (
+            <div className="chat-window__utility-menu">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProductTools((visible) => !visible);
+                  setShowUtilityMenu(false);
+                }}
+              >
+                Tìm sản phẩm
+              </button>
+              <button
+                type="button"
+                disabled
+                title="Tính năng gửi ảnh chưa được hỗ trợ bởi API chat hiện tại"
+                aria-label="Gửi ảnh, hiện chưa được hỗ trợ"
+              >
+                Gửi ảnh
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProductTools(true);
+                  setShowUtilityMenu(false);
+                  handleSend(null, 'Tôi muốn tra cứu đơn hàng của tôi');
+                }}
+              >
+                Tra cứu đơn hàng
+              </button>
+            </div>
+          )}
+        </div>
+        <textarea
+          ref={inputRef}
+          value={input}
+          rows={1}
+          onChange={(event) => handleTyping(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              handleSend(event);
+            }
+          }}
+          placeholder="Nhập tin nhắn..."
+          aria-label="Nhập tin nhắn"
+        />
+        <button type="submit" disabled={!input.trim()} aria-label="Gửi tin nhắn">
+          ↑
         </button>
       </form>
+      )}
     </div>
   );
 }
