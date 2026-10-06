@@ -50,9 +50,12 @@ public sealed class KafkaTopicProvisioner : IHostedService
                 _logger.LogInformation("Kafka topics are ready: {Topics}", string.Join(", ", topics.Select(topic => topic.Name)));
                 return;
             }
-            catch (CreateTopicsException exception) when (exception.Results.All(result => result.Error.Code == ErrorCode.TopicAlreadyExists))
+            catch (CreateTopicsException exception) when (exception.Results.All(
+                result => result.Error.Code is ErrorCode.NoError or ErrorCode.TopicAlreadyExists))
             {
-                _logger.LogInformation("Kafka topics already exist: {Topics}", string.Join(", ", topics.Select(topic => topic.Name)));
+                _logger.LogInformation(
+                    "Kafka topics are ready; existing topics were left unchanged: {Topics}",
+                    string.Join(", ", topics.Select(topic => topic.Name)));
                 return;
             }
             catch (KafkaException exception) when (!cancellationToken.IsCancellationRequested)
