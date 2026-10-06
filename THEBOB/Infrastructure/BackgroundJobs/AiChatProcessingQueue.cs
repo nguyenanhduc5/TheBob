@@ -20,14 +20,17 @@ namespace THEBOB.Services.Background
         _options = options.Value;
         // Ensure the AI chat request topic exists
         try {
-            var adminConfig = new AdminClientConfig { BootstrapServers = _options.BootstrapServers };
+            var adminConfig = new AdminClientConfig();
+            _options.ConfigureClient(adminConfig);
             using var adminClient = new AdminClientBuilder(adminConfig).Build();
             var topicSpec = new TopicSpecification { Name = _options.AiChatRequestedTopic, NumPartitions = 1, ReplicationFactor = 1 };
             adminClient.CreateTopicsAsync(new[] { topicSpec }).GetAwaiter().GetResult();
         } catch (Exception) {
             // Ignore if topic already exists or Kafka topic provisioner handles it
         }
-        _consumer = new ConsumerBuilder<string,string>(new ConsumerConfig { BootstrapServers = _options.BootstrapServers, GroupId = "thebob-ai-chat-workers", AutoOffsetReset = AutoOffsetReset.Earliest, EnableAutoCommit = true, AllowAutoCreateTopics = true }).Build();
+        var consumerConfig = new ConsumerConfig { GroupId = "thebob-ai-chat-workers", AutoOffsetReset = AutoOffsetReset.Earliest, EnableAutoCommit = true, AllowAutoCreateTopics = true };
+        _options.ConfigureClient(consumerConfig);
+        _consumer = new ConsumerBuilder<string, string>(consumerConfig).Build();
         _consumer.Subscribe(_options.AiChatRequestedTopic);
     }
 

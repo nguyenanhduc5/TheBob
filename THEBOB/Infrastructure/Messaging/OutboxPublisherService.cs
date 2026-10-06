@@ -20,12 +20,13 @@ public sealed class OutboxPublisherService : BackgroundService
         _scopeFactory = scopeFactory;
         _options = options.Value;
         _logger = logger;
-        _producer = new ProducerBuilder<string, string>(new ProducerConfig
+        var config = new ProducerConfig
         {
-            BootstrapServers = _options.BootstrapServers,
             EnableIdempotence = true,
             Acks = Acks.All
-        }).Build();
+        };
+        _options.ConfigureClient(config);
+        _producer = new ProducerBuilder<string, string>(config).Build();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

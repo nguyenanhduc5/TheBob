@@ -9,7 +9,15 @@ namespace THEBOB.Services.Background;
 public sealed class BlogNotificationKafkaQueue : IDisposable
 {
     private readonly KafkaJsonProducer _producer; private readonly KafkaOptions _options; private readonly IConsumer<string,string> _consumer;
-    public BlogNotificationKafkaQueue(KafkaJsonProducer producer, IOptions<KafkaOptions> options) { _producer = producer; _options = options.Value; _consumer = new ConsumerBuilder<string,string>(new ConsumerConfig { BootstrapServers = _options.BootstrapServers, GroupId = "thebob-blog-notification-workers", AutoOffsetReset = AutoOffsetReset.Earliest, EnableAutoCommit = true }).Build(); _consumer.Subscribe(_options.BlogNotificationTopic); }
+    public BlogNotificationKafkaQueue(KafkaJsonProducer producer, IOptions<KafkaOptions> options)
+    {
+        _producer = producer;
+        _options = options.Value;
+        var config = new ConsumerConfig { GroupId = "thebob-blog-notification-workers", AutoOffsetReset = AutoOffsetReset.Earliest, EnableAutoCommit = true };
+        _options.ConfigureClient(config);
+        _consumer = new ConsumerBuilder<string, string>(config).Build();
+        _consumer.Subscribe(_options.BlogNotificationTopic);
+    }
     public ValueTask EnqueueAsync(BlogNotificationJob job) => new(_producer.PublishAsync(_options.BlogNotificationTopic, job.NotificationId.ToString(), job));
     public async ValueTask<BlogNotificationJob> DequeueAsync(CancellationToken ct)
     {

@@ -21,7 +21,15 @@ using THEBOB.Infrastructure.Messaging;
 using THEBOB.Infrastructure.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls("http://localhost:5110");
+var renderPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(renderPort))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
+}
+else if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+{
+    builder.WebHost.UseUrls("http://0.0.0.0:5110");
+}
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -29,8 +37,6 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    // Listen explicitly on localhost:5110
-    options.ListenLocalhost(5110);
     // Increase max request body size to 50 MB
     options.Limits.MaxRequestBodySize = 52428800; // 50MB
 });
@@ -310,4 +316,3 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
-

@@ -15,7 +15,15 @@ namespace THEBOB.Services.Background
         private readonly KafkaJsonProducer _producer;
         private readonly KafkaOptions _options;
         private readonly IConsumer<string, string> _consumer;
-        public BlogClickProcessingQueue(KafkaJsonProducer producer, IOptions<KafkaOptions> options) { _producer = producer; _options = options.Value; _consumer = new ConsumerBuilder<string,string>(new ConsumerConfig { BootstrapServers = _options.BootstrapServers, GroupId = "thebob-blog-click-workers", AutoOffsetReset = AutoOffsetReset.Earliest, EnableAutoCommit = true }).Build(); _consumer.Subscribe(_options.BlogClickTopic); }
+        public BlogClickProcessingQueue(KafkaJsonProducer producer, IOptions<KafkaOptions> options)
+        {
+            _producer = producer;
+            _options = options.Value;
+            var config = new ConsumerConfig { GroupId = "thebob-blog-click-workers", AutoOffsetReset = AutoOffsetReset.Earliest, EnableAutoCommit = true };
+            _options.ConfigureClient(config);
+            _consumer = new ConsumerBuilder<string, string>(config).Build();
+            _consumer.Subscribe(_options.BlogClickTopic);
+        }
 
         public ValueTask EnqueueAsync(BlogClickJob job) => new(_producer.PublishAsync(_options.BlogClickTopic, job.BlogPostId.ToString(), job));
         public async ValueTask<BlogClickJob> DequeueAsync(CancellationToken ct)

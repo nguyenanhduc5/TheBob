@@ -34,10 +34,9 @@ public sealed class KafkaTopicProvisioner : IHostedService
         })
         .ToList();
 
-        using var adminClient = new AdminClientBuilder(new AdminClientConfig
-        {
-            BootstrapServers = _options.BootstrapServers
-        }).Build();
+        var adminConfig = new AdminClientConfig();
+        _options.ConfigureClient(adminConfig);
+        using var adminClient = new AdminClientBuilder(adminConfig).Build();
 
         while (!cancellationToken.IsCancellationRequested)
         {

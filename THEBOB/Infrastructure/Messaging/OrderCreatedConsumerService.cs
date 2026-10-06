@@ -23,7 +23,8 @@ public sealed class OrderCreatedConsumerService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Yield();
-        var config = new ConsumerConfig { BootstrapServers = _options.BootstrapServers, GroupId = _options.ConsumerGroupId, AutoOffsetReset = AutoOffsetReset.Earliest, EnableAutoCommit = false };
+        var config = new ConsumerConfig { GroupId = _options.ConsumerGroupId, AutoOffsetReset = AutoOffsetReset.Earliest, EnableAutoCommit = false };
+        _options.ConfigureClient(config);
         using var consumer = new ConsumerBuilder<string, string>(config).Build();
         consumer.Subscribe(_options.OrderCreatedTopic);
         while (!stoppingToken.IsCancellationRequested)

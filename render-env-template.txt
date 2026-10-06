@@ -14,3 +14,13 @@ Jwt__Audience="THEBOB_API"
 SePay__ApiToken="YOUR_SEPAY_API_TOKEN"
 GHN__Token="YOUR_GHN_TOKEN"
 OpenAI__ApiKey="YOUR_OPENAI_KEY"
+
+# 4. Aiven Kafka (add these in Render Environment; do not commit credentials or CA contents)
+Kafka__BootstrapServers="kafka-29430413-duc-ab8b.i.aivencloud.com:15926"
+Kafka__SecurityProtocol="SaslSsl"
+Kafka__SaslMechanism="ScramSha256"
+Kafka__SaslUsername="avnadmin"
+Kafka__SaslPassword="<SET_THIS_SECRET_DIRECTLY_IN_RENDER>"
+# Set Kafka__SslCaPem to the full PEM certificate shown by Aiven, directly in Render:
+# Kafka__SslCaPem="<PASTE_FULL_PEM_CERTIFICATE_IN_RENDER_ONLY>"
+# If Aiven specifies SCRAM-SHA-512 for this user, set SaslMechanism to "ScramSha512".
