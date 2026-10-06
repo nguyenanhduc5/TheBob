@@ -54,6 +54,7 @@ import './App.css';
 function AppLayout() {
 const location = useLocation();
 const isAdminRoute = location.pathname.startsWith('/admin');
+const isHomePage = location.pathname === '/';
 
   React.useEffect(() => {
     // ✅ Chỉ reset overflow, KHÔNG scroll về đầu ở đây
@@ -70,7 +71,7 @@ const isAdminRoute = location.pathname.startsWith('/admin');
     <>
       <Header />
       <NotificationDisplay />
-      <main className="main-content">
+      <main className={`main-content${isHomePage ? ' main-content--home' : ''}`}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />

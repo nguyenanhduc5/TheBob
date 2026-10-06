@@ -148,6 +148,11 @@ button,
   padding: 24px 20px 32px;
 }
 
+.main-content--home {
+  min-height: 0;
+  padding: 0;
+}
+
 .heading-section {
   margin-bottom: 32px;
 }

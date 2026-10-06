@@ -21,7 +21,7 @@ export default function Header() {
     markDbAsRead, 
     markAllDbAsRead 
   } = useNotification();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(true);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const dropdownRef = useRef(null);
   
@@ -128,34 +128,43 @@ export default function Header() {
 
 
   const handleNavigate = (path) => {
-    setMobileMenuOpen(false);
     navigate(path);
   };
 
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+  const navItems = [
+    { label: 'SHOP', path: '/products' },
+    { label: 'COLLECTION', path: '/collections' },
+    { label: 'ABOUT US', path: '/about' },
+    { label: 'BLOG', path: '/blog' },
+  ];
+
+  const isActiveNavItem = (path) =>
+    path === '/products'
+      ? location.pathname === '/' || location.pathname.startsWith(path)
+      : location.pathname.startsWith(path);
 
   return (
     <header className="main-header">
-      <div className="top-banner">OUTLET</div>
       <div className="header-container">
         <button
+          type="button"
           className="hamburger"
-          onClick={() => setMobileMenuOpen((open) => !open)}
-          aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-          aria-expanded={mobileMenuOpen}
-          aria-controls="mobile-menu"
+          onClick={() => setNavOpen((open) => !open)}
+          aria-label={navOpen ? 'Ẩn menu điều hướng' : 'Hiện menu điều hướng'}
+          aria-expanded={navOpen}
+          aria-controls="primary-navigation"
         >
           <span />
           <span />
           <span />
         </button>
 
-        <button className="logo" onClick={() => handleNavigate('/')}>
+        <button type="button" className="logo" onClick={() => handleNavigate('/')}>
           THEBOB
         </button>
 
         <div className="header-actions">
-         
           <button
             className="icon-button cart-icon"
             onClick={() => handleNavigate('/cart')}
@@ -258,17 +267,27 @@ export default function Header() {
         </div>
       </div>
 
-      <div id="mobile-menu" className={`mobile-menu ${mobileMenuOpen ? 'open' : ''}`}>
-        <nav className="mobile-nav">
-          <button onClick={() => handleNavigate('/products')} className="mobile-nav-item">
-            SHOP
-          </button>
-          <button onClick={() => handleNavigate('/collections')} className="mobile-nav-item">COLLECTION</button>
-          <button onClick={() => handleNavigate('/about')} className="mobile-nav-item">ABOUT US</button>
-          <button onClick={() => handleNavigate('/blog')} className="mobile-nav-item">BLOG</button>
-        </nav>
-      </div>
-
+      <nav
+        id="primary-navigation"
+        className={`primary-navigation ${navOpen ? '' : 'collapsed'}`}
+        aria-label="Điều hướng chính"
+        aria-hidden={!navOpen}
+      >
+        <div className="primary-navigation-grid">
+          {navItems.map(({ label, path }) => (
+            <button
+              key={path}
+              type="button"
+              onClick={() => handleNavigate(path)}
+              className={`primary-navigation-item ${isActiveNavItem(path) ? 'active' : ''}`}
+              aria-current={isActiveNavItem(path) ? 'page' : undefined}
+              tabIndex={navOpen ? 0 : -1}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
     </header>
   );
 }

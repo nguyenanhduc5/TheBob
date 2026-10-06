@@ -21,13 +21,10 @@ html, body, #root {
 
 /* CONTAINER CHÍNH - FULL BLEED */
 .bob-container {
-  width: 100vw;
-  max-width: 100vw;
+  width: 100%;
+  max-width: 100%;
   position: relative;
-  left: 50%;
-  right: 50%;
-  margin-left: -50vw;
-  margin-right: -50vw;
+  margin: 0;
   background: #ffffff;
   overflow: hidden;
 }
@@ -63,23 +60,28 @@ html, body, #root {
 .bob-banner-grid,
 .bob-split-grid {
   display: grid;
+  grid-auto-flow: row;
   gap: 0;
   width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 0;
 }
 
 .bob-banner-grid {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .bob-split-grid {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .bob-banner-card,
 .bob-split-card {
   position: relative;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
   height: 100vh;           /* Full màn hình */
   min-height: 100vh;
   background-size: cover;
