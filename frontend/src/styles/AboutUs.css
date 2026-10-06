@@ -1,0 +1,448 @@
+/* ============================================= */
+/*   THEBOB - ABOUT US PAGE                      */
+/* ============================================= */
+
+.about-page {
+  width: 100%;
+  background: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #111;
+}
+
+/* ---- HERO ---- */
+.about-hero {
+  position: relative;
+  height: 100vh;
+  min-height: 600px;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 6% 12%;
+  overflow: hidden;
+}
+
+.about-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.15) 60%, transparent 100%);
+  z-index: 1;
+}
+
+.about-hero-content {
+  position: relative;
+  z-index: 2;
+  color: #fff;
+  max-width: 700px;
+}
+
+.about-hero-eyebrow {
+  display: inline-block;
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.75);
+  margin-bottom: 18px;
+}
+
+.about-hero-title {
+  font-size: clamp(2.4rem, 6vw, 5rem);
+  font-weight: 300;
+  line-height: 1.08;
+  letter-spacing: 0.04em;
+  margin-bottom: 24px;
+}
+
+.about-hero-subtitle {
+  font-size: 1rem;
+  font-weight: 300;
+  line-height: 1.7;
+  opacity: 0.88;
+  max-width: 500px;
+}
+
+/* ---- MANIFESTO ---- */
+.about-manifesto {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 70vh;
+}
+
+.about-manifesto-text {
+  padding: 80px 8%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.about-manifesto-text .section-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #999;
+  margin-bottom: 28px;
+}
+
+.about-manifesto-text h2 {
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  margin-bottom: 30px;
+}
+
+.about-manifesto-text p {
+  font-size: 0.97rem;
+  line-height: 1.85;
+  color: #555;
+  margin-bottom: 18px;
+}
+
+.about-manifesto-image {
+  position: relative;
+  overflow: hidden;
+  background: #f2f2f2;
+}
+
+.about-manifesto-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.8s ease;
+}
+
+.about-manifesto-image:hover img {
+  transform: scale(1.04);
+}
+
+/* ---- VALUES ---- */
+.about-values {
+  padding: 100px 6%;
+  background: #f8f8f8;
+  text-align: center;
+}
+
+.about-values-header {
+  margin-bottom: 64px;
+}
+
+.about-values-header .section-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #999;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.about-values-header h2 {
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+}
+
+.about-values-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 48px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.about-value-card {
+  padding: 48px 32px;
+  background: #fff;
+  border: 1px solid #ebebeb;
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
+
+.about-value-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+}
+
+.about-value-icon {
+  font-size: 2rem;
+  margin-bottom: 24px;
+  display: block;
+}
+
+.about-value-card h3 {
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.about-value-card p {
+  font-size: 0.93rem;
+  line-height: 1.75;
+  color: #666;
+}
+
+/* ---- STORY TIMELINE ---- */
+.about-story {
+  padding: 100px 6%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.about-story-header {
+  margin-bottom: 64px;
+}
+
+.about-story-header .section-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #999;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.about-story-header h2 {
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+}
+
+.about-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-left: 1px solid #ddd;
+  margin-left: 24px;
+  padding-left: 48px;
+}
+
+.about-timeline-item {
+  position: relative;
+  padding-bottom: 56px;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.about-timeline-item.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.about-timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -55px;
+  top: 5px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #111;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #111;
+}
+
+.about-timeline-year {
+  font-size: 0.72rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #999;
+  margin-bottom: 10px;
+}
+
+.about-timeline-title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+.about-timeline-desc {
+  font-size: 0.93rem;
+  line-height: 1.8;
+  color: #666;
+  max-width: 560px;
+}
+
+/* ---- TEAM ---- */
+.about-team {
+  padding: 100px 6%;
+  background: #111;
+  color: #fff;
+}
+
+.about-team-header {
+  margin-bottom: 64px;
+  text-align: center;
+}
+
+.about-team-header .section-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  display: block;
+  margin-bottom: 16px;
+}
+
+.about-team-header h2 {
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+}
+
+.about-team-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.about-team-card {
+  text-align: center;
+}
+
+.about-team-photo {
+  width: 100%;
+  aspect-ratio: 3/4;
+  object-fit: cover;
+  display: block;
+  filter: grayscale(20%);
+  transition: filter 0.4s ease;
+  background: #222;
+}
+
+.about-team-card:hover .about-team-photo {
+  filter: grayscale(0%);
+}
+
+.about-team-card .team-placeholder {
+  width: 100%;
+  aspect-ratio: 3/4;
+  background: #1e1e1e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: #444;
+}
+
+.about-team-name {
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-top: 20px;
+  margin-bottom: 6px;
+  font-weight: 400;
+}
+
+.about-team-role {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0.1em;
+}
+
+/* ---- CTA STRIP ---- */
+.about-cta {
+  position: relative;
+  height: 55vh;
+  min-height: 380px;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+.about-cta::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.48);
+  z-index: 1;
+}
+
+.about-cta-content {
+  position: relative;
+  z-index: 2;
+  color: #fff;
+}
+
+.about-cta-content h2 {
+  font-size: clamp(1.8rem, 4vw, 3.2rem);
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  margin-bottom: 28px;
+}
+
+.about-cta-btn {
+  display: inline-block;
+  padding: 16px 46px;
+  border: 1px solid #fff;
+  background: transparent;
+  color: #fff;
+  font-size: 0.78rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.35s ease;
+  font-family: inherit;
+}
+
+.about-cta-btn:hover {
+  background: #fff;
+  color: #000;
+}
+
+/* ---- RESPONSIVE ---- */
+@media (max-width: 1024px) {
+  .about-values-grid,
+  .about-team-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .about-manifesto {
+    grid-template-columns: 1fr;
+  }
+
+  .about-manifesto-image {
+    height: 60vw;
+    min-height: 320px;
+  }
+
+  .about-manifesto-text {
+    padding: 60px 6%;
+  }
+}
+
+@media (max-width: 640px) {
+  .about-hero {
+    padding: 0 5% 20%;
+  }
+
+  .about-values-grid,
+  .about-team-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .about-values,
+  .about-story,
+  .about-team {
+    padding: 72px 5%;
+  }
+
+  .about-timeline {
+    margin-left: 12px;
+    padding-left: 28px;
+  }
+
+  .about-timeline-item::before {
+    left: -39px;
+  }
+}

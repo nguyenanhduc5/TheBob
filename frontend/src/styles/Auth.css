@@ -1,0 +1,138 @@
+/* Auth Pages */
+.auth-page {
+  min-height: 82vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: var(--bg);
+}
+
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 42px 36px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow-sm);
+}
+
+.auth-card h2 {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.auth-card p {
+  text-align: center;
+  color: var(--muted);
+  margin-bottom: 2rem;
+  line-height: 1.75;
+}
+
+.auth-card label {
+  display: block;
+  margin-bottom: 1.5rem;
+}
+
+.auth-card label input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  font-size: 1rem;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.auth-card label input:focus {
+  outline: none;
+  border-color: rgba(17, 17, 17, 0.18);
+  box-shadow: 0 0 0 6px rgba(17, 17, 17, 0.08);
+}
+
+.auth-error {
+  background: #fff1f0;
+  color: #b91c1c;
+  padding: 12px;
+  border-radius: 14px;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.link-button {
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.link-button:hover {
+  color: #000000;
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 32px 20px;
+  }
+
+  .auth-card h2 {
+    font-size: 1.75rem;
+  }
+}
+
+/* OTP Styling */
+.otp-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 1.5rem 0;
+}
+
+.otp-input {
+  width: 48px;
+  height: 52px;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  transition: all var(--transition);
+}
+
+.otp-input:focus {
+  outline: none;
+  border-color: rgba(17, 17, 17, 0.18);
+  box-shadow: 0 0 0 6px rgba(17, 17, 17, 0.08);
+}
+
+.otp-timer {
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin-bottom: 1.5rem;
+}
+
+.otp-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 1.5rem;
+}
+
+.otp-actions button {
+  font-size: 0.95rem;
+}
+

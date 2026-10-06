@@ -1,0 +1,225 @@
+/* ============================================= */
+/*   THEBOB - FULL MÀN HÌNH + RESPONSIVE        */
+/* ============================================= */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* CONTAINER CHÍNH - FULL BLEED */
+.bob-container {
+  width: 100vw;
+  max-width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+/* OVERLAY */
+.bob-hero::before,
+.bob-banner-card::before,
+.bob-split-card::before,
+.bob-wide-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.13);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ====================== HERO - FULL MÀN ====================== */
+.bob-hero {
+  position: relative;
+  min-height: 100vh;
+  height: 100vh;           /* Ép full chiều cao màn hình */
+  width: 100%;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 5% 18% 5%;
+  margin: 0;
+}
+
+/* ====================== GRID & CARDS - FULL MÀN ====================== */
+.bob-banner-grid,
+.bob-split-grid {
+  display: grid;
+  gap: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.bob-banner-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.bob-split-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.bob-banner-card,
+.bob-split-card {
+  position: relative;
+  height: 100vh;           /* Full màn hình */
+  min-height: 100vh;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  padding: 40px 30px;
+}
+
+.bob-wide-banner {
+  position: relative;
+  height: 100vh;
+  min-height: 100vh;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 20px;
+  width: 100%;
+}
+
+/* TEXT STYLES */
+.bob-hero-copy,
+.bob-banner-copy,
+.bob-split-copy,
+.bob-wide-content {
+  position: relative;
+  z-index: 2;
+  color: #ffffff;
+  width: 100%;
+  max-width: 620px;
+}
+
+.bob-title-xl {
+  font-size: 2.6rem;
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  margin-bottom: 16px;
+}
+
+.bob-title-lg {
+  font-size: 2.25rem;
+  font-weight: 300;
+  letter-spacing: 0.05em;
+}
+
+.bob-title-md,
+.bob-title-sm {
+  font-size: 1.2rem;
+  letter-spacing: 0.12em;
+}
+
+.bob-desc,
+.bob-desc-sm {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  opacity: 0.92;
+}
+
+/* BUTTON */
+.bob-btn-light,
+.bob-btn-dark {
+  padding: 15px 38px;
+  font-size: 0.82rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  border: 1px solid #fff;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.35s ease;
+  border-radius: 0;
+}
+
+.bob-btn-light:hover {
+  background: #fff;
+  color: #000;
+}
+
+.bob-btn-dark {
+  border-color: #000;
+  color: #000;
+}
+
+.bob-btn-dark:hover {
+  background: #000;
+  color: #fff;
+}
+
+/* ====================== RESPONSIVE - MOBILE FULL MÀN ====================== */
+@media (max-width: 1024px) {
+  .bob-banner-grid,
+  .bob-split-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bob-banner-card,
+  .bob-split-card,
+  .bob-wide-banner {
+    height: 100vh;
+    padding: 35px 25px;
+  }
+
+  .bob-hero {
+    padding: 0 6% 20% 6%;
+  }
+
+  .bob-title-xl {
+    font-size: 2.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .bob-hero {
+    padding: 0 5% 25% 5%;
+  }
+
+  .bob-title-xl {
+    font-size: 2rem;
+  }
+
+  .bob-banner-card,
+  .bob-split-card {
+    padding: 30px 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .bob-hero {
+    padding-bottom: 28%;
+  }
+
+  .bob-title-xl {
+    font-size: 1.8rem;
+  }
+
+  .bob-title-lg {
+    font-size: 1.9rem;
+  }
+}

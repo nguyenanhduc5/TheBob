@@ -1,0 +1,610 @@
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
+import { authAPI, ordersAPI, shippingAPI } from '../../api/app';
+import AdminLayout from '../../components/AdminLayout';
+import '../../styles/Profile.css';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const STATUS_MAP = {
+  PendingPayment: { label: 'Chờ thanh toán', cls: 'pendingpayment' },
+  Pending:        { label: 'Chờ xử lý',       cls: 'pending' },
+  Processing:     { label: 'Đang xử lý',       cls: 'processing' },
+  Shipped:        { label: 'Đang giao',         cls: 'shipped' },
+  Delivered:      { label: 'Đã giao',           cls: 'delivered' },
+  Cancelled:      { label: 'Đã hủy',            cls: 'cancelled' },
+};
+
+const getInitials = (name = '') =>
+  name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+
+// ── Component ──────────────────────────────────────────────────────────────────
+export default function Profile() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // ✅ FIX: lấy cả loading và isAdminUser (boolean) thay vì gọi isAdmin()
+  const { user, token, updateUser, logout, loading: authLoading, isAdminUser } = useAuth();
+  const { addNotification } = useNotification();
+
+  const initialMenu = searchParams.get('menu') || 'account';
+  const [activeMenu, setActiveMenu] = useState(initialMenu);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const [userOrders, setUserOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
+  const [formData, setFormData] = useState({
+    name:            user?.name    || '',
+    email:           user?.email   || '',
+    phone:           user?.phone   || '',
+    specificAddress: '',
+  });
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // ── Địa chỉ (đồng bộ cấu trúc với Checkout: Tỉnh/Thành → Quận/Huyện → Phường/Xã) ──
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+
+  const [selectedProvince, setSelectedProvince] = useState({ id: null, name: '' });
+  const [selectedDistrict, setSelectedDistrict] = useState({ id: null, name: '' });
+  const [selectedWard, setSelectedWard] = useState({ code: '', name: '' });
+
+  // Địa chỉ đã lưu từ server, chờ danh sách tỉnh/thành tải xong để khớp và tự chọn
+  const [pendingAddress, setPendingAddress] = useState(null);
+  const addressInitRef = useRef(false);
+
+  // Sync URL param → activeMenu
+  useEffect(() => {
+    const menu = searchParams.get('menu');
+    if (menu) setActiveMenu(menu);
+  }, [searchParams]);
+
+  // Stable ref cho updateUser
+  const updateUserRef = useRef(updateUser);
+  useEffect(() => { updateUserRef.current = updateUser; }, [updateUser]);
+
+  // Tải danh sách tỉnh/thành (dùng chung API với Checkout)
+  useEffect(() => {
+    shippingAPI.getProvinces()
+      .then(setProvinces)
+      .catch(() => addNotification('Không tải được danh sách tỉnh/thành', 'error'));
+  }, [addNotification]);
+
+  // Load profile
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      if (!token) return;
+      setPageLoading(true);
+      try {
+        const result = await authAPI.getProfile();
+        const profile = result?.data;
+        if (profile && alive) {
+          setFormData({
+            name:            profile.name    || '',
+            email:           profile.email   || '',
+            phone:           profile.phone   || '',
+            // hỗ trợ ngược: nếu backend vẫn còn field "address" cũ dạng chuỗi
+            specificAddress: profile.specificAddress || profile.address || '',
+          });
+          setPendingAddress({
+            provinceId: profile.ghnProvinceId ?? null,
+            districtId: profile.ghnDistrictId ?? null,
+            wardCode:   profile.ghnWardCode ?? '',
+          });
+          updateUserRef.current(profile);
+        }
+      } catch (err) {
+        console.error('Fetch profile error:', err);
+      } finally {
+        if (alive) setPageLoading(false);
+      }
+    };
+    load();
+    return () => { alive = false; };
+  }, [token]);
+
+  const loadDistricts = useCallback(async (provinceId) => {
+    try {
+      return await shippingAPI.getDistricts(provinceId);
+    } catch (err) {
+      console.error('Failed to load districts:', err);
+      addNotification('Không tải được danh sách quận/huyện', 'error');
+      return [];
+    }
+  }, [addNotification]);
+
+  const loadWards = useCallback(async (districtId) => {
+    try {
+      return await shippingAPI.getWards(districtId);
+    } catch (err) {
+      console.error('Failed to load wards:', err);
+      addNotification('Không tải được danh sách phường/xã', 'error');
+      return [];
+    }
+  }, [addNotification]);
+
+  // Khi đã có danh sách tỉnh/thành + địa chỉ đã lưu → tự động chọn sẵn tỉnh/quận/phường
+  useEffect(() => {
+    if (addressInitRef.current) return;
+    if (!pendingAddress || provinces.length === 0) return;
+    if (!pendingAddress.provinceId) { addressInitRef.current = true; return; }
+
+    addressInitRef.current = true;
+
+    (async () => {
+      const province = provinces.find((p) => p.provinceId === pendingAddress.provinceId);
+      if (!province) return;
+      setSelectedProvince({ id: province.provinceId, name: province.provinceName });
+
+      const districtList = await loadDistricts(province.provinceId);
+      setDistricts(districtList);
+      if (!pendingAddress.districtId) return;
+
+      const district = districtList.find((d) => d.districtId === pendingAddress.districtId);
+      if (!district) return;
+      setSelectedDistrict({ id: district.districtId, name: district.districtName });
+
+      const wardList = await loadWards(district.districtId);
+      setWards(wardList);
+      if (!pendingAddress.wardCode) return;
+
+      const ward = wardList.find((w) => w.wardCode === pendingAddress.wardCode);
+      if (ward) setSelectedWard({ code: ward.wardCode, name: ward.wardName });
+    })();
+  }, [pendingAddress, provinces, loadDistricts, loadWards]);
+
+  // Load orders
+  const fetchUserOrders = useCallback(async () => {
+    if (!token) return;
+    setOrdersLoading(true);
+    try {
+      const data = await ordersAPI.getUserOrders();
+      setUserOrders(data || []);
+    } catch (err) {
+      console.error('Failed to fetch orders:', err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (activeMenu === 'orders') fetchUserOrders();
+  }, [activeMenu, fetchUserOrders]);
+
+  // SignalR real-time update
+  useEffect(() => {
+    const handler = () => fetchUserOrders();
+    window.addEventListener('order-status-updated', handler);
+    return () => window.removeEventListener('order-status-updated', handler);
+  }, [fetchUserOrders]);
+
+  // ── Handlers ──────────────────────────────────────────────────────────────────
+  const handleInputChange = (field) => (e) =>
+    setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const handleProvinceChange = async (e) => {
+    const id = parseInt(e.target.value, 10);
+    const province = provinces.find((p) => p.provinceId === id);
+
+    setSelectedProvince({ id: province?.provinceId ?? null, name: province?.provinceName ?? '' });
+    setSelectedDistrict({ id: null, name: '' });
+    setSelectedWard({ code: '', name: '' });
+    setDistricts([]);
+    setWards([]);
+
+    if (!province) return;
+    const data = await loadDistricts(province.provinceId);
+    setDistricts(data);
+  };
+
+  const handleDistrictChange = async (e) => {
+    const id = parseInt(e.target.value, 10);
+    const district = districts.find((d) => d.districtId === id);
+
+    setSelectedDistrict({ id: district?.districtId ?? null, name: district?.districtName ?? '' });
+    setSelectedWard({ code: '', name: '' });
+    setWards([]);
+
+    if (!district) return;
+    const data = await loadWards(district.districtId);
+    setWards(data);
+  };
+
+  const handleWardChange = (e) => {
+    const code = e.target.value;
+    const ward = wards.find((w) => w.wardCode === code);
+    setSelectedWard({ code: ward?.wardCode ?? '', name: ward?.wardName ?? '' });
+  };
+
+  const fullAddressPreview = useMemo(() => [
+    formData.specificAddress,
+    selectedWard.name,
+    selectedDistrict.name,
+    selectedProvince.name,
+  ].filter(Boolean).join(', '), [formData.specificAddress, selectedWard.name, selectedDistrict.name, selectedProvince.name]);
+
+  const handleUpdateInfo = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.phone) {
+      addNotification('Vui lòng nhập họ tên và số điện thoại', 'warning');
+      return;
+    }
+    setIsUpdating(true);
+    setSuccessMessage('');
+    try {
+      const result = await authAPI.updateProfile({
+        email:           formData.email,
+        name:            formData.name,
+        phone:           formData.phone,
+        specificAddress: formData.specificAddress,
+        provinceCity:    selectedProvince.name,
+        district:        selectedDistrict.name,
+        ward:            selectedWard.name,
+        ghnProvinceId:   selectedProvince.id,
+        ghnDistrictId:   selectedDistrict.id,
+        ghnWardCode:     selectedWard.code,
+      });
+      const updated = result?.data;
+      if (updated) {
+        updateUser(updated);
+        setSuccessMessage('Cập nhật thành công!');
+        addNotification('Cập nhật thông tin thành công!', 'success');
+      } else {
+        throw new Error('Phản hồi không hợp lệ.');
+      }
+    } catch (err) {
+      console.error('Update error:', err);
+      addNotification(err.response?.data?.message || err.message || 'Lỗi kết nối.', 'error');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleChangePassword = (e) => {
+    e.preventDefault();
+    setSuccessMessage('Tính năng đổi mật khẩu sẽ được cập nhật sớm!');
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
+  const handleLogout = () => {
+    logout();
+    addNotification('Đã đăng xuất.', 'info');
+    navigate('/');
+  };
+
+  // ── Guard: chờ auth load xong trước khi render ────────────────────────────────
+  if (authLoading || pageLoading) {
+    return (
+      <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'60vh' }}>
+        <p style={{ color:'#9a9a9a', fontSize:'0.9rem', letterSpacing:'0.08em' }}>
+          ĐANG TẢI...
+        </p>
+      </div>
+    );
+  }
+
+  // ── Form dùng chung ───────────────────────────────────────────────────────────
+  const profileForm = (
+    <form onSubmit={handleUpdateInfo} className="account-form">
+      <div className="form-row two-cols">
+        <div className="form-group">
+          <label>Họ và tên *</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={handleInputChange('name')}
+            placeholder="Nguyễn Anh Đức"
+          />
+        </div>
+        <div className="form-group">
+          <label>Số điện thoại *</label>
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={formData.phone}
+            onChange={handleInputChange('phone')}
+            placeholder="0908474355"
+          />
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Email</label>
+          <input type="email" value={formData.email} disabled className="disabled-input" />
+        </div>
+      </div>
+
+      <div className="address-block">
+        <div className="address-block-title">Địa chỉ giao hàng mặc định</div>
+        <span className="form-hint address-block-hint">
+          Lưu địa chỉ tại đây để khi đặt hàng, Checkout tự điền sẵn — không cần nhập lại.
+        </span>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Tỉnh / Thành phố</label>
+            <select value={selectedProvince.id || ''} onChange={handleProvinceChange}>
+              <option value="">Chọn tỉnh/thành</option>
+              {provinces.map((p) => (
+                <option key={p.provinceId} value={p.provinceId}>{p.provinceName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-row two-cols">
+          <div className="form-group">
+            <label>Quận / Huyện</label>
+            <select
+              value={selectedDistrict.id || ''}
+              onChange={handleDistrictChange}
+              disabled={!districts.length}
+            >
+              <option value="">Chọn quận/huyện</option>
+              {districts.map((d) => (
+                <option key={d.districtId} value={d.districtId}>{d.districtName}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Phường / Xã</label>
+            <select
+              value={selectedWard.code || ''}
+              onChange={handleWardChange}
+              disabled={!wards.length}
+            >
+              <option value="">Chọn phường/xã</option>
+              {wards.map((w) => (
+                <option key={w.wardCode} value={w.wardCode}>{w.wardName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Số nhà, tên đường</label>
+            <input
+              type="text"
+              value={formData.specificAddress}
+              onChange={handleInputChange('specificAddress')}
+              placeholder="76 Nguyễn Sơn"
+            />
+          </div>
+        </div>
+
+        <div className="address-preview">
+          <strong>Địa chỉ đầy đủ:</strong> {fullAddressPreview || 'Chưa có địa chỉ'}
+        </div>
+      </div>
+
+      <button type="submit" className="btn-update" disabled={isUpdating}>
+        {isUpdating ? 'Đang lưu...' : 'Lưu thay đổi'}
+      </button>
+    </form>
+  );
+
+  // ── Admin layout ──────────────────────────────────────────────────────────────
+  if (isAdminUser) {
+    return (
+      <AdminLayout title="Hồ Sơ Admin" hideTopbar>
+        <div className="admin-profile-section">
+          <div className="admin-profile-wrap">
+            {successMessage && (
+              <div className="success-message">✓ {successMessage}</div>
+            )}
+            <div className="admin-profile-card">
+              <h2>Thông Tin Hồ Sơ</h2>
+              {profileForm}
+              <div className="admin-profile-back-wrap">
+                <button
+                  type="button"
+                  className="btn-back-dashboard"
+                  onClick={() => navigate('/admin')}
+                >
+                  ← Quay lại Bảng Điều Khiển
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // ── User layout ───────────────────────────────────────────────────────────────
+  return (
+    <section className="account-page-container">
+      <div className="account-page">
+
+        {/* Sidebar */}
+        <aside className="account-sidebar">
+          <div className="sidebar-header">Tài khoản</div>
+
+          <div className="sidebar-avatar">
+            <div className="avatar-circle">{getInitials(formData.name)}</div>
+            <span className="avatar-name">{formData.name || 'Thành viên'}</span>
+            <span className="avatar-email">{formData.email}</span>
+          </div>
+
+          <nav className="sidebar-menu">
+            <button
+              className={`menu-item ${activeMenu === 'account' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('account')}
+            >
+              <span className="menu-icon">👤</span> Thông tin
+            </button>
+            <button
+              className={`menu-item ${activeMenu === 'orders' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('orders')}
+            >
+              <span className="menu-icon">📦</span> Đơn hàng
+            </button>
+            <button
+              className="menu-item"
+              onClick={() => navigate('/user/vouchers')}
+            >
+              <span className="menu-icon">🎁</span> Voucher của tôi
+            </button>
+            <button
+              className={`menu-item ${activeMenu === 'password' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('password')}
+            >
+              <span className="menu-icon">🔐</span> Mật khẩu
+            </button>
+            <button className="menu-item logout" onClick={handleLogout}>
+              <span className="menu-icon">🚪</span> Đăng xuất
+            </button>
+          </nav>
+        </aside>
+
+        {/* Main */}
+        <main className="account-main">
+
+          {/* TAB: Thông tin */}
+          {activeMenu === 'account' && (
+            <div className="account-section">
+              <p className="account-section-title">Hồ sơ</p>
+              <h2>Thông tin tài khoản</h2>
+              {successMessage && (
+                <div className="success-message">✓ {successMessage}</div>
+              )}
+              {profileForm}
+            </div>
+          )}
+
+          {/* TAB: Đơn hàng */}
+          {activeMenu === 'orders' && (
+            <div className="account-section">
+              <p className="account-section-title">Lịch sử</p>
+              <h2>Đơn hàng của tôi</h2>
+
+              {ordersLoading ? (
+                <p style={{ color:'#9a9a9a', fontSize:'0.85rem', letterSpacing:'0.06em' }}>
+                  ĐANG TẢI ĐƠN HÀNG...
+                </p>
+              ) : userOrders.length === 0 ? (
+                <div className="orders-empty-state">
+                  <span className="empty-icon">🛍️</span>
+                  <p>Bạn chưa có đơn hàng nào.</p>
+                  <button className="btn-shop-now" onClick={() => navigate('/products')}>
+                    Mua sắm ngay
+                  </button>
+                </div>
+              ) : (
+                <div className="orders-history-list">
+                  {userOrders.map((order) => {
+                    const st = STATUS_MAP[order.status] ?? { label: order.status, cls: 'pending' };
+                    return (
+                      <div key={order.id} className="order-history-card">
+                        <div className="order-history-header">
+                          <div className="order-header-info">
+                            <span className="order-id">#{order.id}</span>
+                            <span className="order-date">
+                              {new Date(order.createdAt).toLocaleDateString('vi-VN', {
+                                day: '2-digit', month: '2-digit', year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+                          <span className={`status-badge ${st.cls}`}>{st.label}</span>
+                        </div>
+
+                        <div className="order-history-items-container">
+                          <table className="order-history-items-table">
+                            <thead>
+                              <tr>
+                                <th>Sản phẩm</th>
+                                <th style={{ textAlign:'center' }}>Size</th>
+                                <th style={{ textAlign:'center' }}>Màu</th>
+                                <th style={{ textAlign:'right' }}>Đơn giá</th>
+                                <th style={{ textAlign:'center' }}>SL</th>
+                                <th style={{ textAlign:'right' }}>Thành tiền</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {order.items?.map((item) => (
+                                <tr key={item.id}>
+                                  <td className="order-item-prod-cell">
+                                    {item.imageUrl && (
+                                      <img src={item.imageUrl} alt={item.productName} className="order-item-thumb" />
+                                    )}
+                                    <span className="order-item-name">{item.productName}</span>
+                                  </td>
+                                  <td style={{ textAlign:'center' }} className="order-item-meta-cell">{item.size || '—'}</td>
+                                  <td style={{ textAlign:'center' }} className="order-item-meta-cell">{item.color || '—'}</td>
+                                  <td style={{ textAlign:'right' }}>{item.price?.toLocaleString('vi-VN')} đ</td>
+                                  <td style={{ textAlign:'center' }}>{item.quantity}</td>
+                                  <td style={{ textAlign:'right', fontWeight:'700' }}>
+                                    {(item.price * item.quantity)?.toLocaleString('vi-VN')} đ
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="order-history-footer">
+                          <div className="order-footer-summary">
+                            <span className="order-shipping-label">
+                              Phí giao hàng:{' '}
+                              {order.shippingAmount === 0
+                                ? 'Miễn phí'
+                                : `${order.shippingAmount?.toLocaleString('vi-VN')} đ`}
+                            </span>
+                            <span className="order-footer-total">
+                              Tổng cộng: <strong>{order.totalAmount?.toLocaleString('vi-VN')} đ</strong>
+                            </span>
+                          </div>
+                          <button className="btn-view-detail" onClick={() => navigate(`/orders/${order.id}`)}>
+                            Xem chi tiết
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: Mật khẩu */}
+          {activeMenu === 'password' && (
+            <div className="account-section">
+              <p className="account-section-title">Bảo mật</p>
+              <h2>Đổi mật khẩu</h2>
+              {successMessage && (
+                <div className="success-message">✓ {successMessage}</div>
+              )}
+              <p className="password-section-note">
+                Mật khẩu mới phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và số.
+              </p>
+              <form onSubmit={handleChangePassword} className="account-form">
+                <div className="form-group">
+                  <label>Mật khẩu hiện tại</label>
+                  <input type="password" placeholder="••••••••" />
+                </div>
+                <div className="form-group">
+                  <label>Mật khẩu mới</label>
+                  <input type="password" placeholder="••••••••" />
+                </div>
+                <div className="form-group">
+                  <label>Xác nhận mật khẩu mới</label>
+                  <input type="password" placeholder="••••••••" />
+                </div>
+                <button type="submit" className="btn-update">Cập nhật mật khẩu</button>
+              </form>
+            </div>
+          )}
+
+        </main>
+      </div>
+    </section>
+  );
+}
+
