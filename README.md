@@ -146,6 +146,19 @@ THEBOB/
    dotnet ef database update --project THEBOB/THEBOB/THEBOB.csproj
    ```
 
+### Cấu hình Kafka Aiven
+
+Backend kết nối tới Aiven qua `SASL_SSL` với cơ chế `SCRAM-SHA-256`. Nếu gặp lỗi `certificate verify failed`, cần tải CA certificate của Kafka service trong Aiven Console (service Kafka → Connection information → Download CA certificate). Lưu file, ví dụ `C:\THEBOB\THEBOB\certs\aiven-kafka-ca.pem`, rồi đặt đường dẫn và credentials trong cùng cửa sổ PowerShell trước khi chạy backend:
+
+```powershell
+$env:Kafka__SaslUsername = "<Aiven Kafka username>"
+$env:Kafka__SaslPassword = "<Aiven Kafka password>"
+$env:Kafka__SslCaLocation = "C:\THEBOB\THEBOB\certs\aiven-kafka-ca.pem"
+dotnet run --project THEBOB/THEBOB.csproj
+```
+
+`SslCaLocation` là đường dẫn tới file CA đã tải xuống. Biến môi trường được .NET nạp đè cấu hình và chỉ áp dụng cho cửa sổ PowerShell hiện tại. Không tắt xác minh chứng chỉ SSL.
+
 ---
 
 ### Bước 2: Chạy Backend API

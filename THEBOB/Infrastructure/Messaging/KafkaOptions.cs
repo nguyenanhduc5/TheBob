@@ -10,6 +10,7 @@ public sealed class KafkaOptions
     public SaslMechanism SaslMechanism { get; init; } = SaslMechanism.ScramSha256;
     public string? SaslUsername { get; init; }
     public string? SaslPassword { get; init; }
+    public string? SslCaLocation { get; init; }
     public string? SslCaPem { get; init; }
     public string OrderCreatedTopic { get; init; } = "thebob.order-created";
     public string AiChatRequestedTopic { get; init; } = "thebob.ai-chat-requested";
@@ -48,6 +49,11 @@ public sealed class KafkaOptions
         if (!string.IsNullOrWhiteSpace(SslCaPem))
         {
             config.SslCaPem = SslCaPem;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SslCaLocation))
+        {
+            config.SslCaLocation = SslCaLocation;
         }
     }
 }
