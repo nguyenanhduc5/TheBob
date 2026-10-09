@@ -354,11 +354,53 @@
 
 @media (max-width: 480px) {
   .header-container {
-    padding: 0 16px;
+    padding: 0 10px;
+  }
+
+  .hamburger {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+    padding: 6px;
+  }
+
+  .logo {
+    padding: 6px 2px;
+    font-size: 16px;
+    letter-spacing: 0.16em;
   }
 
   .header-actions {
-    gap: 4px;
+    gap: 2px;
+  }
+
+  .header-actions .icon-button {
+    padding: 3px;
+  }
+
+  .header-actions .icon-button > svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .preference-button {
+    min-height: 30px;
+    padding: 3px;
+  }
+
+  .preference-language-button {
+    gap: 0;
+  }
+
+  .preference-language-button .preference-language-label,
+  .preference-language-button > svg:last-child {
+    display: none;
+  }
+
+  .preference-language-flag {
+    width: 18px;
+    height: 12px;
+    flex-basis: 18px;
   }
 
   .primary-navigation {
