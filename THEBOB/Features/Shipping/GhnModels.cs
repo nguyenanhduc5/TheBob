@@ -145,7 +145,7 @@ public class GhnTrackingResponse
 public class GhnLog
 {
     public string Status { get; set; } = string.Empty;
-    public DateTime UpdatedDate { get; set; }
+    public DateTime? UpdatedDate { get; set; }
     public string Description { get; set; } = string.Empty;
 }
 

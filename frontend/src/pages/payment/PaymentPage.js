@@ -4,6 +4,7 @@ import * as signalR from '@microsoft/signalr';
 import { ordersAPI, paymentAPI, ORDER_HUB_URL } from '../../api/app';
 import { useNotification } from '../../context/NotificationContext';
 import { useCart } from '../../context/CartContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import '../../styles/Payment.css';
 import '../../styles/PaymentFeedback.css';
 
@@ -14,6 +15,7 @@ export default function PaymentPage() {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const { clearCart } = useCart();
+  const { t } = usePreferences();
 
   const [order, setOrder] = useState(null);
   const [paymentInfo, setPaymentInfo] = useState(null);
@@ -39,9 +41,9 @@ export default function PaymentPage() {
     clearCart();
     setIsPaid(true);
     setLoading(false);
-    addNotification('Thanh toan thanh cong!', 'success');
+    addNotification(t('payment.success'), 'success');
     setTimeout(() => navigate('/payment/success'), 1200);
-  }, [addNotification, clearCart, navigate, stopCountdown]);
+  }, [addNotification, clearCart, navigate, stopCountdown, t]);
 
   const goFailed = useCallback((path = '/payment/failed') => {
     if (completedRef.current) return;
@@ -103,7 +105,7 @@ export default function PaymentPage() {
       } catch (err) {
         console.error('Error loading SePay payment page:', err);
         if (isMounted) {
-          setError(err?.message || 'Khong the tai thong tin thanh toan.');
+          setError(err?.message || t('payment.load.error'));
           setLoading(false);
         }
       }
@@ -114,7 +116,7 @@ export default function PaymentPage() {
     return () => {
       isMounted = false;
     };
-  }, [goFailed, goSuccess, orderId]);
+  }, [goFailed, goSuccess, orderId, t]);
 
   useEffect(() => {
     const token = localStorage.getItem('thebob-token');
@@ -199,14 +201,14 @@ export default function PaymentPage() {
   };
 
   const handleCancelPayment = async () => {
-    if (!window.confirm('Bạn muốn hủy thanh toán đơn hàng này?')) return;
+    if (!window.confirm(t('payment.cancel.confirm'))) return;
 
     setLoading(true);
     try {
       await paymentAPI.cancelPayment(orderId);
       goFailed('/payment/failed');
     } catch (err) {
-      addNotification(err?.message || 'Lỗi khi hủy thanh toán.', 'error');
+      addNotification(err?.message || t('payment.cancel.error'), 'error');
       setLoading(false);
     }
   };
@@ -215,7 +217,7 @@ export default function PaymentPage() {
     return (
       <div className="payment-loading-container">
         <div className="spinner"></div>
-        <p>Đang tải thông tin thanh toán...</p>
+        <p>{t('payment.loading')}</p>
       </div>
     );
   }
@@ -229,8 +231,8 @@ export default function PaymentPage() {
               <path d="M20 6L9 17l-5-5" />
             </svg>
           </div>
-          <h1>Thanh toan thanh cong!</h1>
-<p>Đơn hàng của bạn đã được SePay xác nhận và đang được xử lý.</p>        
+          <h1>{t('payment.success')}</h1>
+          <p>{t('payment.success.received')}</p>
 </div>
       </div>
     );
@@ -241,9 +243,9 @@ export default function PaymentPage() {
       <div className="payment-error-container">
         <div className="error-card">
           <div className="error-icon">x</div>
-          <h2>Lỗi thanh toán</h2>
+          <h2>{t('payment.error')}</h2>
           <p>{error}</p>
-          <button onClick={() => navigate('/checkout')} className="btn-retry">Quay lại thanh toán</button>
+          <button onClick={() => navigate('/checkout')} className="btn-retry">{t('payment.backToCheckout')}</button>
         </div>
       </div>
     );
@@ -253,51 +255,51 @@ export default function PaymentPage() {
     <div className="payment-page-wrapper">
       <header className="payment-heading">
         <p className="payment-eyebrow">THEBOB / PAYMENT</p>
-        <h1>Thanh toán đơn hàng</h1>
-        <p>Quét mã QR hoặc chuyển khoản theo thông tin bên dưới.</p>
+        <h1>{t('payment.heading')}</h1>
+        <p>{t('payment.heading.description')}</p>
       </header>
       <div className="payment-card-container">
         <div className="payment-info-box">
           <div className="payment-order-heading">
-            <h2>Thông tin chuyển khoản</h2>
-            <span className="payment-order-id">Đơn #{orderId}</span>
+            <h2>{t('payment.transferInfo')}</h2>
+            <span className="payment-order-id">{t('payment.order', { id: orderId })}</span>
           </div>
           <div className="timer-display">
-            Thời gian thanh toán còn lại <span className="countdown">{formatTime(timer)}</span>
+            {t('payment.timeRemaining')} <span className="countdown">{formatTime(timer)}</span>
           </div>
 
           <div className="info-fields">
             <div className="info-row">
-              <span className="info-label">Ngân hàng</span>
+              <span className="info-label">{t('payment.bank')}</span>
               <span className="info-value highlight">{paymentInfo?.bankName}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Số tài khoản</span>
+              <span className="info-label">{t('payment.account')}</span>
               <span className="info-value copyable">
                 {paymentInfo?.bankAccount}
-                <button className="btn-copy" onClick={() => copy(paymentInfo?.bankAccount, 'Đã sao chép số tài khoản')}>Sao chép</button>
+                <button className="btn-copy" onClick={() => copy(paymentInfo?.bankAccount, t('payment.copiedAccount'))}>{t('payment.copy')}</button>
               </span>
             </div>
             <div className="info-row">
-              <span className="info-label">Tài khoản định danh (VA)</span>
+              <span className="info-label">{t('payment.virtualAccount')}</span>
               <span className="info-value copyable">
                 {paymentInfo?.vaNumber}
-                <button className="btn-copy" onClick={() => copy(paymentInfo?.vaNumber, 'Đã sao chép VA')}>Sao chép</button>
+                <button className="btn-copy" onClick={() => copy(paymentInfo?.vaNumber, t('payment.copiedVirtualAccount'))}>{t('payment.copy')}</button>
               </span>
             </div>
             <div className="info-row">
-              <span className="info-label">Chủ tài khoản</span>
+              <span className="info-label">{t('payment.accountName')}</span>
               <span className="info-value">{paymentInfo?.accountName}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Nội dung chuyển khoản</span>
+              <span className="info-label">{t('payment.transferContent')}</span>
               <span className="info-value copyable content-highlight">
                 {paymentInfo?.transferContent}
-                <button className="btn-copy" onClick={() => copy(paymentInfo?.transferContent, 'Da sao chep noi dung')}>Sao chép</button>
+                <button className="btn-copy" onClick={() => copy(paymentInfo?.transferContent, t('payment.copiedTransferContent'))}>{t('payment.copy')}</button>
               </span>
             </div>
             <div className="info-row">
-              <span className="info-label">Số tiền</span>
+              <span className="info-label">{t('payment.amount')}</span>
               <span className="info-value price-highlight">
                 {paymentInfo?.amount?.toLocaleString('vi-VN')} VND
               </span>
@@ -305,31 +307,30 @@ export default function PaymentPage() {
           </div>
 
           <div className="payment-note-box">
-            <p><strong>Lưu ý khi chuyển khoản</strong>Vui lòng chuyển đúng số tiền và nội dung để giao dịch được tự động xác nhận.</p>
+            <p><strong>{t('payment.note.title')}</strong>{t('payment.note.description')}</p>
           </div>
 
           <div className="payment-cancel-action">
             <button onClick={handleCancelPayment} className="payment-cancel-button">
-              Hủy thanh toán
+              {t('payment.cancel')}
             </button>
           </div>
         </div>
 
         <div className="payment-qr-box">
           <span className="payment-qr-badge">VIETQR · SEPAY</span>
-          <h3>Quét mã để thanh toán</h3>
-          <p className="payment-qr-description">Mở ứng dụng ngân hàng và chọn quét mã QR</p>
+          <h3>{t('payment.qr.heading')}</h3>
+          <p className="payment-qr-description">{t('payment.qr.description')}</p>
           <div className="qr-image-wrapper">
-            <img src={paymentInfo?.qrCode} alt="SePay VietQR Code" className="viet-qr-img" />
+            <img src={paymentInfo?.qrCode} alt={t('payment.qr.alt')} className="viet-qr-img" />
           </div>
           <div className="payment-status-indicator" role="status">
             <span className="pulse-dot"></span>
-            Đang chờ xác nhận thanh toán
+            {t('payment.waiting')}
           </div>
-          <p className="payment-qr-hint">Trang sẽ tự động cập nhật khi nhận được thanh toán. Bạn không cần tải lại trang.</p>
+          <p className="payment-qr-hint">{t('payment.autoUpdate')}</p>
         </div>
       </div>
     </div>
   );
 }
-

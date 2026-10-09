@@ -1,8 +1,9 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { PreferencesProvider } from './context/PreferencesContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import NotificationDisplay from './components/NotificationDisplay';
@@ -41,7 +42,6 @@ import AdminCategories from './pages/admin/AdminCategories';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminPayments from './pages/admin/AdminPayments';
 import AdminUsers from './pages/admin/AdminUsers';
-import AdminCoupons from './pages/admin/AdminCoupons';
 import AdminPromotions from './pages/admin/AdminPromotions';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminChat from './pages/admin/AdminChat';
@@ -71,7 +71,7 @@ const isHomePage = location.pathname === '/';
     <>
       <Header />
       <NotificationDisplay />
-      <main className={`main-content${isHomePage ? ' main-content--home' : ''}`}>
+      <main className={`main-content${isHomePage ? ' main-content--home' : ''}${isAdminRoute ? ' main-content--admin' : ''}`}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
@@ -111,7 +111,7 @@ const isHomePage = location.pathname === '/';
             <Route path="categories" element={<AdminCategories />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="payments" element={<AdminPayments />} />
-            <Route path="coupons" element={<AdminCoupons />} />
+            <Route path="coupons" element={<Navigate to="/admin/promotions" replace />} />
             <Route path="promotions" element={<AdminPromotions />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="profile" element={<Profile />} />
@@ -131,15 +131,17 @@ const isHomePage = location.pathname === '/';
 
 function App() {
   return (
-    <NotificationProvider>
-      <AuthProvider>
-        <CartProvider>
-          <Router>
-            <AppLayout />
-          </Router>
-        </CartProvider>
-      </AuthProvider>
-    </NotificationProvider>
+    <PreferencesProvider>
+      <NotificationProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Router>
+              <AppLayout />
+            </Router>
+          </CartProvider>
+        </AuthProvider>
+      </NotificationProvider>
+    </PreferencesProvider>
   );
 }
 

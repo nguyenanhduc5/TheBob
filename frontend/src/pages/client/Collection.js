@@ -1,73 +1,96 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import '../../styles/Collection.css'; // File CSS cho trang danh mục
-
-import flowerImg from '../../images/flower.jpg';
-import smileImg from '../../images/smile.jpg';
-import cuaImg from '../../images/cua.jpg';
-import makeroomImg from '../../images/makeroom.jpg';
-
-const collections = [
-  { 
-    id: 'summer26-2', 
-    name: 'SUMMER26 DROP 2', 
-    subtitle: 'PREMIUM COTTON ESSENTIALS',
-    description: 'Trải nghiệm sự thoải mái tuyệt đối với các thiết kế tối giản, phom dáng rộng rãi phóng khoáng cho ngày hè năng động.',
-    image: flowerImg,
-    label: 'NEW DROP'
-  },
-  { 
-    id: 'summer26-1', 
-    name: 'SUMMER26 DROP 1', 
-    subtitle: 'STREET MINIMALISM',
-    description: 'Sự kết hợp hoàn hảo giữa thời trang đường phố và phong cách tối giản. Đơn giản nhưng không bao giờ đơn điệu.',
-    image: smileImg,
-    label: 'HOT SELLER'
-  },
-  { 
-    id: 'igifms', 
-    name: '“IGIFMS” COLLECTION', 
-    subtitle: 'URBAN APPAREL CONCEPT',
-    description: 'Lấy cảm hứng từ nhịp sống đô thị hiện đại, mang đậm chất riêng cá tính với chất liệu dày dặn cao cấp.',
-    image: cuaImg,
-    label: 'LIMITED'
-  },
-  { 
-    id: 'legacy', 
-    name: 'SSMA "LEGACY" DROP', 
-    subtitle: 'VINTAGE STREETWEAR',
-    description: 'Những mảnh ghép di sản mang phong cách retro nguyên bản, khẳng định cái tôi thời trang khác biệt và thời thượng.',
-    image: makeroomImg,
-    label: 'LEGACY CLASSIC'
-  },
-];
+import { collectionsAPI } from '../../api/app';
+import { usePreferences } from '../../context/PreferencesContext';
+import '../../styles/Collection.css';
 
 export default function CollectionList() {
+  const { t } = usePreferences();
+  const [collections, setCollections] = useState([]);
+  const [layoutMode, setLayoutMode] = useState('staggered');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([
+      collectionsAPI.getAll(),
+      collectionsAPI.getLayout().catch(() => ({ layoutMode: 'staggered' })),
+    ])
+      .then(([items, layout]) => {
+        if (mounted) {
+          setCollections(items);
+          setLayoutMode(layout?.layoutMode === 'two-column' ? 'two-column' : 'staggered');
+        }
+      })
+      .catch((requestError) => {
+        console.error('Failed to load collections:', requestError);
+        if (mounted) setError(requestError.message || 'Không thể tải bộ sưu tập.');
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => { mounted = false; };
+  }, []);
+
   return (
-    <div className="collections-page">
+    <div className="collections-page collections-list-page">
       <div className="collections-header">
-        <span className="collections-tag">THEBOB CONCEPT</span>
-        <h1>BỘ SƯU TẬP</h1>
-        <p>Những thiết kế được giám tuyển đặc biệt, mang ngôn ngữ tối giản tinh tế và chất lượng vượt trội từ THEBOB.</p>
+        <div>
+          <span className="collections-tag">{t('collection.list.tag')}</span>
+          <h1>{t('collection.list.title').split('\n').map((line) => <span key={line}>{line}<br /></span>)}</h1>
+        </div>
+        <p>{t('collection.list.description')}</p>
       </div>
 
-      <div className="collections-grid-custom">
-        {collections.map((col) => (
-          <Link to={`/collections/${col.id}`} key={col.id} className="collection-card-custom">
-            <div className="collection-card-image-wrapper">
-              <img src={col.image} alt={col.name} className="collection-card-image" />
-              {col.label && <span className="collection-card-badge">{col.label}</span>}
-              <div className="collection-card-overlay-hover">
-                <span className="collection-card-btn">KHÁM PHÁ NGAY →</span>
+      {loading ? (
+        <div className="collection-loading">{t('collection.loading')}</div>
+      ) : error ? (
+        <div className="collection-empty"><h3>{error}</h3></div>
+      ) : collections.length === 0 ? (
+        <div className="collection-empty">
+          <h3>{t('collection.comingSoon')}</h3>
+          <p>{t('collection.noProducts')}</p>
+        </div>
+      ) : (
+        <div className={`collections-grid-custom collections-grid-custom--${layoutMode}`}>
+          {collections.map((collection, index) => {
+            const layoutPosition = (index % 4) + 1;
+            const groupStartRow = Math.floor(index / 4) * 4 + 1;
+            const rowOffset = [0, 0, 1, 2][layoutPosition - 1];
+            const rowSpan = layoutPosition === 2 ? 1 : 2;
+
+            return (
+            <Link
+              to={`/collections/${collection.slug || collection.id}`}
+              key={collection.id}
+              className={`collection-card-custom collection-card-custom--${layoutPosition}${index >= 4
+                ? ' collection-card-custom--continued'
+                : ''}`}
+              style={{
+                '--collection-grid-row': `${groupStartRow + rowOffset} / span ${rowSpan}`,
+              }}
+            >
+              <div className="collection-card-heading">
+                <span className="collection-card-subtitle">{collection.subtitle || 'THEBOB COLLECTION'}</span>
+                <h2 className="collection-card-title">{collection.name}</h2>
+                <p className="collection-card-desc">{collection.description}</p>
               </div>
-            </div>
-            <div className="collection-card-info">
-              <span className="collection-card-subtitle">{col.subtitle}</span>
-              <h3 className="collection-card-title">{col.name}</h3>
-              <p className="collection-card-desc">{col.description}</p>
-            </div>
-          </Link>
-        ))}
-      </div>
+              <div className="collection-card-image-wrapper">
+                <img
+                  src={collection.imageUrl || '/placeholder.jpg'}
+                  alt={collection.name}
+                  className="collection-card-image"
+                  loading="lazy"
+                />
+              </div>
+              <span className="collection-card-badge">{collection.productCount || 0} sản phẩm</span>
+              <span className="collection-card-arrow" aria-hidden="true">↗</span>
+            </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

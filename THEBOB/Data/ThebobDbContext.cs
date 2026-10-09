@@ -15,6 +15,9 @@ namespace THEBOB.Data
         // ── Existing Tables ──────────────────────────────────────────────────
         public DbSet<Product> Products { get; set; }
         public DbSet<Category> Categories { get; set; }
+        public DbSet<Collection> Collections { get; set; }
+        public DbSet<ProductCollection> ProductCollections { get; set; }
+        public DbSet<CollectionDisplaySetting> CollectionDisplaySettings { get; set; }
         public DbSet<ProductImage> ProductImages { get; set; }
         public DbSet<ProductVariantImage> ProductVariantImages { get; set; }
         public DbSet<ProductVariant> ProductVariants { get; set; }

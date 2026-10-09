@@ -11,6 +11,7 @@ namespace THEBOB.Services
         Task<(bool Success, string Message, int StatusCode)> CancelPaymentAsync(int orderId, int userId);
         Task<(bool Success, string Message, int StatusCode, object? Data)> ProcessWebhookAsync(JsonElement payload, HttpRequest request);
         Task<PagedPaymentTransactionsResponse> GetTransactionsAsync(string? status, int page, int pageSize);
+        Task<SepayBankTransactionsResponse> GetSepayTransactionsAsync(int limit, DateTime? transactionDateMin, DateTime? transactionDateMax, string? accountNumber);
         Task<(bool Success, string Message, int StatusCode, object? Data)> ConfirmPaymentAsync(ConfirmPaymentRequest request);
     }
 }

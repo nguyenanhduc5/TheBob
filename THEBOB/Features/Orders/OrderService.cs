@@ -533,6 +533,16 @@ namespace THEBOB.Services
                 return (false, $"Không thể cập nhật trạng thái cho đơn hàng đã {GetStatusString(currentStatus)}", 400, null);
             }
 
+            if (newStatus is OrderStatus.Shipped or OrderStatus.Delivered)
+            {
+                return (false, "Trạng thái giao hàng phải được xác nhận từ GHN bằng cách tạo vận đơn hoặc đồng bộ tracking.", 400, null);
+            }
+
+            if (newStatus == OrderStatus.Cancelled && !string.IsNullOrWhiteSpace(order.GhnOrderCode))
+            {
+                return (false, "Vui lòng hủy vận đơn GHN trước khi hủy đơn hàng.", 400, null);
+            }
+
             bool isValid = false;
 
             if (newStatus == OrderStatus.Cancelled)

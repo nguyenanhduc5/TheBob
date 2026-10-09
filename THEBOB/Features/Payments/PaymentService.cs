@@ -14,6 +14,8 @@ namespace THEBOB.Services
     {
         private const int PaymentWindowSeconds = 15 * 60;
 
+        private sealed record PaymentOrderMatch(int OrderId, string OrderNumber, string PaymentStatus, decimal TotalAmount);
+
         private readonly ThebobDbContext _context;
         private readonly SepayService _sepayService;
         private readonly IGhnService _ghnService;
@@ -265,6 +267,89 @@ namespace THEBOB.Services
                 Page = page,
                 PageSize = pageSize,
                 Total = total
+            };
+        }
+
+        public async Task<SepayBankTransactionsResponse> GetSepayTransactionsAsync(
+            int limit,
+            DateTime? transactionDateMin,
+            DateTime? transactionDateMax,
+            string? accountNumber)
+        {
+            if (transactionDateMin.HasValue && transactionDateMax.HasValue
+                && transactionDateMin.Value > transactionDateMax.Value)
+                throw new ArgumentException("Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.");
+
+            limit = Math.Clamp(limit, 1, 5000);
+            var transactions = await _sepayService.GetTransactions(
+                limit, transactionDateMin, transactionDateMax, accountNumber);
+
+            var virtualAccounts = transactions
+                .Select(transaction => transaction.SubAccount)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct()
+                .ToList();
+            var orderIdsFromContent = transactions
+                .Select(transaction => ExtractOrderId(transaction.TransactionContent))
+                .Where(orderId => orderId > 0)
+                .Distinct()
+                .ToList();
+
+            var orderByVirtualAccount = new Dictionary<string, PaymentOrderMatch>(StringComparer.OrdinalIgnoreCase);
+            if (virtualAccounts.Count > 0)
+            {
+                var localTransactions = await _context.PaymentTransactions
+                    .Where(transaction => transaction.VaNumber != null && virtualAccounts.Contains(transaction.VaNumber))
+                    .OrderByDescending(transaction => transaction.UpdatedAt)
+                    .Select(transaction => new
+                    {
+                        transaction.VaNumber,
+                        Match = new PaymentOrderMatch(
+                            transaction.OrderId,
+                            transaction.Order.OrderNumber,
+                            transaction.Order.PaymentStatus,
+                            transaction.Order.TotalAmount)
+                    })
+                    .ToListAsync();
+
+                orderByVirtualAccount = localTransactions
+                    .GroupBy(transaction => transaction.VaNumber!, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.First().Match, StringComparer.OrdinalIgnoreCase);
+            }
+
+            var orderById = orderIdsFromContent.Count == 0
+                ? new Dictionary<int, PaymentOrderMatch>()
+                : await _context.Orders
+                    .Where(order => orderIdsFromContent.Contains(order.Id))
+                    .Select(order => new PaymentOrderMatch(order.Id, order.OrderNumber, order.PaymentStatus, order.TotalAmount))
+                    .ToDictionaryAsync(order => order.OrderId);
+
+            foreach (var transaction in transactions)
+            {
+                PaymentOrderMatch? match = null;
+                if (!string.IsNullOrWhiteSpace(transaction.SubAccount))
+                {
+                    orderByVirtualAccount.TryGetValue(transaction.SubAccount, out match);
+                }
+                if (match == null)
+                {
+                    var orderId = ExtractOrderId(transaction.TransactionContent);
+                    orderById.TryGetValue(orderId, out match);
+                }
+                if (match == null || transaction.AmountIn <= 0)
+                    continue;
+
+                transaction.MatchedOrderId = match.OrderId;
+                transaction.MatchedOrderNumber = match.OrderNumber;
+                transaction.OrderPaymentStatus = match.PaymentStatus;
+                transaction.ExpectedAmount = match.TotalAmount;
+            }
+
+            return new SepayBankTransactionsResponse
+            {
+                Items = transactions,
+                Limit = limit,
+                RetrievedAt = DateTime.UtcNow
             };
         }
 

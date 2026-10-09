@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePreferences } from '../../context/PreferencesContext';
 import '../../styles/PaymentFeedback.css';
 
 export default function PaymentFailed() {
   const navigate = useNavigate();
+  const { t } = usePreferences();
 
   return (
     <div className="payment-feedback-container">
@@ -13,20 +15,19 @@ export default function PaymentFailed() {
             <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
-        <h1>Thanh toán thất bại</h1>
-        <p>Giao dịch của bạn không thể hoàn tất.</p>
-        <p className="sub-text">Hết thời hạn thực hiện thanh toán hoặc bạn đã chủ động hủy bỏ chuyển khoản.</p>
+        <h1>{t('payment.failed')}</h1>
+        <p>{t('payment.failed.description')}</p>
+        <p className="sub-text">{t('payment.failed.detail')}</p>
         
         <div className="feedback-actions">
           <button onClick={() => navigate('/checkout')} className="btn-feedback primary error">
-            Thử lại thanh toán
+            {t('payment.retry')}
           </button>
           <button onClick={() => navigate('/')} className="btn-feedback secondary">
-            Về trang chủ
+            {t('payment.home')}
           </button>
         </div>
       </div>
     </div>
   );
 }
-

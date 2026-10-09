@@ -55,5 +55,7 @@ namespace THEBOB.Models
         public ICollection<ProductVariant> ProductVariants { get; set; } = new List<ProductVariant>();
 
         public ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
+
+        public ICollection<ProductCollection> ProductCollections { get; set; } = new List<ProductCollection>();
     }
 }

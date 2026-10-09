@@ -199,6 +199,17 @@ export const productsAPI = {
   deleteProduct: (id)       => apiClient(`/products/${id}`,  { method: 'DELETE', auth: true }),
 };
 
+export const collectionsAPI = {
+  async getAll() { return safeArray(await apiClient('/collections')); },
+  getOne: (identifier) => apiClient(`/collections/${encodeURIComponent(identifier)}`),
+  getLayout: () => apiClient('/collections/layout'),
+  async getAdminAll() { return safeArray(await apiClient('/collections/admin', { auth: true })); },
+  updateLayout: (layoutMode) => apiClient('/collections/layout', { method: 'PUT', auth: true, body: { layoutMode } }),
+  create: (data) => apiClient('/collections', { method: 'POST', auth: true, body: data }),
+  update: (id, data) => apiClient(`/collections/${id}`, { method: 'PUT', auth: true, body: data }),
+  delete: (id) => apiClient(`/collections/${id}`, { method: 'DELETE', auth: true }),
+};
+
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
 export const ordersAPI = {
@@ -315,6 +326,14 @@ export const paymentAPI = {
     const res = await apiClient(`/payment/admin/transactions?${params}`, { auth: true });
     return res?.data || res;
   },
+
+  async getSepayTransactions({ limit = 100, transactionDateMin, transactionDateMax } = {}) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (transactionDateMin) params.set('transactionDateMin', transactionDateMin);
+    if (transactionDateMax) params.set('transactionDateMax', transactionDateMax);
+    const res = await apiClient(`/payment/admin/sepay-transactions?${params}`, { auth: true });
+    return res?.data || res;
+  },
 };
 
 // ─── Shipping (GHN) ───────────────────────────────────────────────────────────
@@ -331,6 +350,16 @@ export const shippingAPI = {
 
   getTracking: (ghnOrderCode) =>
     apiClient(`/shipping/tracking/${ghnOrderCode}`, { auth: true }),
+
+  setGhnCode: (orderId, ghnOrderCode) =>
+    apiClient(`/shipping/orders/${orderId}/ghn-code`, {
+      method: 'PATCH',
+      auth: true,
+      body: { ghnOrderCode },
+    }),
+
+  refreshOrderTracking: (orderId) =>
+    apiClient(`/shipping/orders/${orderId}/tracking`, { auth: true }),
 
   cancelShipment: (orderId, ghnOrderCode) =>
     apiClient(`/shipping/orders/${orderId}/shipment/${ghnOrderCode}`, { method: 'DELETE', auth: true }),

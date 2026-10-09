@@ -2,16 +2,20 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import { apiClient } from '../../api/app';
 import '../../styles/AdminCategories.css';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
+import AdminCollectionsPanel from '../../components/admin/collection/AdminCollectionsPanel';
 
 export default function AdminCategories() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const { addNotification } = useNotification();
+  const { t } = usePreferences();
 
   const [categories, setCategories] = useState([]);
+  const [activeSection, setActiveSection] = useState('categories');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -27,11 +31,11 @@ export default function AdminCategories() {
       setCategories(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
-      addNotification(error.message || 'Khong the tai danh muc', 'error');
+      addNotification(error.message || t('admin.categories.loadError'), 'error');
     } finally {
       setLoading(false);
     }
-  }, [addNotification]);
+  }, [addNotification, t]);
 
   useEffect(() => {
     if (!isAdmin()) {
@@ -60,7 +64,7 @@ export default function AdminCategories() {
     event.preventDefault();
 
     if (!formData.name.trim()) {
-      addNotification('Vui long nhap ten danh muc', 'warning');
+      addNotification(t('admin.categories.required'), 'warning');
       return;
     }
 
@@ -71,13 +75,16 @@ export default function AdminCategories() {
         body: editingId ? { ...formData, id: editingId } : formData,
       });
 
-      addNotification(editingId ? 'Cap nhat danh muc thanh cong' : 'Them danh muc thanh cong', 'success');
+      addNotification(
+        editingId ? t('admin.categories.updated') : t('admin.categories.created'),
+        'success'
+      );
       setShowForm(false);
       resetForm();
       fetchCategories();
     } catch (error) {
       console.error('Submit error:', error);
-      addNotification(error.message || 'Khong the luu danh muc', 'error');
+      addNotification(error.message || t('admin.categories.saved.error'), 'error');
     }
   };
 
@@ -91,7 +98,7 @@ export default function AdminCategories() {
   };
 
   const handleDelete = async (categoryId) => {
-    if (!window.confirm('Ban chac chan muon xoa danh muc nay?')) return;
+    if (!window.confirm(t('admin.categories.confirmDelete'))) return;
 
     try {
       await apiClient(`/category/${categoryId}`, {
@@ -99,11 +106,11 @@ export default function AdminCategories() {
         auth: true,
       });
 
-      addNotification('Xoa danh muc thanh cong', 'success');
+      addNotification(t('admin.categories.deleted'), 'success');
       fetchCategories();
     } catch (error) {
       console.error('Delete error:', error);
-      addNotification(error.message || 'Khong the xoa danh muc', 'error');
+      addNotification(error.message || t('admin.categories.delete.error'), 'error');
     }
   };
 
@@ -113,8 +120,30 @@ export default function AdminCategories() {
 
   return (
     <div className="admin-categories-page">
+      <div className="catalog-admin-tabs" role="tablist" aria-label="Quản lý danh mục và bộ sưu tập">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'categories'}
+          className={activeSection === 'categories' ? 'active' : ''}
+          onClick={() => setActiveSection('categories')}
+        >
+          Danh mục sản phẩm
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'collections'}
+          className={activeSection === 'collections' ? 'active' : ''}
+          onClick={() => setActiveSection('collections')}
+        >
+          Bộ sưu tập
+        </button>
+      </div>
+
+      {activeSection === 'collections' ? <AdminCollectionsPanel /> : <>
       <div className="admin-header">
-        <h1>Quan Ly Danh Muc</h1>
+        <h1>{t('admin.categories.title')}</h1>
         <button
           onClick={() => {
             if (showForm) {
@@ -126,32 +155,32 @@ export default function AdminCategories() {
           }}
           className="btn-add-category"
         >
-          {showForm ? 'Quay Lai' : '+ Them Danh Muc'}
+          {showForm ? t('admin.categories.back') : t('admin.categories.add')}
         </button>
       </div>
 
       {showForm ? (
         <div className="category-form-section">
           <form onSubmit={handleSubmit} className="category-form">
-            <h2>{editingId ? 'Chinh Sua Danh Muc' : 'Them Danh Muc Moi'}</h2>
+            <h2>{editingId ? t('admin.categories.edit') : t('admin.categories.new')}</h2>
 
             <div className="form-group">
-              <label>Ten Danh Muc *</label>
+              <label>{t('admin.categories.name')}</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={handleFormChange('name')}
-                placeholder="Ten danh muc"
+                placeholder={t('admin.categories.name.placeholder')}
                 required
               />
             </div>
 
             <div className="form-group">
-              <label>Mo Ta</label>
+              <label>{t('admin.categories.description')}</label>
               <textarea
                 value={formData.description}
                 onChange={handleFormChange('description')}
-                placeholder="Mo ta danh muc"
+                placeholder={t('admin.categories.description.placeholder')}
                 rows={4}
               />
             </div>
@@ -165,10 +194,10 @@ export default function AdminCategories() {
                 }}
                 className="btn-cancel"
               >
-                Huy
+                {t('admin.categories.cancel')}
               </button>
               <button type="submit" className="btn-save">
-                {editingId ? 'Cap Nhat' : 'Them'} Danh Muc
+                {editingId ? t('admin.categories.update') : t('admin.categories.save')}
               </button>
             </div>
           </form>
@@ -176,7 +205,7 @@ export default function AdminCategories() {
       ) : (
         <div className="categories-list-section">
           {categories.length === 0 ? (
-            <div className="no-categories">Khong co danh muc nao</div>
+            <div className="no-categories">{t('admin.categories.empty')}</div>
           ) : (
             <div className="categories-grid">
               {categories.map((category) => (
@@ -187,10 +216,10 @@ export default function AdminCategories() {
                   </div>
                   <div className="category-actions">
                     <button onClick={() => handleEdit(category)} className="btn-edit">
-                      Sua
+                      {t('admin.categories.editAction')}
                     </button>
                     <button onClick={() => handleDelete(category.id)} className="btn-delete">
-                      Xoa
+                      {t('admin.categories.delete')}
                     </button>
                   </div>
                 </div>
@@ -199,7 +228,7 @@ export default function AdminCategories() {
           )}
         </div>
       )}
+      </>}
     </div>
   );
 }
-

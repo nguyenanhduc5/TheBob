@@ -1,198 +1,115 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { productsAPI } from '../../api/app';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { collectionsAPI } from '../../api/app';
+import { usePreferences } from '../../context/PreferencesContext';
 import '../../styles/Collection.css';
-import '../../styles/Products.css'; // Reuse product card styles
+import '../../styles/Products.css';
 
-import flowerImg from '../../images/flower.jpg';
-import smileImg from '../../images/smile.jpg';
-import cuaImg from '../../images/cua.jpg';
-import makeroomImg from '../../images/makeroom.jpg';
-
-const collectionMetadata = {
-  'summer26-2': {
-    name: 'SUMMER26 DROP 2',
-    subtitle: 'PREMIUM COTTON ESSENTIALS',
-    description: 'Trải nghiệm sự thoải mái tuyệt đối với các thiết kế tối giản, phom dáng rộng rãi phóng khoáng cho ngày hè năng động.',
-    image: flowerImg,
-    productIds: [10, 24, 15] // SHORT, TEE PLUS, TEE MESSI
-  },
-  'summer26-1': {
-    name: 'SUMMER26 DROP 1',
-    subtitle: 'STREET MINIMALISM',
-    description: 'Sự kết hợp hoàn hảo giữa thời trang đường phố và phong cách tối giản. Đơn giản nhưng không bao giờ đơn điệu.',
-    image: smileImg,
-    productIds: [20, 7] // TEE BLUE, Quần
-  },
-  'igifms': {
-    name: '“IGIFMS” COLLECTION',
-    subtitle: 'URBAN APPAREL CONCEPT',
-    description: 'Lấy cảm hứng từ nhịp sống đô thị hiện đại, mang đậm chất riêng cá tính với chất liệu dày dặn cao cấp.',
-    image: cuaImg,
-    productIds: [21, 23] // SOMI, LONG SLEEVE
-  },
-  'legacy': {
-    name: 'SSMA "LEGACY" DROP',
-    subtitle: 'VINTAGE STREETWEAR',
-    description: 'Những mảnh ghép di sản mang phong cách retro nguyên bản, khẳng định cái tôi thời trang khác biệt và thời thượng.',
-    image: makeroomImg,
-    productIds: [22, 19, 18, 16] // Jacket Black, Jacket, HODDIE, TEE ASIAN
-  }
-};
+const getVariants = (product) => product?.variants || product?.productVariants || [];
 
 export default function CollectionDetail() {
   const { collectionId } = useParams();
   const navigate = useNavigate();
-  const [products, setProducts] = useState([]);
+  const { t } = usePreferences();
+  const [collection, setCollection] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  const colInfo = collectionMetadata[collectionId];
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    async function loadProducts() {
-      if (!colInfo) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const results = await Promise.all(
-          colInfo.productIds.map((id) =>
-            productsAPI.getProduct(id).catch(() => null)
-          )
-        );
-        const filtered = results
-          .map((payload) => payload?.data ?? payload)
-          .filter((p) => p && p.id);
-        setProducts(filtered);
-      } catch (err) {
-        console.error('Failed to load products for collection:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadProducts();
-  }, [collectionId, colInfo]);
+    let mounted = true;
+    setLoading(true);
+    setError('');
+    collectionsAPI.getOne(collectionId)
+      .then((payload) => {
+        if (mounted) setCollection(payload?.data ?? payload);
+      })
+      .catch((requestError) => {
+        console.error('Failed to load collection:', requestError);
+        if (mounted) setError(requestError.message || t('collection.notFound'));
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => { mounted = false; };
+  }, [collectionId, t]);
 
-  if (!colInfo) {
+  const handleProductClick = (product) => {
+    navigate(`/product/${product.slug || product.id}`);
+  };
+
+  if (loading) return <div className="collection-loading">{t('collection.loading')}</div>;
+
+  if (!collection || error) {
     return (
       <div className="collections-page">
-        <Link to="/collections" className="back-to-collections">
-          ← Quay lại danh sách
-        </Link>
+        <Link to="/collections" className="back-to-collections">{t('collection.back')}</Link>
         <div className="collection-empty">
-          <h3>Không tìm thấy bộ sưu tập</h3>
-          <p>Đường dẫn không hợp lệ hoặc bộ sưu tập này không tồn tại.</p>
+          <h3>{error || t('collection.notFound')}</h3>
+          <p>{t('collection.invalid')}</p>
         </div>
       </div>
     );
   }
 
-  const handleProductClick = (product) => {
-    const identifier = typeof product === 'object' ? (product.slug || product.id) : product;
-    navigate(`/product/${identifier}`);
-  };
+  const products = Array.isArray(collection.products) ? collection.products : [];
 
   return (
     <div className="collection-detail-page">
-      <Link to="/collections" className="back-to-collections">
-        ← Tất cả bộ sưu tập
-      </Link>
+      <Link to="/collections" className="back-to-collections">{t('collection.all')}</Link>
 
-      {/* Hero Banner */}
-      <section 
-        className="collection-hero" 
-        style={{ backgroundImage: `url(${colInfo.image})` }}
+      <section
+        className="collection-hero"
+        style={{ backgroundImage: `url(${collection.imageUrl || '/placeholder.jpg'})` }}
       >
         <div className="collection-hero-content">
-          <span className="collection-hero-tag">{colInfo.subtitle}</span>
-          <h1 className="collection-hero-title">{colInfo.name}</h1>
-          <p className="collection-hero-desc">{colInfo.description}</p>
+          <span className="collection-hero-tag">{collection.subtitle || 'THEBOB COLLECTION'}</span>
+          <h1 className="collection-hero-title">{collection.name}</h1>
+          <p className="collection-hero-desc">{collection.description}</p>
         </div>
       </section>
 
-      {/* Product List */}
-      {loading ? (
-        <div className="collection-loading">
-          Đang tải sản phẩm...
-        </div>
-      ) : products.length === 0 ? (
+      {products.length === 0 ? (
         <div className="collection-empty">
-          <h3>Sản phẩm sắp ra mắt</h3>
-          <p>Hiện tại chưa có sản phẩm nào thuộc bộ sưu tập này được mở bán.</p>
+          <h3>{t('collection.comingSoon')}</h3>
+          <p>{t('collection.noProducts')}</p>
         </div>
       ) : (
         <div className="products-grid">
           {products.map((product) => {
-            const colorsMap = new Map();
-            (product.variants || product.productVariants || []).forEach(v => {
-              const cId = v.colorId ?? v.ColorId;
-              const cName = v.color ?? v.Color;
-              const cHex = v.hexCode ?? v.HexCode;
-              if (cId && cHex && !colorsMap.has(cId)) {
-                colorsMap.set(cId, { id: cId, name: cName, hexCode: cHex });
+            const colors = new Map();
+            getVariants(product).forEach((variant) => {
+              const colorId = variant.colorId ?? variant.ColorId;
+              const name = variant.color ?? variant.Color;
+              const hexCode = variant.hexCode ?? variant.HexCode;
+              if (colorId && hexCode && !colors.has(String(colorId))) {
+                colors.set(String(colorId), { id: colorId, name, hexCode });
               }
             });
-            const productColors = Array.from(colorsMap.values());
+            const productColors = [...colors.values()];
+            const stock = Number(product.totalStock ?? product.stock ?? 0);
+            const price = Number(product.price ?? product.minPrice ?? 0);
 
             return (
-              <div key={product.id} className="product-card">
-                <div
-                  className="product-image-container"
-                  onClick={() => handleProductClick(product)}
-                >
-                  <img
-                    src={product.mainImageUrl || '/placeholder.jpg'}
-                    alt={product.name}
-                    className="product-image"
-                  />
-                  {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
-                  {(product.productVariants ?? []).reduce(
-                    (sum, v) => sum + (Number(v.stock ?? v.Stock) || 0), 0
-                  ) === 0 && (
-                    <span className="badge-sold-out">Hết Hàng</span>
-                  )}
-                </div>
+              <article key={product.id} className="product-card">
+                <button type="button" className="product-image-container collection-product-image" onClick={() => handleProductClick(product)}>
+                  <img src={product.mainImageUrl || '/placeholder.jpg'} alt={product.name} className="product-image" />
+                  {product.isFeatured && <span className="badge-featured">{t('product.featured')}</span>}
+                  {stock === 0 && <span className="badge-sold-out">{t('product.soldOut')}</span>}
+                </button>
                 <div className="product-info">
-                  <h3 className="product-name" onClick={() => handleProductClick(product)}>
-                    {product.name}
-                  </h3>
-                  <div className="product-card-colors" style={{ display: 'flex', gap: '6px', alignItems: 'center', height: '20px', margin: '8px 0' }}>
-                    {productColors.slice(0, 3).map(color => (
-                      <span 
-                        key={color.id} 
-                        title={color.name}
-                        style={{ 
-                          width: '12px', 
-                          height: '12px', 
-                          borderRadius: '50%', 
-                          backgroundColor: color.hexCode, 
-                          border: '1px solid #ccc',
-                          display: 'inline-block'
-                        }} 
-                      />
+                  <button type="button" className="product-name collection-product-name" onClick={() => handleProductClick(product)}>{product.name}</button>
+                  <div className="product-card-colors collection-product-colors">
+                    {productColors.slice(0, 4).map((color) => (
+                      <span key={color.id} title={color.name} style={{ backgroundColor: color.hexCode }} />
                     ))}
-                    {productColors.length > 3 && (
-                      <span style={{ fontSize: '0.72rem', color: '#666', fontWeight: '500' }}>
-                        +{productColors.length - 3}
-                      </span>
-                    )}
+                    {productColors.length > 4 && <small>+{productColors.length - 4}</small>}
                   </div>
-                  <div className="product-price">
-                    {product.price !== undefined && product.price !== null
-                      ? product.price.toLocaleString('vi-VN')
-                      : product.productVariants?.[0]?.price
-                      ? product.productVariants[0].price.toLocaleString('vi-VN')
-                      : '0'}{' '}
-                    VNĐ
-                  </div>
-                  <button
-                    onClick={() => handleProductClick(product)}
-                    className="btn-add-to-cart"
-                  >
-                    Xem chi tiết
+                  <div className="product-price">{price.toLocaleString('vi-VN')} VNĐ</div>
+                  <button type="button" onClick={() => handleProductClick(product)} className="btn-add-to-cart">
+                    {t('product.details')}
                   </button>
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
@@ -200,4 +117,3 @@ export default function CollectionDetail() {
     </div>
   );
 }
-

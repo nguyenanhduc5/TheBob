@@ -130,6 +130,42 @@ namespace THEBOB.Controllers
             return Ok(ApiResponse<PagedPaymentTransactionsResponse>.Ok(result));
         }
 
+        [HttpGet("admin/sepay-transactions")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetSepayTransactions(
+            [FromQuery] int limit = 100,
+            [FromQuery] DateTime? transactionDateMin = null,
+            [FromQuery] DateTime? transactionDateMax = null,
+            [FromQuery] string? accountNumber = null)
+        {
+            try
+            {
+                var result = await _paymentService.GetSepayTransactionsAsync(
+                    limit, transactionDateMin, transactionDateMax, accountNumber);
+                return Ok(ApiResponse<SepayBankTransactionsResponse>.Ok(result));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(502, ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(502, ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (JsonException ex)
+            {
+                return StatusCode(502, ApiResponse<object>.Fail($"Dữ liệu trả về từ SePay không hợp lệ: {ex.Message}"));
+            }
+            catch (TaskCanceledException)
+            {
+                return StatusCode(504, ApiResponse<object>.Fail("SePay API phản hồi quá thời gian chờ."));
+            }
+        }
+
         [HttpPost("confirm")]
         [HttpPost("orders/{orderId}/confirm")]
         [Authorize(Roles = "Admin")]

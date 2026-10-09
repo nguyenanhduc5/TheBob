@@ -78,6 +78,17 @@ public class ShippingController : ControllerBase
         return Ok(result.Data);
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpGet("orders/{orderId:int}/tracking")]
+    public async Task<IActionResult> RefreshOrderTracking(int orderId)
+    {
+        var result = await _shippingService.RefreshOrderTrackingAsync(orderId);
+        if (!result.Success)
+            return StatusCode(result.StatusCode, new { message = result.Message });
+
+        return Ok(result.Data);
+    }
+
     // ── Tra cứu tracking ──────────────────────────────────────────────────────
     [HttpGet("tracking/{ghnOrderCode}")]
     public async Task<IActionResult> GetTracking(string ghnOrderCode)

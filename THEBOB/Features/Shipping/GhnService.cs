@@ -118,7 +118,8 @@ namespace THEBOB.Services
             SetHeaders(false);
             var body = new { order_code = ghnOrderCode };
             var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-            await _httpClient.PostAsync("shiip/public-api/v2/shipping-order/cancel", content);
+            using var response = await _httpClient.PostAsync("shiip/public-api/v2/shipping-order/cancel", content);
+            await ParseResponse(response);
         }
 
     private async Task<JsonElement> ParseResponse(HttpResponseMessage res)
@@ -274,8 +275,36 @@ namespace THEBOB.Services
                 Status = GetString(data, "status", "Status"),
                 StatusName = GetString(data, "status_name", "StatusName"),
                 PickDate = GetDateTime(data, "pick_date", "PickDate"),
-                DeliverDate = GetDateTime(data, "deliver_date", "DeliverDate")
+                DeliverDate = GetDateTime(data, "deliver_date", "DeliverDate"),
+                Logs = ParseTrackingLogs(data)
             };
+        }
+
+        private static List<GhnLog> ParseTrackingLogs(JsonElement data)
+        {
+            var logs = new List<GhnLog>();
+            if (data.ValueKind != JsonValueKind.Object)
+                return logs;
+
+            foreach (var propertyName in new[] { "log", "logs" })
+            {
+                if (!data.TryGetProperty(propertyName, out var entries) || entries.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                foreach (var entry in entries.EnumerateArray())
+                {
+                    logs.Add(new GhnLog
+                    {
+                        Status = GetString(entry, "status", "Status"),
+                        UpdatedDate = GetDateTime(entry, "updated_date", "updatedDate", "UpdatedDate", "time", "Time"),
+                        Description = GetString(entry, "description", "Description", "status_name", "StatusName")
+                    });
+                }
+
+                break;
+            }
+
+            return logs;
         }
 
         private static int GetInt(JsonElement element, params string[] propertyNames)

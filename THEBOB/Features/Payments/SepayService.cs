@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using THEBOB.Models;
@@ -120,6 +121,79 @@ namespace THEBOB.Services
                 _logger.LogError(ex, "SePay GetTransactionStatus exception for VA={VaNumber}", vaNumber);
                 return new SepayTransactionStatusResult { Status = "Pending", RawResponse = ex.Message };
             }
+        }
+
+        public async Task<List<SepayBankTransaction>> GetTransactions(
+            int limit,
+            DateTime? transactionDateMin,
+            DateTime? transactionDateMax,
+            string? accountNumber)
+        {
+            var apiBaseUrl = _configuration["SePay:TransactionsApiBaseUrl"];
+            if (string.IsNullOrWhiteSpace(apiBaseUrl))
+                apiBaseUrl = "https://my.sepay.vn/userapi";
+
+            var query = new List<string> { $"limit={Math.Clamp(limit, 1, 5000)}" };
+            var configuredAccountNumber = string.IsNullOrWhiteSpace(accountNumber)
+                ? _configuration["SePay:AccountNumber"]
+                : accountNumber;
+
+            if (!string.IsNullOrWhiteSpace(configuredAccountNumber))
+                query.Add($"account_number={Uri.EscapeDataString(configuredAccountNumber.Trim())}");
+            if (transactionDateMin.HasValue)
+                query.Add($"transaction_date_min={Uri.EscapeDataString(transactionDateMin.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture))}");
+            if (transactionDateMax.HasValue)
+            {
+                var inclusiveMaximum = transactionDateMax.Value.TimeOfDay == TimeSpan.Zero
+                    ? transactionDateMax.Value.Date.AddDays(1).AddSeconds(-1)
+                    : transactionDateMax.Value;
+                query.Add($"transaction_date_max={Uri.EscapeDataString(inclusiveMaximum.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture))}");
+            }
+
+            var endpoint = $"{apiBaseUrl.TrimEnd('/')}/transactions/list?{string.Join("&", query)}";
+            using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Apikey", GetRequiredConfig("SePay:ApiToken"));
+            using var response = await _httpClient.SendAsync(request);
+            var responseText = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("SePay transactions API returned HTTP {StatusCode}.", (int)response.StatusCode);
+                throw new HttpRequestException(
+                    $"SePay không thể tải danh sách giao dịch (HTTP {(int)response.StatusCode}).",
+                    null,
+                    response.StatusCode);
+            }
+
+            using var document = JsonDocument.Parse(responseText);
+            var root = document.RootElement;
+            var data = root.TryGetProperty("data", out var dataElement) ? dataElement : root;
+            var transactions = data;
+            if (data.ValueKind == JsonValueKind.Object)
+            {
+                if (!data.TryGetProperty("transactions", out transactions)
+                    && !data.TryGetProperty("data", out transactions))
+                    throw new InvalidOperationException("SePay trả về dữ liệu giao dịch không đúng định dạng.");
+            }
+
+            if (transactions.ValueKind != JsonValueKind.Array)
+                throw new InvalidOperationException("SePay trả về dữ liệu giao dịch không đúng định dạng.");
+
+            return transactions.EnumerateArray().Select(item => new SepayBankTransaction
+            {
+                Id = GetString(item, "id", "transaction_id") ?? string.Empty,
+                TransactionDate = GetLocalTransactionDate(item, "transaction_date", "transactionDate"),
+                AccountNumber = GetString(item, "account_number", "accountNumber") ?? string.Empty,
+                AmountIn = GetDecimal(item, "amount_in", "amountIn"),
+                AmountOut = GetDecimal(item, "amount_out", "amountOut"),
+                Accumulated = GetDecimal(item, "accumulated", "balance"),
+                TransactionContent = GetString(item, "transaction_content", "transactionContent") ?? string.Empty,
+                ReferenceCode = GetString(item, "reference_code", "reference_number", "referenceCode") ?? string.Empty,
+                BankBrandName = GetString(item, "bank_brand_name", "bankBrandName") ?? string.Empty,
+                Gateway = GetString(item, "gateway") ?? string.Empty,
+                SubAccount = GetString(item, "sub_account", "subAccount") ?? string.Empty,
+                BankAccountId = GetString(item, "bank_account_id", "bankAccountId") ?? string.Empty
+            }).ToList();
         }
 
         public bool VerifyWebhook(HttpRequest request, out string error)
@@ -282,10 +356,25 @@ else
                 if (property.ValueKind == JsonValueKind.Number && property.TryGetDecimal(out var value))
                     return value;
 
-                if (property.ValueKind == JsonValueKind.String && decimal.TryParse(property.GetString(), out value))
+                if (property.ValueKind == JsonValueKind.String
+                    && decimal.TryParse(property.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out value))
                     return value;
             }
             return 0;
+        }
+
+        private static DateTime? GetLocalTransactionDate(JsonElement element, params string[] names)
+        {
+            foreach (var name in names)
+            {
+                if (element.ValueKind == JsonValueKind.Object
+                    && element.TryGetProperty(name, out var property)
+                    && property.ValueKind == JsonValueKind.String
+                    && DateTime.TryParse(property.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var value))
+                    return DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
+            }
+
+            return null;
         }
 
         private static DateTime? GetDateTime(JsonElement element, params string[] names)
@@ -322,6 +411,34 @@ else
         public string Status { get; set; } = "Pending";
         public string? TransactionId { get; set; }
         public string RawResponse { get; set; } = string.Empty;
+    }
+
+    public class SepayBankTransaction
+    {
+        public string Id { get; set; } = string.Empty;
+        public DateTime? TransactionDate { get; set; }
+        public string AccountNumber { get; set; } = string.Empty;
+        public decimal AmountIn { get; set; }
+        public decimal AmountOut { get; set; }
+        public decimal Accumulated { get; set; }
+        public string TransactionContent { get; set; } = string.Empty;
+        public string ReferenceCode { get; set; } = string.Empty;
+        public string BankBrandName { get; set; } = string.Empty;
+        public string Gateway { get; set; } = string.Empty;
+        public string SubAccount { get; set; } = string.Empty;
+        public string BankAccountId { get; set; } = string.Empty;
+        public int? MatchedOrderId { get; set; }
+        public string MatchedOrderNumber { get; set; } = string.Empty;
+        public string OrderPaymentStatus { get; set; } = string.Empty;
+        public decimal? ExpectedAmount { get; set; }
+    }
+
+    public class SepayBankTransactionsResponse
+    {
+        public List<SepayBankTransaction> Items { get; set; } = new();
+        public int Limit { get; set; }
+        public DateTime RetrievedAt { get; set; }
+        public string Source { get; set; } = "SePay API";
     }
 
     public class SepayWebhookPayload
