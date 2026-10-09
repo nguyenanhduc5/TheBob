@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import { apiClient } from '../../api/app';
 import '../../styles/AdminUsers.css';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
@@ -21,6 +22,7 @@ export default function AdminUsers() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const { addNotification } = useNotification();
+  const { t } = usePreferences();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,11 +35,11 @@ export default function AdminUsers() {
       setUsers(getUsersArray(payload));
     } catch (error) {
       console.error(error);
-      addNotification(error.message || 'Không thể tải danh sách người dùng', 'error');
+      addNotification(error.message || t('admin.users.loadError'), 'error');
     } finally {
       setLoading(false);
     }
-  }, [addNotification]);
+  }, [addNotification, t]);
 
   useEffect(() => {
     if (!isAdmin()) {
@@ -55,11 +57,11 @@ export default function AdminUsers() {
         auth: true,
         body: { role },
       });
-      addNotification('Cập nhật vai trò thành công', 'success');
+      addNotification(t('admin.users.roleUpdated'), 'success');
       fetchUsers();
     } catch (error) {
       console.error(error);
-      addNotification(error.message || 'Không thể cập nhật vai trò', 'error');
+      addNotification(error.message || t('admin.users.roleError'), 'error');
     } finally {
       setProcessingId(null);
     }
@@ -73,11 +75,11 @@ export default function AdminUsers() {
         auth: true,
         body: { isActive },
       });
-      addNotification('Cập nhật trạng thái thành công', 'success');
+      addNotification(t('admin.users.statusUpdated'), 'success');
       fetchUsers();
     } catch (error) {
       console.error(error);
-      addNotification(error.message || 'Không thể cập nhật trạng thái', 'error');
+      addNotification(error.message || t('admin.users.statusError'), 'error');
     } finally {
       setProcessingId(null);
     }
@@ -89,26 +91,26 @@ export default function AdminUsers() {
     <div className="admin-users-page">
       <div className="admin-header">
         <div>
-          <h1>Quản Lý Người Dùng</h1>
-          <p className="admin-subtitle">{users.length} người dùng trong hệ thống</p>
+          <h1>{t('admin.users.title')}</h1>
+          <p className="admin-subtitle">{t('admin.users.count', { count: users.length })}</p>
         </div>
       </div>
 
       {users.length === 0 ? (
         <div className="no-users">
           <span className="no-users-icon">👥</span>
-          <p>Không có người dùng nào</p>
+          <p>{t('admin.users.empty')}</p>
         </div>
       ) : (
         <div className="users-table-wrap">
           <div className="users-table">
           <div className="table-header">
             <span className="col-id">ID</span>
-            <span className="col-username">Tên Đăng Nhập</span>
-            <span className="col-email">Email</span>
-            <span className="col-role">Vai Trò</span>
-            <span className="col-active">Hoạt Động</span>
-            <span className="col-actions">Thao Tác</span>
+            <span className="col-username">{t('admin.users.username')}</span>
+            <span className="col-email">{t('admin.users.email')}</span>
+            <span className="col-role">{t('admin.users.role')}</span>
+            <span className="col-active">{t('admin.users.active')}</span>
+            <span className="col-actions">{t('admin.users.actions')}</span>
           </div>
 
           {users.map((user) => (
@@ -124,14 +126,14 @@ export default function AdminUsers() {
 
               <span className="col-role">
                 <span className={`badge badge-role ${user.role === 'Admin' ? 'badge-role-admin' : 'badge-role-user'}`}>
-                  {user.role === 'Admin' ? '👑 Admin' : 'Người Dùng'}
+                  {user.role === 'Admin' ? '👑 Admin' : t('admin.users.user')}
                 </span>
               </span>
 
               <span className="col-active">
                 <span className={`badge badge-status ${user.isActive ? 'badge-status-active' : 'badge-status-locked'}`}>
                   <span className="status-dot" />
-                  {user.isActive ? 'Hoạt Động' : 'Đã Khóa'}
+                  {user.isActive ? t('admin.users.active') : t('admin.users.locked')}
                 </span>
               </span>
 
@@ -142,7 +144,7 @@ export default function AdminUsers() {
                     onClick={() => changeRole(user.id, 'Admin')}
                     disabled={processingId === user.id}
                   >
-                    Thăng Admin
+                    {t('admin.users.promote')}
                   </button>
                 ) : (
                   <button
@@ -150,7 +152,7 @@ export default function AdminUsers() {
                     onClick={() => changeRole(user.id, 'User')}
                     disabled={processingId === user.id}
                   >
-                    Hạ Xuống User
+                    {t('admin.users.demote')}
                   </button>
                 )}
 
@@ -159,7 +161,7 @@ export default function AdminUsers() {
                   onClick={() => setActive(user.id, !user.isActive)}
                   disabled={processingId === user.id}
                 >
-                  {user.isActive ? 'Khóa' : 'Kích Hoạt'}
+                  {user.isActive ? t('admin.users.lock') : t('admin.users.activate')}
                 </button>
               </span>
             </div>

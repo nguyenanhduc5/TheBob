@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import { authAPI, ordersAPI, shippingAPI } from '../../api/app';
-import AdminLayout from '../../components/AdminLayout';
 import {
   IconLock,
   IconLogout,
@@ -16,12 +16,12 @@ import '../../styles/Profile.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const STATUS_MAP = {
-  PendingPayment: { label: 'Chờ thanh toán', cls: 'pendingpayment' },
-  Pending:        { label: 'Chờ xử lý',       cls: 'pending' },
-  Processing:     { label: 'Đang xử lý',       cls: 'processing' },
-  Shipped:        { label: 'Đang giao',         cls: 'shipped' },
-  Delivered:      { label: 'Đã giao',           cls: 'delivered' },
-  Cancelled:      { label: 'Đã hủy',            cls: 'cancelled' },
+  PendingPayment: { label: 'profile.status.pendingPayment', cls: 'pendingpayment' },
+  Pending:        { label: 'profile.status.pending', cls: 'pending' },
+  Processing:     { label: 'profile.status.processing', cls: 'processing' },
+  Shipped:        { label: 'profile.status.shipped', cls: 'shipped' },
+  Delivered:      { label: 'profile.status.delivered', cls: 'delivered' },
+  Cancelled:      { label: 'profile.status.cancelled', cls: 'cancelled' },
 };
 
 const getInitials = (name = '') =>
@@ -35,6 +35,8 @@ export default function Profile() {
   // ✅ FIX: lấy cả loading và isAdminUser (boolean) thay vì gọi isAdmin()
   const { user, token, updateUser, logout, loading: authLoading, isAdminUser } = useAuth();
   const { addNotification } = useNotification();
+  const { t, locale } = usePreferences();
+  const dateLocale = { vi: 'vi-VN', en: 'en-US', zh: 'zh-CN' }[locale];
 
   const initialMenu = searchParams.get('menu') || 'account';
   const [activeMenu, setActiveMenu] = useState(initialMenu);
@@ -79,8 +81,8 @@ export default function Profile() {
   useEffect(() => {
     shippingAPI.getProvinces()
       .then(setProvinces)
-      .catch(() => addNotification('Không tải được danh sách tỉnh/thành', 'error'));
-  }, [addNotification]);
+      .catch(() => addNotification(t('checkout.error.provinces'), 'error'));
+  }, [addNotification, t]);
 
   // Load profile
   useEffect(() => {
@@ -121,20 +123,20 @@ export default function Profile() {
       return await shippingAPI.getDistricts(provinceId);
     } catch (err) {
       console.error('Failed to load districts:', err);
-      addNotification('Không tải được danh sách quận/huyện', 'error');
+      addNotification(t('checkout.error.districts'), 'error');
       return [];
     }
-  }, [addNotification]);
+  }, [addNotification, t]);
 
   const loadWards = useCallback(async (districtId) => {
     try {
       return await shippingAPI.getWards(districtId);
     } catch (err) {
       console.error('Failed to load wards:', err);
-      addNotification('Không tải được danh sách phường/xã', 'error');
+      addNotification(t('checkout.error.wards'), 'error');
       return [];
     }
-  }, [addNotification]);
+  }, [addNotification, t]);
 
   // Khi đã có danh sách tỉnh/thành + địa chỉ đã lưu → tự động chọn sẵn tỉnh/quận/phường
   useEffect(() => {
@@ -239,7 +241,7 @@ export default function Profile() {
   const handleUpdateInfo = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.phone) {
-      addNotification('Vui lòng nhập họ tên và số điện thoại', 'warning');
+      addNotification(t('profile.required'), 'warning');
       return;
     }
     setIsUpdating(true);
@@ -260,14 +262,14 @@ export default function Profile() {
       const updated = result?.data;
       if (updated) {
         updateUser(updated);
-        setSuccessMessage('Cập nhật thành công!');
-        addNotification('Cập nhật thông tin thành công!', 'success');
+        setSuccessMessage(t('profile.saved'));
+        addNotification(t('profile.updated'), 'success');
       } else {
-        throw new Error('Phản hồi không hợp lệ.');
+        throw new Error(t('profile.invalidResponse'));
       }
     } catch (err) {
       console.error('Update error:', err);
-      addNotification(err.response?.data?.message || err.message || 'Lỗi kết nối.', 'error');
+      addNotification(err.response?.data?.message || err.message || t('profile.connectionError'), 'error');
     } finally {
       setIsUpdating(false);
     }
@@ -275,13 +277,13 @@ export default function Profile() {
 
   const handleChangePassword = (e) => {
     e.preventDefault();
-    setSuccessMessage('Tính năng đổi mật khẩu sẽ được cập nhật sớm!');
+    setSuccessMessage(t('profile.password.comingSoon'));
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
   const handleLogout = () => {
     logout();
-    addNotification('Đã đăng xuất.', 'info');
+    addNotification(t('profile.logout'), 'info');
     navigate('/');
   };
 
@@ -290,7 +292,7 @@ export default function Profile() {
     return (
       <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'60vh' }}>
         <p style={{ color:'#9a9a9a', fontSize:'0.9rem', letterSpacing:'0.08em' }}>
-          ĐANG TẢI...
+          {t('profile.loading')}
         </p>
       </div>
     );
@@ -301,7 +303,7 @@ export default function Profile() {
     <form onSubmit={handleUpdateInfo} className="account-form">
       <div className="form-row two-cols">
         <div className="form-group">
-          <label>Họ và tên *</label>
+          <label>{t('profile.name')}</label>
           <input
             type="text"
             value={formData.name}
@@ -310,7 +312,7 @@ export default function Profile() {
           />
         </div>
         <div className="form-group">
-          <label>Số điện thoại *</label>
+          <label>{t('profile.phone')}</label>
           <input
             type="tel"
             inputMode="numeric"
@@ -329,16 +331,16 @@ export default function Profile() {
       </div>
 
       <div className="address-block">
-        <div className="address-block-title">Địa chỉ giao hàng mặc định</div>
+        <div className="address-block-title">{t('profile.address.default')}</div>
         <span className="form-hint address-block-hint">
-          Lưu địa chỉ tại đây để khi đặt hàng, Checkout tự điền sẵn — không cần nhập lại.
+          {t('profile.address.hint')}
         </span>
 
         <div className="form-row">
           <div className="form-group">
             <label>Tỉnh / Thành phố</label>
             <select value={selectedProvince.id || ''} onChange={handleProvinceChange}>
-              <option value="">Chọn tỉnh/thành</option>
+              <option value="">{t('profile.selectProvince')}</option>
               {provinces.map((p) => (
                 <option key={p.provinceId} value={p.provinceId}>{p.provinceName}</option>
               ))}
@@ -354,7 +356,7 @@ export default function Profile() {
               onChange={handleDistrictChange}
               disabled={!districts.length}
             >
-              <option value="">Chọn quận/huyện</option>
+              <option value="">{t('profile.selectDistrict')}</option>
               {districts.map((d) => (
                 <option key={d.districtId} value={d.districtId}>{d.districtName}</option>
               ))}
@@ -367,7 +369,7 @@ export default function Profile() {
               onChange={handleWardChange}
               disabled={!wards.length}
             >
-              <option value="">Chọn phường/xã</option>
+              <option value="">{t('profile.selectWard')}</option>
               {wards.map((w) => (
                 <option key={w.wardCode} value={w.wardCode}>{w.wardName}</option>
               ))}
@@ -377,7 +379,7 @@ export default function Profile() {
 
         <div className="form-row">
           <div className="form-group">
-            <label>Số nhà, tên đường</label>
+            <label>{t('profile.street')}</label>
             <input
               type="text"
               value={formData.specificAddress}
@@ -388,12 +390,12 @@ export default function Profile() {
         </div>
 
         <div className="address-preview">
-          <strong>Địa chỉ đầy đủ:</strong> {fullAddressPreview || 'Chưa có địa chỉ'}
+          <strong>{t('profile.fullAddress')}</strong> {fullAddressPreview || t('profile.noAddress')}
         </div>
       </div>
 
       <button type="submit" className="btn-update" disabled={isUpdating}>
-        {isUpdating ? 'Đang lưu...' : 'Lưu thay đổi'}
+        {isUpdating ? t('profile.saving') : t('profile.save')}
       </button>
     </form>
   );
@@ -401,28 +403,26 @@ export default function Profile() {
   // ── Admin layout ──────────────────────────────────────────────────────────────
   if (isAdminUser) {
     return (
-      <AdminLayout title="Hồ Sơ Admin" hideTopbar>
-        <div className="admin-profile-section">
-          <div className="admin-profile-wrap">
-            {successMessage && (
-              <div className="success-message">✓ {successMessage}</div>
-            )}
-            <div className="admin-profile-card">
-              <h2>Thông Tin Hồ Sơ</h2>
-              {profileForm}
-              <div className="admin-profile-back-wrap">
-                <button
-                  type="button"
-                  className="btn-back-dashboard"
-                  onClick={() => navigate('/admin')}
-                >
-                  ← Quay lại Bảng Điều Khiển
-                </button>
-              </div>
+      <div className="admin-profile-section">
+        <div className="admin-profile-wrap">
+          {successMessage && (
+            <div className="success-message">✓ {successMessage}</div>
+          )}
+          <div className="admin-profile-card">
+            <h2>{t('profile.heading')}</h2>
+            {profileForm}
+            <div className="admin-profile-back-wrap">
+              <button
+                type="button"
+                className="btn-back-dashboard"
+                onClick={() => navigate('/admin')}
+              >
+                {t('profile.backDashboard')}
+              </button>
             </div>
           </div>
         </div>
-      </AdminLayout>
+      </div>
     );
   }
 
@@ -430,20 +430,20 @@ export default function Profile() {
   return (
     <section className="account-page-container">
       <header className="account-page-heading">
-        <p>THEBOB / TÀI KHOẢN</p>
-        <h1>Tài khoản của tôi</h1>
-        <span>Quản lý thông tin cá nhân và theo dõi đơn hàng của bạn.</span>
+        <p>THEBOB / {t('profile.account.heading').toLocaleUpperCase(dateLocale)}</p>
+        <h1>{t('profile.account.heading')}</h1>
+        <span>{t('profile.account.description')}</span>
       </header>
       <div className="account-page">
 
         {/* Sidebar */}
         <aside className="account-sidebar">
-          <div className="sidebar-header">Tài khoản</div>
+          <div className="sidebar-header">{t('profile.account.heading')}</div>
 
           <div className="sidebar-avatar">
             <div className="avatar-circle">{getInitials(formData.name)}</div>
             <div className="sidebar-avatar-info">
-              <span className="avatar-name">{formData.name || 'Thành viên'}</span>
+              <span className="avatar-name">{formData.name || t('profile.member')}</span>
               <span className="avatar-email">{formData.email}</span>
             </div>
           </div>
@@ -455,7 +455,7 @@ export default function Profile() {
               onClick={() => setActiveMenu('account')}
             >
               <IconUser className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
-              <span>Thông tin</span>
+              <span>{t('profile.menu.info')}</span>
             </button>
             <button
               type="button"
@@ -463,7 +463,7 @@ export default function Profile() {
               onClick={() => setActiveMenu('orders')}
             >
               <IconPackage className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
-              <span>Đơn hàng</span>
+              <span>{t('profile.menu.orders')}</span>
             </button>
             <button
               type="button"
@@ -471,7 +471,7 @@ export default function Profile() {
               onClick={() => navigate('/user/vouchers')}
             >
               <IconTicket className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
-              <span>Voucher của tôi</span>
+              <span>{t('profile.menu.vouchers')}</span>
             </button>
             <button
               type="button"
@@ -479,11 +479,11 @@ export default function Profile() {
               onClick={() => setActiveMenu('password')}
             >
               <IconLock className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
-              <span>Mật khẩu</span>
+              <span>{t('profile.menu.password')}</span>
             </button>
             <button type="button" className="menu-item logout" onClick={handleLogout}>
               <IconLogout className="menu-icon" size={19} stroke={1.7} aria-hidden="true" />
-              <span>Đăng xuất</span>
+              <span>{t('profile.menu.logout')}</span>
             </button>
           </nav>
         </aside>
@@ -494,8 +494,8 @@ export default function Profile() {
           {/* TAB: Thông tin */}
           {activeMenu === 'account' && (
             <div className="account-section">
-              <p className="account-section-title">Hồ sơ</p>
-              <h2>Thông tin tài khoản</h2>
+              <p className="account-section-title">{t('profile.section.profile')}</p>
+              <h2>{t('profile.section.account')}</h2>
               {successMessage && (
                 <div className="success-message">✓ {successMessage}</div>
               )}
@@ -506,19 +506,19 @@ export default function Profile() {
           {/* TAB: Đơn hàng */}
           {activeMenu === 'orders' && (
             <div className="account-section">
-              <p className="account-section-title">Lịch sử</p>
-              <h2>Đơn hàng của tôi</h2>
+              <p className="account-section-title">{t('profile.section.history')}</p>
+              <h2>{t('profile.section.orders')}</h2>
 
               {ordersLoading ? (
                 <p style={{ color:'#9a9a9a', fontSize:'0.85rem', letterSpacing:'0.06em' }}>
-                  ĐANG TẢI ĐƠN HÀNG...
+                  {t('profile.orders.loading')}
                 </p>
               ) : userOrders.length === 0 ? (
                 <div className="orders-empty-state">
                   <span className="empty-icon"><IconShoppingBag size={36} stroke={1.4} aria-hidden="true" /></span>
-                  <p>Bạn chưa có đơn hàng nào.</p>
+                  <p>{t('profile.orders.empty')}</p>
                   <button className="btn-shop-now" onClick={() => navigate('/products')}>
-                    Mua sắm ngay
+                    {t('profile.shopNow')}
                   </button>
                 </div>
               ) : (
@@ -531,24 +531,24 @@ export default function Profile() {
                           <div className="order-header-info">
                             <span className="order-id">#{order.id}</span>
                             <span className="order-date">
-                              {new Date(order.createdAt).toLocaleDateString('vi-VN', {
+                              {new Date(order.createdAt).toLocaleDateString(dateLocale, {
                                 day: '2-digit', month: '2-digit', year: 'numeric',
                               })}
                             </span>
                           </div>
-                          <span className={`status-badge ${st.cls}`}>{st.label}</span>
+                          <span className={`status-badge ${st.cls}`}>{STATUS_MAP[order.status] ? t(st.label) : st.label}</span>
                         </div>
 
                         <div className="order-history-items-container">
                           <table className="order-history-items-table">
                             <thead>
                               <tr>
-                                <th>Sản phẩm</th>
-                                <th style={{ textAlign:'center' }}>Size</th>
-                                <th style={{ textAlign:'center' }}>Màu</th>
-                                <th style={{ textAlign:'right' }}>Đơn giá</th>
-                                <th style={{ textAlign:'center' }}>SL</th>
-                                <th style={{ textAlign:'right' }}>Thành tiền</th>
+                                <th>{t('profile.table.product')}</th>
+                                <th style={{ textAlign:'center' }}>{t('profile.table.size')}</th>
+                                <th style={{ textAlign:'center' }}>{t('profile.table.color')}</th>
+                                <th style={{ textAlign:'right' }}>{t('profile.table.price')}</th>
+                                <th style={{ textAlign:'center' }}>{t('profile.table.quantity')}</th>
+                                <th style={{ textAlign:'right' }}>{t('profile.table.total')}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -576,17 +576,17 @@ export default function Profile() {
                         <div className="order-history-footer">
                           <div className="order-footer-summary">
                             <span className="order-shipping-label">
-                              Phí giao hàng:{' '}
+                              {t('profile.shipping')}{' '}
                               {order.shippingAmount === 0
-                                ? 'Miễn phí'
+                                ? t('profile.free')
                                 : `${order.shippingAmount?.toLocaleString('vi-VN')} đ`}
                             </span>
                             <span className="order-footer-total">
-                              Tổng cộng: <strong>{order.totalAmount?.toLocaleString('vi-VN')} đ</strong>
+                              {t('profile.total')} <strong>{order.totalAmount?.toLocaleString(dateLocale)} đ</strong>
                             </span>
                           </div>
                           <button className="btn-view-detail" onClick={() => navigate(`/orders/${order.id}`)}>
-                            Xem chi tiết
+                            {t('profile.viewDetails')}
                           </button>
                         </div>
                       </div>
@@ -600,28 +600,28 @@ export default function Profile() {
           {/* TAB: Mật khẩu */}
           {activeMenu === 'password' && (
             <div className="account-section">
-              <p className="account-section-title">Bảo mật</p>
-              <h2>Đổi mật khẩu</h2>
+              <p className="account-section-title">{t('profile.section.security')}</p>
+              <h2>{t('profile.password.title')}</h2>
               {successMessage && (
                 <div className="success-message">✓ {successMessage}</div>
               )}
               <p className="password-section-note">
-                Mật khẩu mới phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và số.
+                {t('profile.password.note')}
               </p>
               <form onSubmit={handleChangePassword} className="account-form">
                 <div className="form-group">
-                  <label>Mật khẩu hiện tại</label>
+                  <label>{t('profile.password.current')}</label>
                   <input type="password" placeholder="••••••••" />
                 </div>
                 <div className="form-group">
-                  <label>Mật khẩu mới</label>
+                  <label>{t('profile.password.new')}</label>
                   <input type="password" placeholder="••••••••" />
                 </div>
                 <div className="form-group">
-                  <label>Xác nhận mật khẩu mới</label>
+                  <label>{t('profile.password.confirm')}</label>
                   <input type="password" placeholder="••••••••" />
                 </div>
-                <button type="submit" className="btn-update">Cập nhật mật khẩu</button>
+                <button type="submit" className="btn-update">{t('profile.password.update')}</button>
               </form>
             </div>
           )}

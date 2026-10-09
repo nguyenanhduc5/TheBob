@@ -56,7 +56,88 @@
   justify-content: flex-end;
   justify-self: end;
   flex: 0 0 auto;
-  gap: 20px;
+  gap: 16px;
+}
+
+.preference-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preference-language {
+  position: relative;
+}
+
+.preference-button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.preference-language-flag {
+  display: block;
+  width: 20px;
+  height: 14px;
+  flex: 0 0 20px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 12%);
+}
+
+.preference-language-label {
+  max-width: 86px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preference-button:hover,
+.preference-button:focus-visible {
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+
+.preference-language-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 1100;
+  min-width: 120px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.preference-language-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.preference-language-option:hover,
+.preference-language-option.active {
+  background: var(--surface-soft);
 }
 
 .header-link-button {
@@ -244,11 +325,24 @@
   }
 
   .header-actions {
-    gap: 12px;
+    gap: 7px;
   }
 
   .icon-button {
     padding: 6px;
+  }
+
+  .preference-controls {
+    gap: 2px;
+  }
+
+  .preference-button {
+    min-height: 34px;
+    padding: 5px;
+  }
+
+  .preference-language-label {
+    max-width: 54px;
   }
 
   .primary-navigation-item {
@@ -264,7 +358,7 @@
   }
 
   .header-actions {
-    gap: 12px;
+    gap: 4px;
   }
 
   .primary-navigation {

@@ -6,6 +6,8 @@ import { useNotification } from '../../context/NotificationContext';
 import { ORDER_HUB_URL } from '../../api/app';
 import * as signalR from '@microsoft/signalr';
 import { Icons } from '../icons';
+import { usePreferences } from '../../context/PreferencesContext';
+import PreferencesControls from './PreferencesControls';
 import '../../styles/Header.css';
 
 export default function Header() {
@@ -13,6 +15,7 @@ export default function Header() {
   const location = useLocation();
   const { user, token, isAdmin } = useAuth();
   const { cartItems } = useCart();
+  const { t } = usePreferences();
   const { 
     addNotification, 
     dbNotifications, 
@@ -112,7 +115,7 @@ export default function Header() {
   }, [token]);
 
   // Hide header on admin pages
-  const hideHeaderPages = ['/login', '/register', '/admin', '/admin/products', '/admin/categories', '/admin/orders', '/admin/payments', '/admin/users', '/admin/profile', '/admin/settings'];
+  const hideHeaderPages = ['/login', '/register', '/admin'];
   if (hideHeaderPages.some(page => location.pathname.startsWith(page))) {
     return null;
   }
@@ -133,10 +136,10 @@ export default function Header() {
 
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
   const navItems = [
-    { label: 'SHOP', path: '/products' },
-    { label: 'COLLECTION', path: '/collections' },
-    { label: 'ABOUT US', path: '/about' },
-    { label: 'BLOG', path: '/blog' },
+    { label: t('header.nav.shop'), path: '/products' },
+    { label: t('header.nav.collection'), path: '/collections' },
+    { label: t('header.nav.about'), path: '/about' },
+    { label: t('header.nav.blog'), path: '/blog' },
   ];
 
   const isActiveNavItem = (path) =>
@@ -151,7 +154,7 @@ export default function Header() {
           type="button"
           className="hamburger"
           onClick={() => setNavOpen((open) => !open)}
-          aria-label={navOpen ? 'Ẩn menu điều hướng' : 'Hiện menu điều hướng'}
+          aria-label={navOpen ? t('header.menu.hide') : t('header.menu.show')}
           aria-expanded={navOpen}
           aria-controls="primary-navigation"
         >
@@ -165,10 +168,11 @@ export default function Header() {
         </button>
 
         <div className="header-actions">
+          <PreferencesControls />
           <button
             className="icon-button cart-icon"
             onClick={() => handleNavigate('/cart')}
-            aria-label="View cart"
+            aria-label={t('header.cart')}
           >
             <Icons.cart size={22} />
             {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
@@ -180,7 +184,7 @@ export default function Header() {
                 setShowNotifDropdown(prev => !prev);
                 fetchDbNotifications();
               }}
-              aria-label="Notifications"
+              aria-label={t('header.notifications')}
             >
               <Icons.notification size={22} />
               {dbUnreadCount > 0 && (
@@ -193,17 +197,17 @@ export default function Header() {
             {showNotifDropdown && (
               <div className="notif-dropdown">
                 <div className="notif-header">
-                  <span>Thông báo mới nhận</span>
+                  <span>{t('header.notifications.new')}</span>
                   {dbUnreadCount > 0 && (
                     <button className="notif-mark-all" onClick={markAllDbAsRead}>
-                      Đánh dấu tất cả đã đọc
+                      {t('header.notifications.markAllRead')}
                     </button>
                   )}
                 </div>
 
                 <div className="notif-list">
                   {dbNotifications.length === 0 ? (
-                    <div className="notif-empty">Không có thông báo mới</div>
+                    <div className="notif-empty">{t('header.notifications.empty')}</div>
                   ) : (
                     dbNotifications.slice(0, 10).map((notif) => (
                       <div
@@ -251,7 +255,7 @@ export default function Header() {
                       navigate('/user/profile');
                     }}
                   >
-                    Xem tất cả thông báo
+                    {t('header.notifications.viewAll')}
                   </button>
                 </div>
               </div>
@@ -260,7 +264,7 @@ export default function Header() {
           <button
             className="icon-button user-icon"
             onClick={handleUserIconClick}
-            aria-label="Account"
+            aria-label={t('header.account')}
           >
             <Icons.user size={22} />
           </button>
@@ -270,7 +274,7 @@ export default function Header() {
       <nav
         id="primary-navigation"
         className={`primary-navigation ${navOpen ? '' : 'collapsed'}`}
-        aria-label="Điều hướng chính"
+        aria-label={t('header.navigation')}
         aria-hidden={!navOpen}
       >
         <div className="primary-navigation-grid">

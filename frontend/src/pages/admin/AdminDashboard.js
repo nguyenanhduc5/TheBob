@@ -2,9 +2,19 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import { ordersAPI, productsAPI } from '../../api/app';
-import AdminLayout from '../../components/AdminLayout';
+import { Icons } from '../../components/icons';
 import '../../styles/AdminDashboard.css';
+
+const RevenueIcon = Icons.cash;
+const OrdersIcon = Icons.orders;
+const DeliveredIcon = Icons.circleCheck;
+const ProductsIcon = Icons.product;
+const CategoryIcon = Icons.category;
+const UsersIcon = Icons.users;
+const PromotionIcon = Icons.promotion;
+const SettingsIcon = Icons.settings;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
@@ -20,13 +30,13 @@ const pctChange = (curr, prev) => {
 };
 
 const STATUS_LABELS = {
-  PendingPayment: 'Chờ TT',
-  Pending:        'Chờ xử lý',
-  Processing:     'Đang xử lý',
-  Paid:           'Đã TT',
-  Shipped:        'Đang giao',
-  Delivered:      'Đã giao',
-  Cancelled:      'Đã hủy',
+  PendingPayment: 'admin.status.pendingPayment.short',
+  Pending:        'admin.status.pending',
+  Processing:     'admin.status.processing',
+  Paid:           'admin.status.paid.short',
+  Shipped:        'admin.status.shipped',
+  Delivered:      'admin.status.delivered',
+  Cancelled:      'admin.status.cancelled',
 };
 
 const STATUS_COLORS = {
@@ -42,7 +52,7 @@ const STATUS_COLORS = {
 const MONTH_NAMES = ['T1','T2','T3','T4','T5','T6','T7','T8','T9','T10','T11','T12'];
 
 // ── Mini bar chart (SVG, no lib needed) ──────────────────────────────────────
-function MiniBarChart({ data, color = '#c8102e', label = '' }) {
+function MiniBarChart({ data, color = '#a7484e', label = '' }) {
   const max = Math.max(...data.map(d => d.value), 1);
   const W = 320, H = 80, barW = Math.floor(W / data.length) - 3;
 
@@ -69,9 +79,9 @@ function MiniBarChart({ data, color = '#c8102e', label = '' }) {
 }
 
 // ── Donut chart (SVG) ─────────────────────────────────────────────────────────
-function DonutChart({ segments, size = 140 }) {
+function DonutChart({ segments, size = 140, emptyLabel, orderLabel }) {
   const total = segments.reduce((s, seg) => s + seg.value, 0);
-  if (!total) return <div className="donut-empty">Chưa có dữ liệu</div>;
+  if (!total) return <div className="donut-empty">{emptyLabel}</div>;
 
   const r = 52, cx = size / 2, cy = size / 2;
   const circumference = 2 * Math.PI * r;
@@ -106,20 +116,20 @@ function DonutChart({ segments, size = 140 }) {
         {total}
       </text>
       <text x={cx} y={cy + 12} textAnchor="middle" fontSize="9" fill="#9a9a9a">
-        ĐƠN HÀNG
+        {orderLabel}
       </text>
     </svg>
   );
 }
 
 // ── Trend arrow ───────────────────────────────────────────────────────────────
-function Trend({ pct }) {
+function Trend({ pct, comparisonLabel }) {
   if (pct === 0) return <span className="trend neutral">— 0%</span>;
   const up = pct > 0;
   return (
     <span className={`trend ${up ? 'up' : 'down'}`}>
       {up ? '▲' : '▼'} {Math.abs(pct)}%
-      <span className="trend-label"> so tháng trước</span>
+      <span className="trend-label"> {comparisonLabel}</span>
     </span>
   );
 }
@@ -129,6 +139,8 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const { isAdminUser } = useAuth();
   const { addNotification } = useNotification();
+  const { t, locale } = usePreferences();
+  const dateLocale = { vi: 'vi-VN', en: 'en-US', zh: 'zh-CN' }[locale];
   const addNotificationRef = useRef(addNotification);
   useEffect(() => { addNotificationRef.current = addNotification; }, [addNotification]);
 
@@ -263,8 +275,8 @@ export default function AdminDashboard() {
   const donutSegments = useMemo(() =>
     Object.entries(stats.byStatus)
       .filter(([, v]) => v > 0)
-      .map(([k, v]) => ({ label: STATUS_LABELS[k] || k, value: v, color: STATUS_COLORS[k] || '#94a3b8' })),
-    [stats.byStatus]
+      .map(([k, v]) => ({ label: STATUS_LABELS[k] ? t(STATUS_LABELS[k]) : k, value: v, color: STATUS_COLORS[k] || '#94a3b8' })),
+    [stats.byStatus, t]
   );
 
 
@@ -275,18 +287,18 @@ export default function AdminDashboard() {
         {/* ── Header ── */}
         <div className="db-header">
           <div>
-            <h1 className="db-title">Tổng quan</h1>
+            <h1 className="db-title">{t('admin.dashboard.overview')}</h1>
             <p className="db-subtitle">
-              {new Date().toLocaleDateString('vi-VN', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
+              {new Date().toLocaleDateString(dateLocale, { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
             </p>
           </div>
           <button
             className={`db-refresh-btn ${refreshing ? 'spinning' : ''}`}
             onClick={() => fetchAll(true)}
             disabled={refreshing}
-            title="Làm mới"
+            title={t('admin.dashboard.refresh')}
           >
-            ↻ {refreshing ? 'Đang tải...' : 'Làm mới'}
+            ↻ {refreshing ? t('admin.dashboard.loading') : t('admin.dashboard.refresh')}
           </button>
         </div>
 
@@ -295,36 +307,36 @@ export default function AdminDashboard() {
 
           <div className="db-kpi-card accent">
             <div className="kpi-top">
-              <span className="kpi-icon">💰</span>
-              <span className="kpi-label">Doanh thu tháng này</span>
+              <RevenueIcon className="kpi-icon" size={21} />
+              <span className="kpi-label">{t('admin.dashboard.monthRevenue')}</span>
             </div>
             <div className="kpi-value">{fmtM(stats.revThis)} đ</div>
             <div className="kpi-sub">
-              Tổng: <strong>{fmtM(stats.totalRevenue)} đ</strong>
+              {t('admin.dashboard.total')} <strong>{fmtM(stats.totalRevenue)} đ</strong>
             </div>
-            <Trend pct={stats.revPct} />
+            <Trend pct={stats.revPct} comparisonLabel={t('admin.dashboard.vsLastMonth')} />
           </div>
 
           <div className="db-kpi-card">
             <div className="kpi-top">
-              <span className="kpi-icon">📋</span>
-              <span className="kpi-label">Đơn hàng tháng này</span>
+              <OrdersIcon className="kpi-icon" size={21} />
+              <span className="kpi-label">{t('admin.dashboard.monthOrders')}</span>
             </div>
             <div className="kpi-value">{stats.ordThis}</div>
             <div className="kpi-sub">
-              Tổng: <strong>{stats.totalOrders}</strong> đơn
+              {t('admin.dashboard.total')} <strong>{stats.totalOrders}</strong> {t('admin.dashboard.ordersUnit')}
             </div>
-            <Trend pct={stats.ordPct} />
+            <Trend pct={stats.ordPct} comparisonLabel={t('admin.dashboard.vsLastMonth')} />
           </div>
 
           <div className="db-kpi-card">
             <div className="kpi-top">
-              <span className="kpi-icon">✅</span>
-              <span className="kpi-label">Giao thành công</span>
+              <DeliveredIcon className="kpi-icon" size={21} />
+              <span className="kpi-label">{t('admin.dashboard.delivered')}</span>
             </div>
             <div className="kpi-value">{stats.deliveredOrders}</div>
             <div className="kpi-sub">
-              Tỉ lệ: <strong>
+              {t('admin.dashboard.deliveryRate')} <strong>
                 {stats.totalOrders ? Math.round((stats.deliveredOrders / stats.totalOrders) * 100) : 0}%
               </strong>
             </div>
@@ -332,12 +344,12 @@ export default function AdminDashboard() {
 
           <div className="db-kpi-card">
             <div className="kpi-top">
-              <span className="kpi-icon">📦</span>
-              <span className="kpi-label">Sản phẩm</span>
+              <ProductsIcon className="kpi-icon" size={21} />
+              <span className="kpi-label">{t('admin.dashboard.products')}</span>
             </div>
             <div className="kpi-value">{stats.totalProducts}</div>
             <div className="kpi-sub">
-              Đang chờ xử lý: <strong>{stats.pendingOrders}</strong> đơn
+              {t('admin.dashboard.pending')} <strong>{stats.pendingOrders}</strong> {t('admin.dashboard.ordersUnit')}
             </div>
           </div>
 
@@ -349,31 +361,31 @@ export default function AdminDashboard() {
           {/* Revenue bar chart */}
           <div className="db-card">
             <div className="db-card-header">
-              <h3>Doanh thu 6 tháng</h3>
+              <h3>{t('admin.dashboard.revenueChart')}</h3>
               <span className="db-card-badge">
                 {MONTH_NAMES[new Date().getMonth()]}
               </span>
             </div>
-            <MiniBarChart data={stats.revenueByMonth} color="#c8102e" />
-            <div className="chart-axis-label">đơn vị: VNĐ</div>
+            <MiniBarChart data={stats.revenueByMonth} color="#a7484e" />
+            <div className="chart-axis-label">{t('admin.dashboard.currencyUnit')}</div>
           </div>
 
           {/* Orders bar chart */}
           <div className="db-card">
             <div className="db-card-header">
-              <h3>Đơn hàng 6 tháng</h3>
+              <h3>{t('admin.dashboard.ordersChart')}</h3>
             </div>
             <MiniBarChart data={stats.ordersByMonth} color="#0d0d0d" />
-            <div className="chart-axis-label">số lượng đơn</div>
+            <div className="chart-axis-label">{t('admin.dashboard.orderCount')}</div>
           </div>
 
           {/* Donut status breakdown */}
           <div className="db-card donut-card">
             <div className="db-card-header">
-              <h3>Trạng thái đơn hàng</h3>
+              <h3>{t('admin.dashboard.orderStatus')}</h3>
             </div>
             <div className="donut-wrapper">
-              <DonutChart segments={donutSegments} size={140} />
+              <DonutChart segments={donutSegments} size={140} emptyLabel={t('admin.dashboard.noData')} orderLabel={t('admin.dashboard.orders')} />
               <div className="donut-legend">
                 {donutSegments.map((seg, i) => (
                   <div key={i} className="legend-item">
@@ -397,9 +409,9 @@ export default function AdminDashboard() {
           {/* Recent orders */}
           <div className="db-card db-card-wide">
             <div className="db-card-header">
-              <h3>Đơn hàng gần đây</h3>
+              <h3>{t('admin.dashboard.recentOrders')}</h3>
               <button className="db-link-btn" onClick={() => navigate('/admin/orders')}>
-                Xem tất cả →
+                {t('admin.dashboard.seeAll')}
               </button>
             </div>
             <div className="db-table-wrap">
@@ -407,16 +419,16 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Khách hàng</th>
-                    <th>Tổng tiền</th>
-                    <th>Phương thức</th>
-                    <th>Trạng thái</th>
-                    <th>Ngày đặt</th>
+                    <th>{t('admin.dashboard.customer')}</th>
+                    <th>{t('admin.dashboard.amount')}</th>
+                    <th>{t('admin.dashboard.method')}</th>
+                    <th>{t('admin.dashboard.status')}</th>
+                    <th>{t('admin.dashboard.orderDate')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stats.recent.length === 0 ? (
-                    <tr><td colSpan={6} className="db-table-empty">Chưa có đơn hàng nào</td></tr>
+                    <tr><td colSpan={6} className="db-table-empty">{t('admin.dashboard.noOrders')}</td></tr>
                   ) : stats.recent.map(o => (
                     <tr
                       key={o.id}
@@ -436,11 +448,11 @@ export default function AdminDashboard() {
                           className="db-status-badge"
                           style={{ background: STATUS_COLORS[o.status] + '22', color: STATUS_COLORS[o.status] }}
                         >
-                          {STATUS_LABELS[o.status] || o.status}
+                          {STATUS_LABELS[o.status] ? t(STATUS_LABELS[o.status]) : o.status}
                         </span>
                       </td>
                       <td className="order-date">
-                        {new Date(o.createdAt).toLocaleDateString('vi-VN')}
+                        {new Date(o.createdAt).toLocaleDateString(dateLocale)}
                       </td>
                     </tr>
                   ))}
@@ -455,18 +467,18 @@ export default function AdminDashboard() {
             {/* Top products */}
             <div className="db-card">
               <div className="db-card-header">
-                <h3>Bán chạy nhất</h3>
-                <span className="db-card-badge">Đã giao</span>
+                <h3>{t('admin.dashboard.bestSelling')}</h3>
+                <span className="db-card-badge">{t('admin.status.delivered')}</span>
               </div>
               {stats.topProducts.length === 0 ? (
-                <p className="db-empty-note">Chưa có dữ liệu</p>
+                <p className="db-empty-note">{t('admin.dashboard.noData')}</p>
               ) : (
                 <div className="top-products-list">
                   {stats.topProducts.map(([name, qty], i) => (
                     <div key={i} className="top-product-item">
                       <span className="top-rank">{i + 1}</span>
                       <span className="top-name">{name}</span>
-                      <span className="top-qty">{qty} đã bán</span>
+                      <span className="top-qty">{qty} {t('admin.dashboard.sold')}</span>
                     </div>
                   ))}
                 </div>
@@ -475,23 +487,23 @@ export default function AdminDashboard() {
 
             {/* Quick nav */}
             <div className="db-card">
-              <div className="db-card-header"><h3>Quản lý nhanh</h3></div>
+              <div className="db-card-header"><h3>{t('admin.dashboard.quickManage')}</h3></div>
               <div className="db-quick-nav">
                 {[
-                  { icon:'📦', label:'Sản phẩm',    path:'/admin/products' },
-                  { icon:'📂', label:'Danh mục',     path:'/admin/categories' },
-                  { icon:'📋', label:'Đơn hàng',     path:'/admin/orders' },
-                  { icon:'👥', label:'Người dùng',   path:'/admin/users' },
-                  { icon:'🏷️', label:'Mã giảm giá', path:'/admin/coupons' },
-                  { icon:'⚙️', label:'Cài đặt',      path:'/admin/settings' },
+                  { Icon: ProductsIcon, key:'admin.dashboard.quick.products', path:'/admin/products' },
+                  { Icon: CategoryIcon, key:'admin.dashboard.quick.categories', path:'/admin/categories' },
+                  { Icon: OrdersIcon, key:'admin.dashboard.quick.orders', path:'/admin/orders' },
+                  { Icon: UsersIcon, key:'admin.dashboard.quick.users', path:'/admin/users' },
+                  { Icon: PromotionIcon, key:'admin.promotions', path:'/admin/promotions' },
+                  { Icon: SettingsIcon, key:'admin.dashboard.quick.settings', path:'/admin/settings' },
                 ].map(item => (
                   <button
                     key={item.path}
                     className="quick-nav-btn"
                     onClick={() => navigate(item.path)}
                   >
-                    <span className="qnav-icon">{item.icon}</span>
-                    <span className="qnav-label">{item.label}</span>
+                    <item.Icon className="qnav-icon" size={19} />
+                    <span className="qnav-label">{t(item.key)}</span>
                   </button>
                 ))}
               </div>

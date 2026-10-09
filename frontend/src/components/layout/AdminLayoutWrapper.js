@@ -1,15 +1,54 @@
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { usePreferences } from '../../context/PreferencesContext';
+import PreferencesControls from './PreferencesControls';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Icons } from '../icons';
 import './AdminLayout.css';
+
+const {
+  dashboard: DashboardIcon,
+  product: ProductIcon,
+  category: CategoryIcon,
+  orders: OrdersIcon,
+  cash: CashIcon,
+  promotion: PromotionIcon,
+  users: UsersIcon,
+  chat: ChatIcon,
+  faq: FaqIcon,
+  blog: BlogIcon,
+  account: AccountIcon,
+  settings: SettingsIcon,
+  bag: BagIcon,
+  user: UserIcon,
+  close: CloseIcon,
+  menu: MenuIcon,
+} = Icons;
 
 const AdminLayoutWrapper = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuth();
+  const { t } = usePreferences();
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pageTitle = useMemo(() => {
+    const titles = [
+      ['/admin/products', 'admin.products'],
+      ['/admin/categories', 'admin.categories'],
+      ['/admin/orders', 'admin.orders'],
+      ['/admin/payments', 'admin.payments'],
+      ['/admin/promotions', 'admin.promotions'],
+      ['/admin/users', 'admin.users'],
+      ['/admin/chat', 'admin.support'],
+      ['/admin/faqs', 'admin.faqs'],
+      ['/admin/blog', 'admin.blog'],
+      ['/admin/profile', 'admin.account'],
+      ['/admin/settings', 'admin.settings'],
+    ];
+    const titleKey = titles.find(([path]) => location.pathname.startsWith(path))?.[1] || 'admin.overview';
+    return t(titleKey);
+  }, [location.pathname, t]);
 
   // Close sidebar when route changes
   useEffect(() => {
@@ -22,65 +61,82 @@ const AdminLayoutWrapper = () => {
   }, [logout, navigate]);
 
   const getNavLinkClass = useCallback((path) => {
-    return location.pathname === path ? 'nav-item active' : 'nav-item';
+    const isActive = path === '/admin'
+      ? location.pathname === path
+      : location.pathname === path || location.pathname.startsWith(`${path}/`);
+    return isActive ? 'nav-item active' : 'nav-item';
   }, [location.pathname]);
 
   // Memoize sidebar to prevent re-render
   const sidebarContent = useMemo(() => (
     <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
       <div className="admin-brand">THEBOB</div>
+      <div className="admin-nav-label">{t('admin.section')}</div>
       <nav className="admin-nav">
         <Link to="/admin" className={getNavLinkClass('/admin')}>
-          <Icons.dashboard size={18} /> Bảng Điều Khiển
+          <DashboardIcon size={18} /> {t('admin.dashboard')}
         </Link>
         <Link to="/admin/products" className={getNavLinkClass('/admin/products')}>
-          <Icons.product size={18} /> Sản Phẩm
+          <ProductIcon size={18} /> {t('admin.products')}
         </Link>
         <Link to="/admin/categories" className={getNavLinkClass('/admin/categories')}>
-          <Icons.category size={18} /> Danh Mục
+          <CategoryIcon size={18} /> {t('admin.categories')}
         </Link>
         <Link to="/admin/orders" className={getNavLinkClass('/admin/orders')}>
-          <Icons.orders size={18} /> Đơn Hàng
+          <OrdersIcon size={18} /> {t('admin.orders')}
+        </Link>
+        <Link to="/admin/payments" className={getNavLinkClass('/admin/payments')}>
+          <CashIcon size={18} /> {t('admin.payments')}
         </Link>
         <Link to="/admin/promotions" className={getNavLinkClass('/admin/promotions')}>
-          <Icons.promotion size={18} /> Khuyến Mãi
+          <PromotionIcon size={18} /> {t('admin.promotions')}
         </Link>
         <Link to="/admin/users" className={getNavLinkClass('/admin/users')}>
-          <Icons.users size={18} /> Người Dùng
+          <UsersIcon size={18} /> {t('admin.users')}
         </Link>
         <Link to="/admin/chat" className={getNavLinkClass('/admin/chat')}>
-          <Icons.chat size={18} /> Chat
+          <ChatIcon size={18} /> {t('admin.chat')}
         </Link>
         <Link to="/admin/faqs" className={getNavLinkClass('/admin/faqs')}>
-          <Icons.faq size={18} /> FAQ
+          <FaqIcon size={18} /> {t('admin.faqs')}
         </Link>
         <Link to="/admin/blog" className={getNavLinkClass('/admin/blog')}>
-          <Icons.blog size={18} /> Bài Viết Blog
+          <BlogIcon size={18} /> {t('admin.blog')}
         </Link>
         <Link to="/admin/profile" className={getNavLinkClass('/admin/profile')}>
-          <Icons.account size={18} /> Tài Khoản
+          <AccountIcon size={18} /> {t('admin.account')}
         </Link>
         <Link to="/admin/settings" className={getNavLinkClass('/admin/settings')}>
-          <Icons.settings size={18} /> Cài Đặt
+          <SettingsIcon size={18} /> {t('admin.settings')}
         </Link>
       </nav>
+      <Link to="/" className="admin-store-link">
+        <BagIcon size={17} />
+        <span>{t('admin.viewStore')}</span>
+        <span className="admin-store-arrow" aria-hidden="true">↗</span>
+      </Link>
     </aside>
-  ), [sidebarOpen, getNavLinkClass]);
+  ), [sidebarOpen, getNavLinkClass, t]);
 
   // Memoize topbar to prevent re-render
   const topbarContent = useMemo(() => (
     <header className="admin-topbar">
       <div className="topbar-left">
-        <h2>Admin</h2>
+        <span className="topbar-eyebrow">THEBOB / {t('admin.section')}</span>
+        <h2>{pageTitle}</h2>
       </div>
       <div className="topbar-right">
+        <PreferencesControls />
         <div className="admin-menu-container">
           <button
             className="admin-menu-btn"
             onClick={() => setMenuOpen(!menuOpen)}
-            title="Menu Admin"
+            title={t('admin.adminAccount')}
+            aria-expanded={menuOpen}
           >
-            <Icons.user size={16} /> {user?.fullName || 'Admin'}
+            <span className="admin-avatar"><UserIcon size={17} /></span>
+            <span>{user?.fullName || 'Admin'}</span>
+            <span className="admin-menu-chevron" aria-hidden="true">⌄</span>
           </button>
           {menuOpen && (
             <div className="admin-dropdown">
@@ -90,25 +146,34 @@ const AdminLayoutWrapper = () => {
                 className="dropdown-item logout-btn"
                 onClick={handleLogout}
               >
-                Đăng Xuất
+                {t('admin.logout')}
               </button>
             </div>
           )}
         </div>
       </div>
     </header>
-  ), [menuOpen, user, handleLogout]);
+  ), [menuOpen, user, handleLogout, pageTitle, t]);
 
   return (
     <div className="admin-wrapper">
       <button
         className="admin-sidebar-toggle"
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        title="Toggle Sidebar"
+        title={sidebarOpen ? t('header.menu.hide') : t('header.menu.show')}
+        aria-label={sidebarOpen ? t('header.menu.hide') : t('header.menu.show')}
+        aria-expanded={sidebarOpen}
       >
-        ☰
+        {sidebarOpen ? <CloseIcon size={20} /> : <MenuIcon size={20} />}
       </button>
 
+      {sidebarOpen && (
+        <button
+          className="admin-sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+          aria-label={t('header.menu.hide')}
+        />
+      )}
       {sidebarContent}
 
       <div className="admin-main">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { promotionsAPI } from '../../api/app';
 import { useCart } from '../../context/CartContext';
 import { useNotification } from '../../context/NotificationContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import EligibleProductsModal from '../../components/EligibleProductsModal';
 import '../../styles/MyVouchers.css';
 
@@ -10,6 +11,7 @@ export default function MyVouchers() {
   const navigate = useNavigate();
   const { getTotalPrice } = useCart();
   const { addNotification } = useNotification();
+  const { t, locale } = usePreferences();
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all | available | used | expired
@@ -21,7 +23,9 @@ export default function MyVouchers() {
     const cartTotal = getTotalPrice();
     if (v.minOrderValue > 0 && cartTotal < v.minOrderValue) {
       addNotification(
-        `💡 Giỏ hàng hiện tại (${cartTotal.toLocaleString('vi-VN')}₫) chưa đạt mốc ${v.minOrderValue.toLocaleString('vi-VN')}₫. Hãy chọn thêm sản phẩm gợi ý!`,
+        t('vouchers.cartBelowMinimum')
+          .replace('{total}', cartTotal.toLocaleString(locale))
+          .replace('{minimum}', v.minOrderValue.toLocaleString(locale)),
         'info'
       );
       setSelectedPromoId(v.promotionId);
@@ -61,38 +65,38 @@ export default function MyVouchers() {
   };
 
   const formatDiscount = (v) => {
-    if (v.discountType === 'Percentage') return `Giảm ${v.discountValue}%`;
-    if (v.discountType === 'FixedAmount') return `Giảm ${v.discountValue.toLocaleString('vi-VN')}₫`;
-    if (v.discountType === 'FreeShipping') return 'Miễn phí vận chuyển';
+    if (v.discountType === 'Percentage') return t('vouchers.discount.percent').replace('{value}', v.discountValue);
+    if (v.discountType === 'FixedAmount') return t('vouchers.discount.amount').replace('{value}', v.discountValue.toLocaleString(locale));
+    if (v.discountType === 'FreeShipping') return t('vouchers.discount.shipping');
     return v.discountType;
   };
 
   const formatExpiry = (v) => {
     const d = v.expiresAt || v.promotionEndDate;
-    if (!d) return 'Không giới hạn';
-    return `HSD: ${new Date(d).toLocaleDateString('vi-VN')}`;
+    if (!d) return t('vouchers.noLimit');
+    return t('vouchers.expiry').replace('{date}', new Date(d).toLocaleDateString(locale));
   };
 
   if (loading) return (
     <div className="mv-loading">
       <div className="mv-spinner" />
-      <p>Đang tải voucher...</p>
+      <p>{t('vouchers.loading')}</p>
     </div>
   );
 
   return (
     <div className="mv-page">
       <div className="mv-header">
-        <h1>🎁 Voucher của tôi</h1>
-        <p className="mv-subtitle">Các voucher và mã giảm giá dành riêng cho bạn</p>
+        <h1>{t('vouchers.title')}</h1>
+        <p className="mv-subtitle">{t('vouchers.subtitle')}</p>
       </div>
 
       <div className="mv-filters">
         {[
-          { key: 'all', label: 'Tất cả', count: vouchers.length },
-          { key: 'available', label: '✅ Khả dụng', count: vouchers.filter(v => !v.isUsed && !v.isExpired).length },
-          { key: 'used', label: '✓ Đã dùng', count: vouchers.filter(v => v.isUsed).length },
-          { key: 'expired', label: '❌ Hết hạn', count: vouchers.filter(v => v.isExpired).length },
+          { key: 'all', label: t('vouchers.filter.all'), count: vouchers.length },
+          { key: 'available', label: t('vouchers.filter.available'), count: vouchers.filter(v => !v.isUsed && !v.isExpired).length },
+          { key: 'used', label: t('vouchers.filter.used'), count: vouchers.filter(v => v.isUsed).length },
+          { key: 'expired', label: t('vouchers.filter.expired'), count: vouchers.filter(v => v.isExpired).length },
         ].map(f => (
           <button
             key={f.key}
@@ -107,8 +111,8 @@ export default function MyVouchers() {
       {filtered.length === 0 && (
         <div className="mv-empty">
           <div className="mv-empty-icon">🎟️</div>
-          <h3>Không có voucher nào</h3>
-          <p>Hãy mua sắm để nhận voucher ưu đãi từ THEBOB!</p>
+          <h3>{t('vouchers.empty.title')}</h3>
+          <p>{t('vouchers.empty.description')}</p>
         </div>
       )}
 
@@ -119,7 +123,7 @@ export default function MyVouchers() {
             <div className="mv-card-body">
               <div className="mv-discount">
                 <span className="mv-discount-value">{formatDiscount(v)}</span>
-                {v.maxDiscountAmount && <span className="mv-discount-cap">Tối đa {v.maxDiscountAmount.toLocaleString('vi-VN')}₫</span>}
+                {v.maxDiscountAmount && <span className="mv-discount-cap">{t('vouchers.maximum').replace('{value}', v.maxDiscountAmount.toLocaleString(locale))}</span>}
               </div>
 
               <div className="mv-card-info">
@@ -128,7 +132,7 @@ export default function MyVouchers() {
                 {v.note && <p className="mv-card-note">📝 {v.note}</p>}
                 <div className="mv-card-meta">
                   {v.minOrderValue > 0 && (
-                    <span className="mv-meta-item">🛒 Đơn từ {v.minOrderValue.toLocaleString('vi-VN')}₫</span>
+                    <span className="mv-meta-item">{t('vouchers.minimumOrder').replace('{value}', v.minOrderValue.toLocaleString(locale))}</span>
                   )}
                   <span className="mv-meta-item mv-expiry">📅 {formatExpiry(v)}</span>
                 </div>
@@ -136,9 +140,13 @@ export default function MyVouchers() {
 
               <div className="mv-card-footer">
                 {v.isUsed ? (
-                  <div className="mv-status used">✓ Đã sử dụng {v.usedAt ? `lúc ${new Date(v.usedAt).toLocaleDateString('vi-VN')}` : ''}</div>
+                  <div className="mv-status used">
+                    {v.usedAt
+                      ? t('vouchers.usedAtDate').replace('{date}', new Date(v.usedAt).toLocaleDateString(locale))
+                      : t('vouchers.usedAt')}
+                  </div>
                 ) : v.isExpired ? (
-                  <div className="mv-status expired">✕ Đã hết hạn</div>
+                  <div className="mv-status expired">{t('vouchers.expired')}</div>
                 ) : (
                   <div className="mv-action-row" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button
@@ -149,7 +157,7 @@ export default function MyVouchers() {
                         setSelectedPromoName(v.promotionName);
                       }}
                     >
-                      🛍️ Sản phẩm áp dụng
+                      {t('vouchers.eligibleProducts')}
                     </button>
                     <button
                       type="button"
@@ -157,7 +165,7 @@ export default function MyVouchers() {
                       style={{ backgroundColor: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
                       onClick={() => handleUseNow(v)}
                     >
-                      🛒 Dùng ngay
+                      {t('vouchers.useNow')}
                     </button>
                   </div>
                 )}
@@ -182,4 +190,3 @@ export default function MyVouchers() {
     </div>
   );
 }
-

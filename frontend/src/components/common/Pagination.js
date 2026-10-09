@@ -1,4 +1,5 @@
 import React from 'react';
+import { usePreferences } from '../../context/PreferencesContext';
 import './Pagination.css';
 
 export default function Pagination({
@@ -9,6 +10,7 @@ export default function Pagination({
   setCurrentPage,
   totalItems,
 }) {
+  const { t } = usePreferences();
   const handlePrevPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
@@ -24,10 +26,10 @@ export default function Pagination({
     <div className="pagination-container">
       <div className="pagination-info">
         <span>
-          Hiển thị {startItem} - {endItem} trong {totalItems} sản phẩm
+          {t('admin.pagination.showing', { start: startItem, end: endItem, total: totalItems })}
         </span>
         <div className="items-per-page">
-          <label>Mỗi trang:</label>
+          <label>{t('admin.pagination.perPage')}</label>
           <select
             value={itemsPerPage}
             onChange={(e) => {
@@ -48,15 +50,15 @@ export default function Pagination({
       {totalPages > 1 && (
         <div className="pagination-controls">
           <button onClick={handlePrevPage} disabled={currentPage === 1} className="btn-prev">
-            ← Trước
+            {t('admin.pagination.previous')}
           </button>
 
           <div className="page-info">
-            Trang {currentPage} / {totalPages}
+            {t('admin.pagination.page', { page: currentPage, pages: totalPages })}
           </div>
 
           <button onClick={handleNextPage} disabled={currentPage === totalPages} className="btn-next">
-            Tiếp →
+            {t('admin.pagination.next')}
           </button>
         </div>
       )}

@@ -4,12 +4,14 @@ import { recommendationAPI, promotionsAPI, couponsAPI } from '../../api/app';
 import '../../styles/Products.css'; // Reuse product card styles
 import { useCart } from '../../context/CartContext';
 import { useNotification } from '../../context/NotificationContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import '../../styles/Cart.css';
 
 export default function Cart() {
   const navigate = useNavigate();
   const { cartItems, removeFromCart, updateQuantity, clearCart } = useCart();
   const { addNotification } = useNotification();
+  const { t } = usePreferences();
   const [appliedCoupon, setAppliedCoupon] = useState('');
   const [activeCoupon, setActiveCoupon] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -107,23 +109,28 @@ export default function Cart() {
       const coupon = await couponsAPI.getByCode(appliedCoupon.trim().toUpperCase());
       if (coupon && coupon.discountPercent) {
         if (coupon.expiryDate && new Date(coupon.expiryDate) < new Date()) {
-          addNotification('Mã giảm giá này đã hết hạn', 'warning');
+          addNotification(t('cart.notification.expiredCoupon'), 'warning');
           return;
         }
         setActiveCoupon(coupon);
-        addNotification(`Áp dụng mã ${coupon.code} thành công! Giảm ${coupon.discountPercent}%`, 'success');
+        addNotification(
+          t('cart.notification.couponApplied')
+            .replace('{code}', coupon.code)
+            .replace('{percent}', coupon.discountPercent),
+          'success'
+        );
       } else {
-        addNotification('Mã giảm giá không tồn tại', 'error');
+        addNotification(t('cart.notification.couponMissing'), 'error');
       }
     } catch (error) {
-      addNotification('Mã giảm giá không hợp lệ hoặc đã hết lượt dùng', 'error');
+      addNotification(t('cart.notification.couponInvalid'), 'error');
     }
     setAppliedCoupon('');
   };
 
   const handleIncreaseQty = (item) => {
     if (item.quantity + 1 > item.stock) {
-      addNotification(`Sản phẩm này chỉ còn tối đa ${item.stock} sản phẩm trong kho`, 'warning');
+      addNotification(t('cart.notification.stock').replace('{stock}', item.stock), 'warning');
       return;
     }
     updateQuantity(getItemKey(item), item.quantity + 1);
@@ -140,12 +147,12 @@ export default function Cart() {
 
   const handleRemoveItem = (itemKey) => {
     removeFromCart(itemKey);
-    addNotification('Đã xóa sản phẩm khỏi giỏ hàng', 'info');
+    addNotification(t('cart.notification.removed'), 'info');
   };
 
   const handleCheckout = () => {
     if (cartItems.length === 0) {
-      addNotification('Giỏ hàng của bạn đang trống', 'warning');
+      addNotification(t('cart.notification.empty'), 'warning');
       return;
     }
     navigate('/checkout');
@@ -156,10 +163,10 @@ export default function Cart() {
       <div className="cart-page">
         <div className="cart-empty">
           <div className="empty-icon">🛒</div>
-          <h2>Giỏ hàng của bạn đang trống</h2>
-          <p>Hãy thêm một số sản phẩm để tiếp tục.</p>
+          <h2>{t('cart.empty.title')}</h2>
+          <p>{t('cart.empty.description')}</p>
           <button onClick={() => navigate('/products')} className="btn-continue-shopping">
-            Tiếp tục mua sắm
+            {t('cart.continue')}
           </button>
         </div>
       </div>
@@ -168,17 +175,17 @@ export default function Cart() {
 
   return (
     <div className="cart-page">
-      <h1>Giỏ Hàng</h1>
+      <h1>{t('cart.title')}</h1>
 
       <div className="cart-container">
         {/* Cart Items */}
         <div className="cart-items-section">
           <div className="cart-items-header">
-            <span className="col-product">Sản Phẩm</span>
-            <span className="col-price">Giá</span>
-            <span className="col-quantity">Số Lượng</span>
-            <span className="col-subtotal">Thành Tiền</span>
-            <span className="col-action">Thao Tác</span>
+            <span className="col-product">{t('cart.product')}</span>
+            <span className="col-price">{t('cart.price')}</span>
+            <span className="col-quantity">{t('cart.quantity')}</span>
+            <span className="col-subtotal">{t('cart.subtotal')}</span>
+            <span className="col-action">{t('cart.actions')}</span>
           </div>
 
           {cartItems.map((item) => (
@@ -190,7 +197,7 @@ export default function Cart() {
                 {/* ✅ FIX 1: Nhiều fallback ảnh + onError */}
                 <img
                   src={item.mainImageUrl || item.image || item.imageUrl || '/placeholder.jpg'}
-                  alt={item.name || 'Sản phẩm'}
+                  alt={item.name || t('cart.product')}
                   className="item-image"
                   onError={(e) => {
                     e.target.onerror = null;
@@ -198,9 +205,9 @@ export default function Cart() {
                   }}
                 />
                 <div className="item-details">
-                  <h3>{item.name || 'Sản phẩm'}</h3>
-                  {item.selectedSize && <p>Kích thước: {item.selectedSize}</p>}
-                  {item.selectedColor && <p>Màu: {item.selectedColor}</p>}
+                  <h3>{item.name || t('cart.product')}</h3>
+                  {item.selectedSize && <p>{t('cart.size')}: {item.selectedSize}</p>}
+                  {item.selectedColor && <p>{t('cart.color')}: {item.selectedColor}</p>}
                 </div>
               </div>
 
@@ -241,25 +248,25 @@ export default function Cart() {
 
         {/* Cart Summary */}
         <div className="cart-summary">
-          <h2>Tóm Tắt Đơn Hàng</h2>
+          <h2>{t('cart.summary')}</h2>
 
           <div className="coupon-section">
             <input
               type="text"
-              placeholder="Nhập mã giảm giá"
+              placeholder={t('cart.coupon.placeholder')}
               value={appliedCoupon}
               onChange={(e) => setAppliedCoupon(e.target.value)}
               className="coupon-input"
             />
             <button onClick={handleApplyCoupon} className="btn-apply-coupon">
-              Áp Dụng
+              {t('cart.coupon.apply')}
             </button>
           </div>
 
           {/* ✅ NEW: Show applicable promotions */}
           {applicablePromotions.length > 0 && (
             <div className="applicable-promotions" style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f0f8ff', borderRadius: '4px' }}>
-              <p style={{ fontSize: '0.85rem', margin: '0 0 5px 0', color: '#555' }}>⚡ Khuyến mãi tự động:</p>
+              <p style={{ fontSize: '0.85rem', margin: '0 0 5px 0', color: '#555' }}>{t('cart.promotion.auto')}</p>
               {applicablePromotions.map((promo) => (
                 <div key={promo.id} style={{ fontSize: '0.8rem', color: '#0066cc', marginBottom: '3px' }}>
                   • {promo.name} ({promo.discountValue}% giảm)
@@ -270,54 +277,54 @@ export default function Cart() {
 
           {promotionLoading && (
             <div style={{ fontSize: '0.85rem', color: '#999', marginBottom: '10px' }}>
-              Đang tải khuyến mãi...
+              {t('cart.promotion.loading')}
             </div>
           )}
 
           <div className="summary-row">
-            <span>Tạm tính:</span>
+            <span>{t('cart.subtotal.label')}</span>
             <span>{(subtotal ?? 0).toLocaleString('vi-VN')} VNĐ</span>
           </div>
 
           {activeCoupon && discount > 0 && (
             <div className="summary-row discount">
-              <span>Giảm giá ({activeCoupon.discountPercent}%):</span>
+              <span>{t('cart.discount').replace('{percent}', activeCoupon.discountPercent)}</span>
               <span>-{(discount ?? 0).toLocaleString('vi-VN')} VNĐ</span>
             </div>
           )}
 
           {/* ✅ FIX 3: Hiển thị "Tính khi thanh toán" thay vì tính luôn */}
           <div className="summary-row">
-            <span>Phí vận chuyển:</span>
+            <span>{t('cart.shipping')}</span>
             <span style={{ color: '#888', fontStyle: 'italic', fontSize: 13 }}>
-              Tính khi thanh toán
+              {t('cart.shipping.checkout')}
             </span>
           </div>
 
           <div className="summary-row total">
-            <span>Tổng cộng:</span>
+            <span>{t('cart.total')}</span>
             <span>{(total ?? 0).toLocaleString('vi-VN')} VNĐ</span>
           </div>
 
           <button onClick={handleCheckout} className="btn-checkout">
-            Tiến Hành Thanh Toán
+            {t('cart.checkout')}
           </button>
 
           <button
             onClick={() => navigate('/products')}
             className="btn-continue-shopping-secondary"
           >
-            Tiếp Tục Mua Sắm
+            {t('cart.continue.button')}
           </button>
 
           <button
             onClick={() => {
               clearCart();
-              addNotification('Đã xóa tất cả sản phẩm', 'info');
+              addNotification(t('cart.notification.clear'), 'info');
             }}
             className="btn-clear-cart"
           >
-            Xóa Tất Cả
+            {t('cart.clear')}
           </button>
         </div>
       </div>
@@ -326,7 +333,7 @@ export default function Cart() {
       {recommendations.length > 0 && (
         <div className="recommendations-section-custom" style={{ padding: '60px 5%', borderTop: '1px solid #eee', marginTop: '40px' }}>
           <h2 style={{ fontSize: '1.8rem', fontWeight: 300, letterSpacing: '0.05em', marginBottom: '30px', textAlign: 'center' }}>
-            ĐỀ XUẤT MUA KÈM (MANG LẠI GIÁ TRỊ CAO)
+            {t('cart.recommendations')}
           </h2>
           <div className="products-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '30px' }}>
             {recommendations.map((item) => (
@@ -337,7 +344,7 @@ export default function Cart() {
                 <div className="product-info" style={{ marginTop: '15px' }}>
                   <h3 className="product-name" onClick={() => navigate(`/product/${item.slug || item.id}`)} style={{ cursor: 'pointer', fontSize: '1rem', fontWeight: 400, minHeight: '40px' }}>{item.name}</h3>
                   <div className="product-price" style={{ fontWeight: 600, margin: '8px 0', fontSize: '1.1rem' }}>{item.price?.toLocaleString('vi-VN')} VNĐ</div>
-                  <button onClick={() => navigate(`/product/${item.slug || item.id}`)} className="btn-add-to-cart" style={{ width: '100%', padding: '12px' }}>Xem chi tiết</button>
+                  <button onClick={() => navigate(`/product/${item.slug || item.id}`)} className="btn-add-to-cart" style={{ width: '100%', padding: '12px' }}>{t('product.details')}</button>
                 </div>
               </div>
             ))}
@@ -349,8 +356,8 @@ export default function Cart() {
       {showConfirmModal && (
         <div className="confirm-modal-overlay">
           <div className="confirm-modal">
-            <h3>Xác nhận xóa</h3>
-            <p>Bạn có chắc chắn muốn xóa sản phẩm này khỏi giỏ hàng?</p>
+            <h3>{t('cart.confirmRemove.title')}</h3>
+            <p>{t('cart.confirmRemove.description')}</p>
             <div className="confirm-modal-actions">
               <button
                 className="confirm-modal-btn btn-cancel"
@@ -359,18 +366,18 @@ export default function Cart() {
                   setItemToRemove(null);
                 }}
               >
-                Hủy
+                {t('cart.cancel')}
               </button>
               <button
                 className="confirm-modal-btn btn-confirm"
                 onClick={() => {
                   removeFromCart(itemToRemove);
-                  addNotification('Đã xóa sản phẩm khỏi giỏ hàng', 'info');
+                  addNotification(t('cart.notification.removed'), 'info');
                   setShowConfirmModal(false);
                   setItemToRemove(null);
                 }}
               >
-                Đồng ý
+                {t('cart.confirm')}
               </button>
             </div>
           </div>

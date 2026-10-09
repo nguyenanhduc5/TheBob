@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { blogAPI } from '../../api/app';
+import { usePreferences } from '../../context/PreferencesContext';
 import '../../styles/Blog.css';
 
 export default function BlogList() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { t, locale } = usePreferences();
+  const dateLocale = { vi: 'vi-VN', en: 'en-US', zh: 'zh-CN' }[locale];
 
   const [posts, setPosts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -73,8 +76,8 @@ export default function BlogList() {
     <div className="blog-page-container">
       <div className="blog-hero-header">
         <span className="blog-hero-label">THEBOB JOURNAL</span>
-        <h1>BLOG & BÀI VIẾT</h1>
-        <p>Cập nhật tin tức, xu hướng thời trang và mẹo phối đồ mới nhất.</p>
+        <h1>{t('blog.title')}</h1>
+        <p>{t('blog.description')}</p>
       </div>
 
       <div className="blog-layout">
@@ -85,19 +88,19 @@ export default function BlogList() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm bài viết..."
+              placeholder={t('blog.search.placeholder')}
             />
-            <button type="submit">🔍</button>
+            <button type="submit" aria-label={t('blog.search.placeholder')}>🔍</button>
           </form>
 
           <div className="blog-category-filter">
-            <h3>Danh mục</h3>
+            <h3>{t('blog.categories')}</h3>
             <ul>
               <li
                 className={!selectedCategory ? 'active' : ''}
                 onClick={() => handleCategorySelect('')}
               >
-                Tất cả bài viết
+                {t('blog.all')}
               </li>
               {categories.map((cat) => (
                 <li
@@ -115,10 +118,10 @@ export default function BlogList() {
         {/* Main Post Grid */}
         <main className="blog-main-content">
           {loading ? (
-            <div className="blog-loading">Đang tải bài viết...</div>
+            <div className="blog-loading">{t('blog.loading')}</div>
           ) : posts.length === 0 ? (
             <div className="blog-empty-state">
-              Không tìm thấy bài viết nào phù hợp.
+              {t('blog.empty')}
             </div>
           ) : (
             <div className="blog-grid">
@@ -146,13 +149,13 @@ export default function BlogList() {
                       <span>{post.authorName || 'Admin'}</span> •{' '}
                       <span>
                         {post.publishedAt
-                          ? new Date(post.publishedAt).toLocaleDateString('vi-VN')
+                          ? new Date(post.publishedAt).toLocaleDateString(dateLocale)
                           : ''}
                       </span>
                     </div>
                     <h2 className="blog-card__title">{post.title}</h2>
                     <p className="blog-card__summary">{post.summary}</p>
-                    <span className="blog-card__link">Đọc tiếp →</span>
+                    <span className="blog-card__link">{t('blog.readMore')}</span>
                   </div>
                 </article>
               ))}
@@ -166,16 +169,16 @@ export default function BlogList() {
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
-                ← Trước
+                {t('blog.previous')}
               </button>
               <span>
-                Trang {page} / {totalPages}
+                {t('blog.page', { page, pages: totalPages })}
               </span>
               <button
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
-                Sau →
+                {t('blog.next')}
               </button>
             </div>
           )}
@@ -184,4 +187,3 @@ export default function BlogList() {
     </div>
   );
 }
-

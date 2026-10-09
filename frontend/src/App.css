@@ -153,6 +153,11 @@ button,
   padding: 0;
 }
 
+.main-content--admin {
+  min-height: 100vh;
+  padding: 0;
+}
+
 .heading-section {
   margin-bottom: 32px;
 }

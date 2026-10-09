@@ -1,6 +1,8 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useState, useEffect } from 'react';
+import { usePreferences } from '../../context/PreferencesContext';
+import PreferencesControls from './PreferencesControls';
 import './AdminLayout.css';
 
 // ✅ Thêm prop hideTopbar — dùng ở trang Profile admin để ẩn header
@@ -8,6 +10,7 @@ export default function AdminLayout({ title, children, hideTopbar = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuth();
+  const { t } = usePreferences();
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -41,7 +44,8 @@ export default function AdminLayout({ title, children, hideTopbar = false }) {
       <button
         className="admin-sidebar-toggle"
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        title="Toggle Sidebar"
+        title={t('admin.toggleSidebar')}
+        aria-label={t('admin.toggleSidebar')}
       >
         ☰
       </button>
@@ -49,17 +53,17 @@ export default function AdminLayout({ title, children, hideTopbar = false }) {
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="admin-brand">THEBOB</div>
         <nav className="admin-nav">
-          <Link to="/admin"            className={getNavLinkClass('/admin')}>Bảng Điều Khiển</Link>
-          <Link to="/admin/products"   className={getNavLinkClass('/admin/products')}>Sản Phẩm</Link>
-          <Link to="/admin/categories" className={getNavLinkClass('/admin/categories')}>Danh Mục</Link>
-          <Link to="/admin/orders"     className={getNavLinkClass('/admin/orders')}>Đơn Hàng</Link>
-          <Link to="/admin/promotions" className={getNavLinkClass('/admin/promotions')}>Khuyến Mãi</Link>
-          <Link to="/admin/users"      className={getNavLinkClass('/admin/users')}>Người Dùng</Link>
-          <Link to="/admin/chat"       className={getNavLinkClass('/admin/chat')}>Chat</Link>
-          <Link to="/admin/faqs"       className={getNavLinkClass('/admin/faqs')}>FAQ</Link>
-          <Link to="/admin/blog"       className={getNavLinkClass('/admin/blog')}>Bài Viết Blog</Link>
-          <Link to="/admin/profile"    className={getNavLinkClass('/admin/profile')}>Tài Khoản</Link>
-          <Link to="/admin/settings"   className={getNavLinkClass('/admin/settings')}>Cài Đặt</Link>
+          <Link to="/admin"            className={getNavLinkClass('/admin')}>{t('admin.dashboard')}</Link>
+          <Link to="/admin/products"   className={getNavLinkClass('/admin/products')}>{t('admin.products')}</Link>
+          <Link to="/admin/categories" className={getNavLinkClass('/admin/categories')}>{t('admin.categories')}</Link>
+          <Link to="/admin/orders"     className={getNavLinkClass('/admin/orders')}>{t('admin.orders')}</Link>
+          <Link to="/admin/promotions" className={getNavLinkClass('/admin/promotions')}>{t('admin.promotions')}</Link>
+          <Link to="/admin/users"      className={getNavLinkClass('/admin/users')}>{t('admin.users')}</Link>
+          <Link to="/admin/chat"       className={getNavLinkClass('/admin/chat')}>{t('admin.chat')}</Link>
+          <Link to="/admin/faqs"       className={getNavLinkClass('/admin/faqs')}>{t('admin.faq')}</Link>
+          <Link to="/admin/blog"       className={getNavLinkClass('/admin/blog')}>{t('admin.blog')}</Link>
+          <Link to="/admin/profile"    className={getNavLinkClass('/admin/profile')}>{t('admin.account')}</Link>
+          <Link to="/admin/settings"   className={getNavLinkClass('/admin/settings')}>{t('admin.settings')}</Link>
         </nav>
       </aside>
 
@@ -71,11 +75,12 @@ export default function AdminLayout({ title, children, hideTopbar = false }) {
               <h2>{title}</h2>
             </div>
             <div className="topbar-right">
+              <PreferencesControls />
               <div className="admin-menu-container">
                 <button
                   className="admin-menu-btn"
                   onClick={() => setMenuOpen(!menuOpen)}
-                  title="Menu Admin"
+                  title={t('admin.menu')}
                 >
                   👤 {user?.name || user?.fullName || 'Admin'}
                 </button>
@@ -84,7 +89,7 @@ export default function AdminLayout({ title, children, hideTopbar = false }) {
                     <div className="dropdown-item email">{user?.email}</div>
                     <hr />
                     <button className="dropdown-item logout-btn" onClick={handleLogout}>
-                      Đăng Xuất
+                      {t('admin.logout')}
                     </button>
                   </div>
                 )}

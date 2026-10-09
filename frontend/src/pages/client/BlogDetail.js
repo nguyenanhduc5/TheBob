@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { blogAPI } from '../../api/app';
+import { usePreferences } from '../../context/PreferencesContext';
 import BlogProductCard from '../../components/blog/BlogProductCard';
 import '../../styles/Blog.css';
 
@@ -9,6 +10,8 @@ export default function BlogDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const source = searchParams.get('source') || 'Direct';
+  const { t, locale } = usePreferences();
+  const dateLocale = { vi: 'vi-VN', en: 'en-US', zh: 'zh-CN' }[locale];
 
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,12 +30,12 @@ export default function BlogDetail() {
           // Fire-and-forget page view track
           blogAPI.trackClick(data.id, source).catch(() => {});
         } else if (isMounted) {
-          setError('Không tìm thấy bài viết.');
+          setError(t('blog.notFound'));
         }
       })
       .catch((err) => {
         if (isMounted) {
-          setError(err?.message || 'Không thể tải nội dung bài viết.');
+          setError(err?.message || t('blog.loadError'));
         }
       })
       .finally(() => {
@@ -42,12 +45,12 @@ export default function BlogDetail() {
     return () => {
       isMounted = false;
     };
-  }, [slug, source]);
+  }, [slug, source, t]);
 
   if (loading) {
     return (
       <div className="blog-detail-container">
-        <div className="blog-loading">Đang tải bài viết...</div>
+        <div className="blog-loading">{t('blog.loading')}</div>
       </div>
     );
   }
@@ -56,9 +59,9 @@ export default function BlogDetail() {
     return (
       <div className="blog-detail-container">
         <div className="blog-error-state">
-          <h2>{error || 'Bài viết không tồn tại'}</h2>
+          <h2>{error || t('blog.notExist')}</h2>
           <button className="bob-btn-light" onClick={() => navigate('/blog')}>
-            ← Quay lại danh sách Blog
+            {t('blog.backToList')}
           </button>
         </div>
       </div>
@@ -117,17 +120,17 @@ export default function BlogDetail() {
       <div className="blog-detail-header">
         <div className="blog-detail-breadcrumbs">
           <span onClick={() => navigate('/blog')}>Blog</span> /{' '}
-          <span>{post.categoryName || 'Tất cả'}</span>
+          <span>{post.categoryName || t('blog.allCategory')}</span>
         </div>
 
         <h1 className="blog-detail-title">{post.title}</h1>
 
         <div className="blog-detail-meta">
-          <span>Tác giả: <strong>{post.authorName || 'Admin'}</strong></span>
+          <span>{t('blog.author')} <strong>{post.authorName || 'Admin'}</strong></span>
           <span>•</span>
           <span>
             {post.publishedAt
-              ? new Date(post.publishedAt).toLocaleDateString('vi-VN', {
+              ? new Date(post.publishedAt).toLocaleDateString(dateLocale, {
                   day: '2-digit',
                   month: '2-digit',
                   year: 'numeric',
@@ -153,7 +156,7 @@ export default function BlogDetail() {
       {/* Attached Related Products Section */}
       {post.products && post.products.length > 0 && (
         <section className="blog-related-products-section">
-          <h3>Sản phẩm đề xuất trong bài viết</h3>
+          <h3>{t('blog.relatedProducts')}</h3>
           <div className="blog-related-products-grid">
             {post.products.map((p) => (
               <BlogProductCard
@@ -169,10 +172,9 @@ export default function BlogDetail() {
 
       <div className="blog-detail-footer">
         <button type="button" className="bob-btn-light" onClick={() => navigate('/blog')}>
-          ← Xem các bài viết khác
+          {t('blog.viewOtherPosts')}
         </button>
       </div>
     </article>
   );
 }
-

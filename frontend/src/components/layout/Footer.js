@@ -1,11 +1,14 @@
 import './Footer.css';
+import { usePreferences } from '../../context/PreferencesContext';
 
 export default function Footer() {
+  const { t } = usePreferences();
+
   return (
     <footer className="site-footer">
       <div className="footer-container">
         <div className="footer-section">
-          <h4>CONTACT</h4>
+          <h4>{t('footer.contact')}</h4>
           <p>Email: contact@thebob.com</p>
           <p>Phone: +84 977 699 624</p>
           <p>Address: 828 Su Van Hanh, Ho Chi Minh City, Vietnam</p>
@@ -22,20 +25,20 @@ export default function Footer() {
   </div>
         </div>
         <div className="footer-section">
-          <h4>ABOUT US</h4>
-          <p>THEBOB - Premium minimal fashion for everyday life.</p>
+          <h4>{t('footer.about')}</h4>
+          <p>{t('footer.aboutText')}</p>
         </div>
         <div className="footer-section">
-          <h4>POLICY</h4>
+          <h4>{t('footer.policy')}</h4>
           <ul>
-            <li><a href="#exchange">EXCHANGE POLICY</a></li>
-            <li><a href="#shipping">SHIPPING & PAYMENT</a></li>
-            <li><a href="#privacy">PRIVACY POLICY</a></li>
+            <li><a href="#exchange">{t('footer.exchange')}</a></li>
+            <li><a href="#shipping">{t('footer.shipping')}</a></li>
+            <li><a href="#privacy">{t('footer.privacy')}</a></li>
           </ul>
         </div>
         
         <div className="footer-section">
-          <h4>FOLLOW US</h4>
+          <h4>{t('footer.follow')}</h4>
           <div className="social-links">
            <a href="https://www.instagram.com/12_bob_/" target="_blank" rel="noreferrer noopener">Instagram</a>
             <a href="https://www.facebook.com/anh.duc.843605?locale=vi_VN" target="_blank" rel="noreferrer noopener">Facebook</a>
@@ -43,7 +46,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="footer-bottom">
-        <p>&copy; 2026 THEBOB. All rights reserved.</p>
+        <p>&copy; 2026 THEBOB. {t('footer.rights')}</p>
       </div>
     </footer>
   );
