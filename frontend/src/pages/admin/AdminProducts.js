@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useNotification } from '../../context/NotificationContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import { productsAPI } from '../../api/app';
 import ProductTable from '../../components/ProductTable';
 import ProductForm from '../../components/ProductForm';
@@ -92,6 +93,7 @@ export default function AdminProducts() {
   const { pathname } = useLocation();
   const { id: productId } = useParams();
   const { addNotification } = useNotification();
+  const { t } = usePreferences();
 
   const isListView = !pathname.includes('/new') && !pathname.includes('/edit');
   const isEditing = pathname.includes('/edit');
@@ -290,25 +292,25 @@ export default function AdminProducts() {
     <div className="admin-products-page">
       <div className="pm-header">
         <div>
-          <p className="pm-kicker">Product Management</p>
-          <h1>Sản phẩm</h1>
-          <span>{filteredProducts.length} sản phẩm đang hiển thị</span>
+          <p className="pm-kicker">{t('admin.products.kicker')}</p>
+          <h1>{t('admin.products.title')}</h1>
+          <span>{t('admin.products.count', { count: filteredProducts.length })}</span>
         </div>
         <button className="pm-button pm-button-primary" onClick={() => navigate('/admin/products/new')}>
-          Thêm sản phẩm
+          {t('admin.products.add')}
         </button>
       </div>
 
       <div className="pm-toolbar">
         <input
-          aria-label="Tìm sản phẩm"
+          aria-label={t('admin.products.search.label')}
           className="pm-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Tìm theo tên, SKU, thương hiệu, danh mục..."
+          placeholder={t('admin.products.search')}
         />
         <select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}>
-          <option value="all">Tất cả thương hiệu</option>
+          <option value="all">{t('admin.products.allBrands')}</option>
           {lookups.brands.map((brand) => (
             <option key={brand.id} value={brand.id}>
               {brand.name}
@@ -316,7 +318,7 @@ export default function AdminProducts() {
           ))}
         </select>
         <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-          <option value="all">Tất cả danh mục</option>
+          <option value="all">{t('admin.products.allCategories')}</option>
           {lookups.categories.map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
@@ -324,14 +326,14 @@ export default function AdminProducts() {
           ))}
         </select>
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-          <option value="all">Tất cả trạng thái</option>
-          <option value="available">Đang bán</option>
-          <option value="lowStock">Sắp hết</option>
-          <option value="outOfStock">Hết hàng</option>
-          <option value="inactive">Tạm ẩn</option>
+          <option value="all">{t('admin.products.allStatuses')}</option>
+          <option value="available">{t('admin.products.available')}</option>
+          <option value="lowStock">{t('admin.products.lowStock')}</option>
+          <option value="outOfStock">{t('admin.products.outOfStock')}</option>
+          <option value="inactive">{t('admin.products.inactive')}</option>
         </select>
         <button className="pm-button pm-button-secondary" onClick={clearFilters}>
-          Xóa lọc
+          {t('admin.products.clearFilters')}
         </button>
       </div>
 
@@ -345,8 +347,8 @@ export default function AdminProducts() {
 
       {filteredProducts.length === 0 && (
         <div className="pm-empty">
-          <h3>Chưa có sản phẩm phù hợp</h3>
-          <p>Thay đổi bộ lọc hoặc thêm sản phẩm mới để bắt đầu quản lý kho.</p>
+          <h3>{t('admin.products.empty.title')}</h3>
+          <p>{t('admin.products.empty.description')}</p>
         </div>
       )}
 
@@ -363,4 +365,3 @@ export default function AdminProducts() {
     </div>
   );
 }
-

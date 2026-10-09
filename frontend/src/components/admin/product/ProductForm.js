@@ -1,8 +1,9 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import ProductImagesManager from './ProductImagesManager';
-import VariantManager from './VariantManager';
+import VariantManager, { buildColorImageGroups, synchronizeColorImages } from './VariantManager';
 import { productsAPI } from '../../../api/app';
 import { useNotification } from '../../../context/NotificationContext';
+import { usePreferences } from '../../../context/PreferencesContext';
 
 const createClientId = () => `variant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -85,7 +86,9 @@ const normalizeFormProduct = (product) => {
 function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps, onCancel, onSubmit, fetchLookups }) {
   const [formData, setFormData] = useState(() => normalizeFormProduct(initialProduct));
   const [errors, setErrors] = useState({});
+  const pendingColorImageChanges = useRef(new Set());
   const { addNotification } = useNotification();
+  const { t } = usePreferences();
 
   const brands = useMemo(() => (Array.isArray(lookups?.brands) ? lookups.brands : []), [lookups]);
   const categories = useMemo(() => (Array.isArray(lookups?.categories) ? lookups.categories : []), [lookups]);
@@ -97,10 +100,20 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
     setErrors((current) => ({ ...current, [field]: undefined }));
   }, []);
 
+  const handleImageValidationChange = useCallback((colorId, hasPendingChanges) => {
+    if (hasPendingChanges) pendingColorImageChanges.current.add(colorId);
+    else {
+      pendingColorImageChanges.current.delete(colorId);
+      if (pendingColorImageChanges.current.size === 0) {
+        setErrors((current) => ({ ...current, images: undefined }));
+      }
+    }
+  }, []);
+
   const handleAddColor = useCallback(async (payload) => {
     try {
       if (typeof productsAPI.createColor !== 'function') {
-        throw new Error("Hàm createColor chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+        throw new Error('Tính năng thêm màu chưa được cấu hình trong hệ thống.');
       }
       const newColor = await productsAPI.createColor(payload);
       if (newColor) {
@@ -116,12 +129,12 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
   const handleAddSize = useCallback(async (payload) => {
     try {
       if (typeof productsAPI.createSize !== 'function') {
-        throw new Error("Hàm createSize chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+        throw new Error('Tính năng thêm kích cỡ chưa được cấu hình trong hệ thống.');
       }
       const newSize = await productsAPI.createSize(payload);
       if (newSize) {
         if (fetchLookups) await fetchLookups();
-        addNotification(`Đã thêm size "${payload?.name || ''}" thành công.`, 'success');
+        addNotification(`Đã thêm kích cỡ "${payload?.name || ''}" thành công.`, 'success');
         return newSize;
       }
     } catch (e) {
@@ -131,7 +144,7 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
   const handleEditColor = useCallback(async (colorId, payload) => {
   try {
     if (typeof productsAPI.updateColor !== 'function') {
-      throw new Error("Hàm updateColor chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+      throw new Error('Tính năng cập nhật màu chưa được cấu hình trong hệ thống.');
     }
     const updated = await productsAPI.updateColor(colorId, payload);
     if (fetchLookups) await fetchLookups();
@@ -146,7 +159,7 @@ function ProductForm({ initialProduct, isEditing, isSaving, lookups, lookupMaps,
 const handleDeleteColor = useCallback(async (colorId) => {
   try {
     if (typeof productsAPI.deleteColor !== 'function') {
-      throw new Error("Hàm deleteColor chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+      throw new Error('Tính năng xóa màu chưa được cấu hình trong hệ thống.');
     }
     await productsAPI.deleteColor(colorId);
     if (fetchLookups) await fetchLookups();
@@ -161,11 +174,11 @@ const handleDeleteColor = useCallback(async (colorId) => {
 const handleEditSize = useCallback(async (sizeId, payload) => {
   try {
     if (typeof productsAPI.updateSize !== 'function') {
-      throw new Error("Hàm updateSize chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+      throw new Error('Tính năng cập nhật kích cỡ chưa được cấu hình trong hệ thống.');
     }
     const updated = await productsAPI.updateSize(sizeId, payload);
     if (fetchLookups) await fetchLookups();
-    addNotification(`Đã cập nhật size "${payload?.name || ''}" thành công.`, 'success');
+    addNotification(`Đã cập nhật kích cỡ "${payload?.name || ''}" thành công.`, 'success');
     return updated;
   } catch (e) {
     addNotification(e.message, "error");
@@ -176,11 +189,11 @@ const handleEditSize = useCallback(async (sizeId, payload) => {
 const handleDeleteSize = useCallback(async (sizeId) => {
   try {
     if (typeof productsAPI.deleteSize !== 'function') {
-      throw new Error("Hàm deleteSize chưa được định nghĩa trong productsAPI (file src/api/app.js)");
+      throw new Error('Tính năng xóa kích cỡ chưa được cấu hình trong hệ thống.');
     }
     await productsAPI.deleteSize(sizeId);
     if (fetchLookups) await fetchLookups();
-    addNotification('Đã xóa size thành công.', 'success');
+    addNotification('Đã xóa kích cỡ thành công.', 'success');
     return true;
   } catch (e) {
     addNotification(e.message || 'Không thể xóa size này.', "error");
@@ -191,22 +204,32 @@ const handleDeleteSize = useCallback(async (sizeId) => {
   const validate = useCallback(() => {
     const nextErrors = {};
 
-    if (!formData.name.trim()) nextErrors.name = 'Ten san pham la bat buoc.';
-    if (!formData.description.trim()) nextErrors.description = 'Mo ta la bat buoc.';
-    if (!toIntOrNull(formData.brandId)) nextErrors.brandId = 'Vui long chon thuong hieu.';
-    if (!toIntOrNull(formData.categoryId)) nextErrors.categoryId = 'Vui long chon danh muc.';
+    if (!formData.name.trim()) nextErrors.name = 'Vui lòng nhập tên sản phẩm.';
+    if (!formData.description.trim()) nextErrors.description = 'Vui lòng nhập mô tả sản phẩm.';
+    if (!toIntOrNull(formData.brandId)) nextErrors.brandId = 'Vui lòng chọn thương hiệu.';
+    if (!toIntOrNull(formData.categoryId)) nextErrors.categoryId = 'Vui lòng chọn danh mục.';
 
     if (toNumber(formData.price) <= 0) nextErrors.price = 'Giá sản phẩm phải lớn hơn 0.';
+    if (pendingColorImageChanges.current.size > 0) {
+      nextErrors.images = 'Hãy thêm hoặc xác nhận các thay đổi ảnh theo màu trước khi lưu sản phẩm.';
+    }
 
     if (!Array.isArray(formData.variants) || formData.variants.length === 0) {
-      nextErrors.variants = 'Hay chon it nhat mot mau va mot size de tao bien the.';
+      nextErrors.variants = 'Hãy chọn ít nhất một màu sắc và một kích cỡ để tạo biến thể.';
+    }
+
+    const missingImageColors = buildColorImageGroups(formData.variants)
+      .filter((group) => group.images.length === 0)
+      .map((group) => lookupMaps.colorMap.get(String(group.colorId))?.name || `#${group.colorId}`);
+    if (missingImageColors.length > 0) {
+      nextErrors.images = `Mỗi màu cần ít nhất một ảnh. Còn thiếu: ${missingImageColors.join(', ')}.`;
     }
 
     formData.variants.forEach((variant, index) => {
-      if (!toIntOrNull(variant.colorId)) nextErrors[`variants.${index}.colorId`] = 'Chon mau.';
-      if (!toIntOrNull(variant.sizeId)) nextErrors[`variants.${index}.sizeId`] = 'Chon size.';
-      if (!String(variant.sku || '').trim()) nextErrors[`variants.${index}.sku`] = 'SKU la bat buoc.';
-      if (toNumber(variant.stock) < 0) nextErrors[`variants.${index}.stock`] = 'Ton kho khong duoc am.';
+      if (!toIntOrNull(variant.colorId)) nextErrors[`variants.${index}.colorId`] = 'Vui lòng chọn màu sắc.';
+      if (!toIntOrNull(variant.sizeId)) nextErrors[`variants.${index}.sizeId`] = 'Vui lòng chọn kích cỡ.';
+      if (!String(variant.sku || '').trim()) nextErrors[`variants.${index}.sku`] = 'Vui lòng nhập mã SKU.';
+      if (toNumber(variant.stock) < 0) nextErrors[`variants.${index}.stock`] = 'Tồn kho không được là số âm.';
     });
 
     setErrors(nextErrors);
@@ -216,23 +239,34 @@ const handleDeleteSize = useCallback(async (sizeId) => {
     }
     
     return Object.keys(nextErrors).length === 0;
-  }, [formData, addNotification]);
+  }, [formData, addNotification, lookupMaps.colorMap]);
 
   const buildPayload = useCallback(() => {
+    const variantsWithSynchronizedImages = synchronizeColorImages(formData.variants);
+    const colorImages = buildColorImageGroups(variantsWithSynchronizedImages);
+    const productImages = cleanImages(formData.images);
+    const mainImageUrl = formData.mainImageUrl.trim()
+      || colorImages.find((group) => group.images.length > 0)?.images[0]?.url
+      || productImages[0]?.url
+      || '';
 
     return {
       name: formData.name.trim(),
       description: formData.description.trim(),
       brandId: toIntOrNull(formData.brandId),
       categoryId: toIntOrNull(formData.categoryId),
-      mainImageUrl: formData.mainImageUrl.trim(),
+      mainImageUrl,
       material: formData.material.trim(),
       careInstructions: formData.careInstructions.trim(),
       isFeatured: formData.isFeatured === true,
       isAvailable: formData.isAvailable !== false,
       price: toNumber(formData.price),
-      imageUrls: cleanImages(formData.images).map((image) => image.url),
-      variants: formData.variants.map((variant) => ({
+      imageUrls: productImages.map((image) => image.url),
+      colorImages: colorImages.map((group) => ({
+        colorId: toIntOrNull(group.colorId),
+        imageUrls: group.images.map((image) => image.url),
+      })),
+      variants: variantsWithSynchronizedImages.map((variant) => ({
         id: variant.id || undefined,
         colorId: toIntOrNull(variant.colorId),
         sizeId: toIntOrNull(variant.sizeId),
@@ -258,38 +292,38 @@ const handleDeleteSize = useCallback(async (sizeId) => {
     <form className="pm-form" onSubmit={handleSubmit}>
       <div className="pm-form-header">
         <div>
-          <p className="pm-kicker">Product Admin</p>
-          <h2>{isEditing ? 'Sua san pham' : 'Them san pham'}</h2>
+          <p className="pm-kicker">{t('admin.productForm.kicker')}</p>
+          <h2>{isEditing ? t('admin.productForm.update') : t('admin.productForm.create')}</h2>
         </div>
         <div className="pm-form-actions">
           <button className="pm-button pm-button-secondary" type="button" onClick={onCancel} disabled={isSaving}>
-            Huy
+            {t('admin.productForm.cancel')}
           </button>
           <button className="pm-button pm-button-primary" type="submit" disabled={isSaving}>
-            {isSaving ? 'Dang luu...' : isEditing ? 'Cap nhat' : 'Tao san pham'}
+            {isSaving ? t('admin.productForm.saving') : isEditing ? t('admin.productForm.update') : t('admin.productForm.createAction')}
           </button>
         </div>
       </div>
 
       <section className="pm-form-section">
         <div className="pm-section-heading">
-          <h3>Thong tin co ban</h3>
+          <h3>{t('admin.productForm.basic')}</h3>
         </div>
 
         <div className="pm-grid-two">
           <label className="pm-field">
-            <span>Ten</span>
+            <span>{t('admin.productForm.name')}</span>
             <input
               value={formData.name}
               onChange={(event) => updateField('name', event.target.value)}
               className={errors.name ? 'is-invalid' : ''}
-              placeholder="Ao thun cotton premium"
+              placeholder={t('admin.productForm.name.placeholder')}
             />
             {errors.name ? <small>{errors.name}</small> : null}
           </label>
 
           <label className="pm-field">
-            <span>Gia san pham</span>
+            <span>{t('admin.productForm.price')}</span>
             <input
               type="number"
               min="0"
@@ -297,33 +331,33 @@ const handleDeleteSize = useCallback(async (sizeId) => {
               value={formData.price}
               onChange={(event) => updateField('price', event.target.value)}
               className={errors.price ? 'is-invalid' : ''}
-              placeholder="250000"
+              placeholder={t('admin.productForm.price.placeholder')}
             />
             {errors.price ? <small>{errors.price}</small> : null}
           </label>
         </div>
 
         <label className="pm-field">
-          <span>Mo ta</span>
+          <span>{t('admin.productForm.description')}</span>
           <textarea
             rows="5"
             value={formData.description}
             onChange={(event) => updateField('description', event.target.value)}
             className={errors.description ? 'is-invalid' : ''}
-            placeholder="Mo ta chat lieu, form dang, cam giac mac..."
+            placeholder={t('admin.productForm.description.placeholder')}
           />
           {errors.description ? <small>{errors.description}</small> : null}
         </label>
 
         <div className="pm-grid-two">
           <label className="pm-field">
-            <span>Thuong hieu</span>
+            <span>{t('admin.productForm.brand')}</span>
             <select
               value={formData.brandId}
               onChange={(event) => updateField('brandId', event.target.value)}
               className={errors.brandId ? 'is-invalid' : ''}
             >
-              <option value="">Chon thuong hieu</option>
+              <option value="">{t('admin.productForm.selectBrand')}</option>
               {brands.map((brand) => (
                 <option key={brand.id} value={brand.id}>
                   {brand.name}
@@ -334,13 +368,13 @@ const handleDeleteSize = useCallback(async (sizeId) => {
           </label>
 
           <label className="pm-field">
-            <span>Danh muc</span>
+            <span>{t('admin.productForm.category')}</span>
             <select
               value={formData.categoryId}
               onChange={(event) => updateField('categoryId', event.target.value)}
               className={errors.categoryId ? 'is-invalid' : ''}
             >
-              <option value="">Chon danh muc</option>
+              <option value="">{t('admin.productForm.selectCategory')}</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -353,12 +387,12 @@ const handleDeleteSize = useCallback(async (sizeId) => {
 
         <div className="pm-grid-two">
           <label className="pm-field">
-            <span>Chat lieu</span>
+            <span>{t('admin.productForm.material')}</span>
             <input value={formData.material} onChange={(event) => updateField('material', event.target.value)} />
           </label>
 
           <label className="pm-field">
-            <span>Huong dan bao quan</span>
+            <span>{t('admin.productForm.care')}</span>
             <input
               value={formData.careInstructions}
               onChange={(event) => updateField('careInstructions', event.target.value)}
@@ -373,7 +407,7 @@ const handleDeleteSize = useCallback(async (sizeId) => {
               checked={formData.isFeatured}
               onChange={(event) => updateField('isFeatured', event.target.checked)}
             />
-            <span>San pham noi bat</span>
+            <span>{t('admin.productForm.featured')}</span>
           </label>
           <label className="pm-switch">
             <input
@@ -381,7 +415,7 @@ const handleDeleteSize = useCallback(async (sizeId) => {
               checked={formData.isAvailable}
               onChange={(event) => updateField('isAvailable', event.target.checked)}
             />
-            <span>Dang ban</span>
+            <span>{t('admin.productForm.available')}</span>
           </label>
         </div>
       </section>
@@ -408,14 +442,15 @@ const handleDeleteSize = useCallback(async (sizeId) => {
         onDeleteColor={handleDeleteColor}
         onEditSize={handleEditSize}
         onDeleteSize={handleDeleteSize}
+        onImageValidationChange={handleImageValidationChange}
       />
 
       <div className="pm-form-footer">
         <button className="pm-button pm-button-secondary" type="button" onClick={onCancel} disabled={isSaving}>
-          Huy
+          {t('admin.productForm.cancel')}
         </button>
         <button className="pm-button pm-button-primary" type="submit" disabled={isSaving}>
-          {isSaving ? 'Dang luu...' : isEditing ? 'Cap nhat san pham' : 'Tao san pham'}
+          {isSaving ? t('admin.productForm.saving') : isEditing ? t('admin.productForm.update') : t('admin.productForm.createAction')}
         </button>
       </div>
     </form>

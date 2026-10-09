@@ -212,9 +212,10 @@ namespace THEBOB.Services
                     .ToList();
             }
 
+            var colorImageUrls = BuildColorImageUrlMap(request);
             foreach (var variantRequest in request.Variants)
             {
-                product.ProductVariants.Add(CreateVariant(product, variantRequest));
+                product.ProductVariants.Add(CreateVariant(product, variantRequest, colorImageUrls));
             }
 
             _context.Products.Add(product);
@@ -279,6 +280,7 @@ namespace THEBOB.Services
 
             if (request.Variants != null)
             {
+                var colorImageUrls = BuildColorImageUrlMap(request);
                 var requestIds = request.Variants.Where(v => v.Id.HasValue).Select(v => v.Id!.Value).ToHashSet();
 
                 foreach (var existing in product.ProductVariants.Where(v => !requestIds.Contains(v.Id)))
@@ -293,11 +295,14 @@ namespace THEBOB.Services
                 {
                     var existing = variantRequest.Id.HasValue
                         ? product.ProductVariants.FirstOrDefault(v => v.Id == variantRequest.Id.Value)
-                        : null;
+                        : product.ProductVariants.FirstOrDefault(v =>
+                            v.IsDeleted
+                            && v.ColorId == variantRequest.ColorId!.Value
+                            && v.SizeId == variantRequest.SizeId!.Value);
 
                     if (existing == null)
                     {
-                        product.ProductVariants.Add(CreateVariant(product, variantRequest));
+                        product.ProductVariants.Add(CreateVariant(product, variantRequest, colorImageUrls));
                         continue;
                     }
 
@@ -310,7 +315,7 @@ namespace THEBOB.Services
                     existing.IsDeleted = false;
                     existing.DeletedAt = null;
                     existing.UpdatedAt = DateTime.UtcNow;
-                    ReplaceVariantImages(existing, variantRequest.ImageUrls);
+                    ReplaceVariantImages(existing, ResolveVariantImageUrls(variantRequest, colorImageUrls));
                 }
             }
 
@@ -397,7 +402,16 @@ namespace THEBOB.Services
                     p.Description,
                     p.BrandId,
                     BrandName = p.Brand != null ? p.Brand.Name : string.Empty,
-                    p.MainImageUrl,
+                    MainImageUrl = p.MainImageUrl != null && p.MainImageUrl != string.Empty
+                        ? p.MainImageUrl
+                        : p.Images.OrderBy(i => i.SortOrder).Select(i => i.Url).FirstOrDefault()
+                            ?? p.ProductVariants
+                                .Where(v => !v.IsDeleted)
+                                .SelectMany(v => v.Images)
+                                .OrderBy(i => i.SortOrder)
+                                .Select(i => i.Url)
+                                .FirstOrDefault()
+                            ?? string.Empty,
                     p.Rating,
                     p.ReviewCount,
                     p.IsFeatured,
@@ -469,7 +483,10 @@ namespace THEBOB.Services
                 .AsSplitQuery();
         }
 
-        private static ProductVariant CreateVariant(Product product, VariantItemDto variantRequest)
+        private static ProductVariant CreateVariant(
+            Product product,
+            VariantItemDto variantRequest,
+            IReadOnlyDictionary<int, List<string>> colorImageUrls)
         {
             var variant = new ProductVariant
             {
@@ -484,8 +501,39 @@ namespace THEBOB.Services
                 UpdatedAt = DateTime.UtcNow
             };
 
-            ReplaceVariantImages(variant, variantRequest.ImageUrls);
+            ReplaceVariantImages(variant, ResolveVariantImageUrls(variantRequest, colorImageUrls));
             return variant;
+        }
+
+        private static Dictionary<int, List<string>> BuildColorImageUrlMap(ProductCreateRequest request)
+        {
+            if (request.ColorImages == null)
+                return new Dictionary<int, List<string>>();
+
+            return request.ColorImages
+                .Where(group => group.ColorId.HasValue)
+                .GroupBy(group => group.ColorId!.Value)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .SelectMany(item => item.ImageUrls ?? new List<string>())
+                        .Where(url => !string.IsNullOrWhiteSpace(url))
+                        .Select(url => url.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList());
+        }
+
+        private static List<string>? ResolveVariantImageUrls(
+            VariantItemDto variantRequest,
+            IReadOnlyDictionary<int, List<string>> colorImageUrls)
+        {
+            if (variantRequest.ColorId.HasValue
+                && colorImageUrls.TryGetValue(variantRequest.ColorId.Value, out var images))
+            {
+                return images;
+            }
+
+            return variantRequest.ImageUrls;
         }
 
         private static void ReplaceVariantImages(ProductVariant variant, List<string>? imageUrls)
@@ -518,6 +566,36 @@ namespace THEBOB.Services
             if (request.Variants == null || request.Variants.Count == 0)
                 return "Product must have at least one variant.";
 
+            if (request.ColorImages != null)
+            {
+                if (request.ColorImages.Any(group => !group.ColorId.HasValue))
+                    return "ColorImages ColorId is required.";
+
+                var duplicateColorGroup = request.ColorImages
+                    .GroupBy(group => group.ColorId!.Value)
+                    .Any(group => group.Count() > 1);
+                if (duplicateColorGroup)
+                    return "Each color can have only one image group.";
+
+                var variantColorIds = request.Variants
+                    .Where(variant => variant.ColorId.HasValue)
+                    .Select(variant => variant.ColorId!.Value)
+                    .Distinct()
+                    .ToHashSet();
+                var imageColorIds = request.ColorImages
+                    .Select(group => group.ColorId!.Value)
+                    .ToHashSet();
+
+                if (!imageColorIds.SetEquals(variantColorIds))
+                    return "Color image groups must match the product variant colors.";
+
+                if (request.ColorImages.Any(group => group.ImageUrls == null
+                    || !group.ImageUrls.Any(url => !string.IsNullOrWhiteSpace(url))))
+                {
+                    return "Each product color must have at least one image.";
+                }
+            }
+
             foreach (var variant in request.Variants)
             {
                 if (!variant.ColorId.HasValue)
@@ -543,6 +621,31 @@ namespace THEBOB.Services
         {
             var activeVariants = p.ProductVariants.Where(v => !v.IsDeleted).ToList();
             var minPrice = activeVariants.Count == 0 ? 0 : activeVariants.Min(v => v.Price);
+            var colorImages = activeVariants
+                .GroupBy(v => v.ColorId)
+                .Select(group => new
+                {
+                    colorId = group.Key,
+                    color = group.First().Color?.Name ?? string.Empty,
+                    hexCode = group.First().Color?.HexCode ?? string.Empty,
+                    images = group
+                        .SelectMany(variant => variant.Images)
+                        .OrderBy(image => image.SortOrder)
+                        .GroupBy(image => image.Url, StringComparer.OrdinalIgnoreCase)
+                        .Select((images, index) => new
+                        {
+                            id = images.First().Id,
+                            url = images.Key,
+                            sortOrder = index
+                        })
+                        .ToList()
+                })
+                .ToList();
+            var effectiveMainImage = string.IsNullOrWhiteSpace(p.MainImageUrl)
+                ? p.Images.OrderBy(image => image.SortOrder).Select(image => image.Url).FirstOrDefault()
+                    ?? colorImages.SelectMany(group => group.images).Select(image => image.url).FirstOrDefault()
+                    ?? string.Empty
+                : p.MainImageUrl;
 
             return new
             {
@@ -555,7 +658,7 @@ namespace THEBOB.Services
                 brand = p.Brand?.Name ?? string.Empty,
                 material = p.Material,
                 careInstructions = p.CareInstructions,
-                mainImageUrl = p.MainImageUrl,
+                mainImageUrl = effectiveMainImage,
                 minPrice,
                 maxPrice = activeVariants.Count == 0 ? 0 : activeVariants.Max(v => v.Price),
                 price = minPrice,
@@ -564,6 +667,7 @@ namespace THEBOB.Services
                 rating = p.Rating,
                 reviewCount = p.ReviewCount,
                 images = p.Images.OrderBy(i => i.SortOrder).Select(i => new { i.Id, url = i.Url, i.SortOrder }),
+                colorImages,
                 variants = activeVariants.Select(v => new
                 {
                     v.Id,
@@ -582,6 +686,7 @@ namespace THEBOB.Services
                 {
                     v.Id,
                     v.SizeId,
+                    v.ColorId,
                     Size = v.Size?.Name ?? string.Empty,
                     Color = v.Color?.Name ?? string.Empty,
                     HexCode = v.Color?.HexCode ?? string.Empty,

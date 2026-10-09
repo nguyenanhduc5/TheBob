@@ -1,6 +1,11 @@
 import React, { memo, useCallback, useMemo, useState, useEffect } from 'react';
+import { Icons } from '../../icons';
 
 const createClientId = () => `variant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const PhotoIcon = Icons.photo;
+const PlusIcon = Icons.plus;
+const TrashIcon = Icons.trash;
+const VariantsIcon = Icons.package;
 
 const toNumber = (value, fallback = 0) => {
   const number = Number(value);
@@ -26,19 +31,74 @@ const makeDefaultSku = (colorMap, sizeMap, colorId, sizeId) => {
   return `THEBOB-${colorName}-${sizeName}`;
 };
 
+const normalizeImageList = (images) =>
+  (Array.isArray(images) ? images : [])
+    .map((image, index) => {
+      const url = typeof image === 'string' ? image.trim() : String(image?.url || '').trim();
+      return {
+        ...(typeof image === 'object' && image !== null ? image : {}),
+        id: typeof image === 'object' && image !== null ? image.id ?? null : null,
+        url,
+        sortOrder: Number.isFinite(Number(image?.sortOrder)) ? Number(image.sortOrder) : index,
+      };
+    })
+    .filter((image) => image.url);
+
+export const synchronizeColorImages = (variants, savedImagesByColor = {}) => {
+  const imagesByColor = new Map(
+    Object.entries(savedImagesByColor).map(([colorId, images]) => [colorId, normalizeImageList(images)])
+  );
+  const items = Array.isArray(variants) ? variants : [];
+
+  items.forEach((variant) => {
+    const colorId = normalizeId(variant.colorId);
+    const images = normalizeImageList(variant.images);
+    if (!imagesByColor.has(colorId) || imagesByColor.get(colorId).length === 0) {
+      imagesByColor.set(colorId, images);
+    }
+  });
+
+  return items.map((variant) => ({
+    ...variant,
+    images: normalizeImageList(imagesByColor.get(normalizeId(variant.colorId))),
+  }));
+};
+
+export const buildColorImageGroups = (variants) => {
+  const groups = new Map();
+
+  synchronizeColorImages(variants).forEach((variant) => {
+    const colorId = normalizeId(variant.colorId);
+    if (!colorId || groups.has(colorId)) return;
+
+    const seenUrls = new Set();
+    const images = normalizeImageList(variant.images)
+      .filter((image) => {
+        if (seenUrls.has(image.url)) return false;
+        seenUrls.add(image.url);
+        return true;
+      })
+      .map((image, sortOrder) => ({ ...image, sortOrder }));
+
+    groups.set(colorId, { colorId, images });
+  });
+
+  return [...groups.values()];
+};
+
 const HEX_REGEX = /^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$/;
 
-const buildMatrix = ({ colorIds, sizeIds, variants, colorMap, sizeMap, defaultPrice }) => {
+const buildMatrix = ({ colorIds, sizeIds, variants, colorMap, sizeMap, defaultPrice, savedImagesByColor }) => {
   const selectedKeys = new Set(colorIds.flatMap((colorId) => sizeIds.map((sizeId) => makeVariantKey(colorId, sizeId))));
   const existingMap = new Map();
   const result = [];
-
   variants.forEach((variant) => {
     const key = makeVariantKey(variant.colorId, variant.sizeId);
     if (existingMap.has(key) || !selectedKeys.has(key)) return;
 
     const nextVariant = {
       ...variant,
+      images: normalizeImageList(variant.images),
       sku: variant.sku || makeDefaultSku(colorMap, sizeMap, variant.colorId, variant.sizeId),
       price: Number(defaultPrice) || 0,
       isAvailable: selectedKeys.has(key),
@@ -70,49 +130,247 @@ const buildMatrix = ({ colorIds, sizeIds, variants, colorMap, sizeMap, defaultPr
     });
   });
 
-  return result;
+  return synchronizeColorImages(result, savedImagesByColor);
 };
 
-function VariantImageEditor({ images, onChange }) {
-  const normalizedImages = useMemo(() => (Array.isArray(images) ? images : []), [images]);
+function isValidImageUrl(value) {
+  if (value.startsWith('/') && !value.startsWith('//')) return true;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+const getImageKey = (image, index) => String(image.id ?? `${image.url}-${index}`);
+
+function VariantImageEditor({ colorId, colorName, images, onChange, onValidationChange }) {
+  const [draftUrl, setDraftUrl] = useState('');
+  const [addError, setAddError] = useState('');
+  const [imageDrafts, setImageDrafts] = useState({});
+  const [imageErrors, setImageErrors] = useState({});
+  const normalizedImages = useMemo(() => normalizeImageList(images), [images]);
+  const errorId = `color-image-error-${colorId}`;
+
+  useEffect(() => {
+    const hasPendingChanges =
+      Boolean(addError || draftUrl.trim()) ||
+      Object.keys(imageDrafts).length > 0 ||
+      Object.keys(imageErrors).length > 0;
+    onValidationChange(colorId, hasPendingChanges);
+  }, [addError, colorId, draftUrl, imageDrafts, imageErrors, onValidationChange]);
 
   const updateImage = useCallback(
     (index, url) => {
-      onChange(normalizedImages.map((image, imageIndex) => (imageIndex === index ? { ...image, url } : image)));
+      onChange(
+        normalizedImages.map((image, imageIndex) => ({
+          ...image,
+          url: imageIndex === index ? url : image.url,
+          sortOrder: imageIndex,
+        }))
+      );
     },
     [normalizedImages, onChange]
   );
 
   const addImage = useCallback(() => {
-    onChange([...normalizedImages, { id: null, url: '', sortOrder: normalizedImages.length }]);
-  }, [normalizedImages, onChange]);
+    const url = draftUrl.trim();
+    if (!url) {
+      setAddError('Nhập đường dẫn ảnh trước khi thêm.');
+      return;
+    }
+    if (!isValidImageUrl(url)) {
+      setAddError('Đường dẫn cần bắt đầu bằng https://, http:// hoặc /.');
+      return;
+    }
+    if (normalizedImages.some((image) => image.url === url)) {
+      setAddError('Ảnh này đã có trong danh sách.');
+      return;
+    }
+
+    onChange([...normalizedImages, { id: null, url, sortOrder: normalizedImages.length }]);
+    setDraftUrl('');
+    setAddError('');
+  }, [draftUrl, normalizedImages, onChange]);
 
   const removeImage = useCallback(
     (index) => {
-      onChange(normalizedImages.filter((_, imageIndex) => imageIndex !== index));
+      const imageKey = getImageKey(normalizedImages[index], index);
+      onChange(
+        normalizedImages
+          .filter((_, imageIndex) => imageIndex !== index)
+          .map((image, sortOrder) => ({ ...image, sortOrder }))
+      );
+      setImageDrafts((current) => {
+        const next = { ...current };
+        delete next[imageKey];
+        return next;
+      });
+      setImageErrors((current) => {
+        const next = { ...current };
+        delete next[imageKey];
+        return next;
+      });
     },
     [normalizedImages, onChange]
   );
 
+  const makeFirstImage = useCallback(
+    (index) => {
+      if (index <= 0) return;
+      const reordered = [...normalizedImages];
+      const [selectedImage] = reordered.splice(index, 1);
+      reordered.unshift(selectedImage);
+      onChange(reordered.map((image, sortOrder) => ({ ...image, sortOrder })));
+    },
+    [normalizedImages, onChange]
+  );
+
+  const commitImageUrl = useCallback(
+    (index) => {
+      const image = normalizedImages[index];
+      const imageKey = getImageKey(image, index);
+      const url = String(imageDrafts[imageKey] ?? image.url).trim();
+
+      if (!url) {
+        setImageErrors((current) => ({
+          ...current,
+          [imageKey]: 'Đường dẫn không được để trống. Hãy xóa ảnh bằng nút thùng rác.',
+        }));
+        return;
+      }
+      if (!isValidImageUrl(url)) {
+        setImageErrors((current) => ({
+          ...current,
+          [imageKey]: 'Đường dẫn cần bắt đầu bằng https://, http:// hoặc /.',
+        }));
+        return;
+      }
+      if (normalizedImages.some((item, itemIndex) => itemIndex !== index && item.url === url)) {
+        setImageErrors((current) => ({ ...current, [imageKey]: 'Ảnh này đã có trong danh sách.' }));
+        return;
+      }
+
+      updateImage(index, url);
+      setImageDrafts((current) => {
+        const next = { ...current };
+        delete next[imageKey];
+        return next;
+      });
+      setImageErrors((current) => {
+        const next = { ...current };
+        delete next[imageKey];
+        return next;
+      });
+    },
+    [imageDrafts, normalizedImages, updateImage]
+  );
+
   return (
     <div className="pm-variant-images">
-      {normalizedImages.map((image, index) => (
-        <div className="pm-variant-image-row" key={`${image.id || 'new'}-${index}`}>
-          <input
-            type="url"
-            value={image.url || ''}
-            onChange={(event) => updateImage(index, event.target.value)}
-            placeholder="URL anh rieng cua bien the"
-          />
-          {image.url ? <img src={image.url} alt={`Anh bien the ${index + 1}`} loading="lazy" /> : null}
-          <button className="pm-mini-button pm-danger" type="button" onClick={() => removeImage(index)}>
-            Xoa
-          </button>
+      {normalizedImages.length > 0 ? (
+        <div className="pm-color-image-grid">
+          {normalizedImages.map((image, index) => (
+            <article className="pm-color-image-card" key={`${image.id || image.url}-${index}`}>
+              <div className="pm-color-image-preview">
+                <img src={image.url} alt={`${colorName} - ảnh ${index + 1}`} loading="lazy" />
+                <span className="pm-color-image-number">Ảnh {index + 1}</span>
+              </div>
+              <div className="pm-color-image-controls">
+                <label className="pm-color-image-url">
+                  <span>Đường dẫn ảnh</span>
+                  <input
+                    type="text"
+                    value={imageDrafts[getImageKey(image, index)] ?? image.url}
+                    onChange={(event) => {
+                      const imageKey = getImageKey(image, index);
+                      setImageDrafts((current) => ({ ...current, [imageKey]: event.target.value }));
+                      setImageErrors((current) => {
+                        const next = { ...current };
+                        delete next[imageKey];
+                        return next;
+                      });
+                    }}
+                    onBlur={() => commitImageUrl(index)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }
+                    }}
+                    aria-label={`Đường dẫn ảnh ${index + 1} của màu ${colorName}`}
+                    aria-invalid={Boolean(imageErrors[getImageKey(image, index)])}
+                    aria-describedby={imageErrors[getImageKey(image, index)] ? `${errorId}-${index}` : undefined}
+                  />
+                  {imageErrors[getImageKey(image, index)] ? (
+                    <small className="pm-color-image-error" id={`${errorId}-${index}`}>
+                      {imageErrors[getImageKey(image, index)]}
+                    </small>
+                  ) : null}
+                </label>
+                {index > 0 ? (
+                  <button
+                    className="pm-mini-button"
+                    type="button"
+                    onClick={() => makeFirstImage(index)}
+                    title="Dùng ảnh này làm ảnh đầu của màu"
+                  >
+                    Đặt ảnh đầu
+                  </button>
+                ) : null}
+                <button
+                  className="pm-icon-button pm-danger pm-color-image-remove"
+                  type="button"
+                  onClick={() => removeImage(index)}
+                  title={`Xóa ảnh ${index + 1}`}
+                  aria-label={`Xóa ảnh ${index + 1} của màu ${colorName}`}
+                >
+                  <TrashIcon size={16} />
+                </button>
+              </div>
+            </article>
+          ))}
         </div>
-      ))}
-      <button className="pm-mini-button" type="button" onClick={addImage}>
-        Them anh bien the
-      </button>
+      ) : (
+        <div className="pm-color-image-empty">
+          <PhotoIcon size={22} />
+          <span>Màu này chưa có ảnh.</span>
+          <span>Thêm ảnh bên dưới để áp dụng cho mọi kích cỡ của màu.</span>
+        </div>
+      )}
+
+      <div className="pm-color-image-add">
+        <label className="pm-color-image-url">
+          <span>Thêm ảnh cho màu {colorName}</span>
+          <input
+            type="text"
+            value={draftUrl}
+            onChange={(event) => {
+              setDraftUrl(event.target.value);
+              setAddError('');
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                addImage();
+              }
+            }}
+            placeholder="Dán đường dẫn https://... hoặc /..."
+            aria-invalid={Boolean(addError)}
+            aria-describedby={addError ? errorId : undefined}
+          />
+        </label>
+        <button className="pm-button pm-button-secondary" type="button" onClick={addImage}>
+          <PlusIcon size={17} />
+          Thêm ảnh
+        </button>
+      </div>
+      {addError ? (
+        <p className="pm-color-image-error" role="alert" id={errorId}>
+          {addError}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -249,8 +507,18 @@ function VariantManager({
   onDeleteColor,
   onEditSize,
   onDeleteSize,
+  onImageValidationChange,
 }) {
   const safeVariants = useMemo(() => (Array.isArray(variants) ? variants : []), [variants]);
+  const [colorImagesById, setColorImagesById] = useState(() => {
+    const images = {};
+    safeVariants.forEach((variant) => {
+      const colorId = normalizeId(variant.colorId);
+      const variantImages = normalizeImageList(variant.images);
+      if (!images[colorId] || images[colorId].length === 0) images[colorId] = variantImages;
+    });
+    return images;
+  });
   const [imageTab, setImageTab] = useState('list');
   // modal: { type: 'color' | 'size' | null, mode: 'add' | 'edit', open, target }
   const [modal, setModal] = useState({ type: null, mode: 'add', open: false, target: null });
@@ -269,6 +537,10 @@ function VariantManager({
     }
   }, [safeVariants]);
 
+  useEffect(() => {
+    if (errors?.images) setImageTab('images');
+  }, [errors?.images]);
+
   const updateMatrix = useCallback(
     (nextColorIds, nextSizeIds) => {
       onChange(
@@ -279,22 +551,25 @@ function VariantManager({
           colorMap,
           sizeMap,
           defaultPrice: productPrice,
+          savedImagesByColor: colorImagesById,
         })
       );
     },
-    [colorMap, onChange, safeVariants, sizeMap, productPrice]
+    [colorMap, colorImagesById, onChange, safeVariants, sizeMap, productPrice]
   );
 
   const toggleColor = useCallback(
     (colorId) => {
-      const nextColorIds = selectedColorIds.includes(colorId)
+      const isRemovingColor = selectedColorIds.includes(colorId);
+      const nextColorIds = isRemovingColor
         ? selectedColorIds.filter((id) => id !== colorId)
         : [...selectedColorIds, colorId];
 
+      if (isRemovingColor) onImageValidationChange(colorId, false);
       setSelectedColorIds(nextColorIds);
       updateMatrix(nextColorIds, selectedSizeIds);
     },
-    [selectedColorIds, selectedSizeIds, updateMatrix]
+    [onImageValidationChange, selectedColorIds, selectedSizeIds, updateMatrix]
   );
 
   const toggleSize = useCallback(
@@ -330,17 +605,30 @@ function VariantManager({
     const groups = {};
     selectedColorIds.forEach((colorId) => {
       const colorVariants = safeVariants.filter((v) => normalizeId(v.colorId) === colorId);
+      const firstVariantWithImages = colorVariants.find((variant) => normalizeImageList(variant.images).length > 0);
       groups[colorId] = {
         name: getLookupName(colorMap, colorId),
-        images: colorVariants[0]?.images || [],
+        hexCode: colorMap.get(String(colorId))?.hexCode || '',
+        images: normalizeImageList(colorImagesById[colorId] || firstVariantWithImages?.images),
         variants: colorVariants,
+        variantCount: colorVariants.length,
+        totalStock: colorVariants.reduce((sum, variant) => sum + toNumber(variant.stock), 0),
       };
     });
     return groups;
-  }, [selectedColorIds, safeVariants, colorMap]);
+  }, [selectedColorIds, safeVariants, colorMap, colorImagesById]);
 
   const updateColorImages = (colorId, images) => {
-    const nextVariants = safeVariants.map((variant) => (normalizeId(variant.colorId) === colorId ? { ...variant, images } : variant));
+    const normalizedImages = normalizeImageList(images);
+    setColorImagesById((current) => ({
+      ...current,
+      [colorId]: normalizedImages.map((image) => ({ ...image })),
+    }));
+    const nextVariants = safeVariants.map((variant) =>
+      normalizeId(variant.colorId) === colorId
+        ? { ...variant, images: normalizedImages.map((image) => ({ ...image })) }
+        : variant
+    );
     onChange(nextVariants);
   };
 
@@ -386,6 +674,7 @@ function VariantManager({
     if (!success) return;
 
     const nextColorIds = selectedColorIds.filter((cid) => cid !== id);
+    onImageValidationChange(id, false);
     setSelectedColorIds(nextColorIds);
     updateMatrix(nextColorIds, selectedSizeIds);
   };
@@ -393,7 +682,7 @@ function VariantManager({
   // ── Thêm / Sửa size ───────────────────────────────────────────────────────
   const handleSaveSize = async (data) => {
     if (!data.name || !data.name.trim()) {
-      alert('Vui lòng nhập tên size.');
+      alert('Vui lòng nhập tên kích cỡ.');
       return;
     }
 
@@ -416,8 +705,8 @@ function VariantManager({
     const usedCount = safeVariants.filter((v) => normalizeId(v.sizeId) === id).length;
     const confirmMsg =
       usedCount > 0
-        ? `Size "${item.name}" đang được dùng trong ${usedCount} biến thể của sản phẩm này. Xóa size sẽ xóa luôn các biến thể đó khỏi sản phẩm. Bạn có chắc chắn muốn xóa?`
-        : `Bạn có chắc muốn xóa size "${item.name}"?`;
+        ? `Kích cỡ "${item.name}" đang được dùng trong ${usedCount} biến thể của sản phẩm này. Xóa kích cỡ sẽ xóa luôn các biến thể đó khỏi sản phẩm. Bạn có chắc chắn muốn xóa không?`
+        : `Bạn có chắc chắn muốn xóa kích cỡ "${item.name}" không?`;
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -439,7 +728,7 @@ function VariantManager({
               Màu: <strong>{stats.colorCount}</strong>
             </span>
             <span>
-              Size: <strong>{stats.sizeCount}</strong>
+              Kích cỡ: <strong>{stats.sizeCount}</strong>
             </span>
             <span>
               Biến thể: <strong>{stats.variantCount}</strong>
@@ -449,21 +738,37 @@ function VariantManager({
             </span>
           </div>
         </div>
-        <div className="pm-section-tabs">
-          <button type="button" className={imageTab === 'list' ? 'active' : ''} onClick={() => setImageTab('list')}>
+        <div className="pm-section-tabs" role="tablist" aria-label="Quản lý biến thể sản phẩm">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={imageTab === 'list'}
+            className={imageTab === 'list' ? 'active' : ''}
+            onClick={() => setImageTab('list')}
+          >
+            <VariantsIcon size={16} />
             Chi tiết biến thể
           </button>
-          <button type="button" className={imageTab === 'images' ? 'active' : ''} onClick={() => setImageTab('images')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={imageTab === 'images'}
+            className={imageTab === 'images' ? 'active' : ''}
+            onClick={() => setImageTab('images')}
+          >
+            <PhotoIcon size={16} />
             Ảnh theo màu
+            <span className="pm-tab-count">{selectedColorIds.length}</span>
           </button>
         </div>
       </div>
 
       {errors?.variants ? <div className="pm-error">{errors.variants}</div> : null}
+      {errors?.images ? <div className="pm-error">{errors.images}</div> : null}
 
       <div className="pm-grid-two">
         <OptionToggleGroup
-          title="1. Chọn Màu sắc"
+          title="1. Chọn màu sắc"
           items={colors}
           selectedIds={selectedColorIds}
           onToggle={toggleColor}
@@ -472,7 +777,7 @@ function VariantManager({
           onDelete={handleDeleteColorClick}
         />
         <OptionToggleGroup
-          title="2. Chọn Kích thước"
+          title="2. Chọn kích cỡ"
           items={sizes}
           selectedIds={selectedSizeIds}
           onToggle={toggleSize}
@@ -495,7 +800,7 @@ function VariantManager({
 
               <div className="pm-variant-grid">
                 <label className="pm-field">
-                  <span>SKU</span>
+                  <span>Mã SKU</span>
                   <input
                     value={variant.sku || ''}
                     onChange={(event) => updateVariant(index, { sku: event.target.value })}
@@ -521,21 +826,55 @@ function VariantManager({
                     checked={variant.isAvailable !== false}
                     onChange={(event) => updateVariant(index, { isAvailable: event.target.checked })}
                   />
-                  <span>Bật</span>
+                  <span>Đang áp dụng</span>
                 </label>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="pm-color-images">
-          {Object.entries(colorGroups).map(([colorId, group]) => (
-            <div key={colorId} className="pm-color-image-group">
-              <h5 style={{ margin: '20px 0 10px' }}>Album ảnh màu: {group.name}</h5>
-              <VariantImageEditor images={group.images} onChange={(imgs) => updateColorImages(colorId, imgs)} />
-            </div>
-          ))}
-        </div>
+        selectedColorIds.length === 0 ? (
+          <div className="pm-color-image-empty pm-color-image-empty--selection">
+            <PhotoIcon size={25} />
+            <strong>Chưa có màu sắc được chọn</strong>
+            <span>Quay lại phần chọn màu sắc để thêm màu, sau đó quản lý ảnh riêng cho từng màu tại đây.</span>
+          </div>
+        ) : (
+          <div className="pm-color-images">
+            {Object.entries(colorGroups).map(([colorId, group]) => (
+              <article className="pm-color-image-group" key={colorId}>
+                <header className="pm-color-image-header">
+                  <div className="pm-color-image-identity">
+                    <span
+                      className="pm-color-swatch"
+                      style={{
+                        backgroundColor: HEX_REGEX.test(group.hexCode) ? group.hexCode : '#efede8',
+                      }}
+                      aria-label={`Màu ${group.name}`}
+                    />
+                    <div>
+                      <h4>{group.name}</h4>
+                      <p>
+                        {group.variantCount} biến thể · Ảnh dùng chung cho mọi kích cỡ · Tồn kho: {group.totalStock}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="pm-color-image-count">
+                    <PhotoIcon size={15} />
+                    {group.images.length} ảnh
+                  </span>
+                </header>
+                <VariantImageEditor
+                  colorId={colorId}
+                  colorName={group.name}
+                  images={group.images}
+                  onChange={(imgs) => updateColorImages(colorId, imgs)}
+                  onValidationChange={onImageValidationChange}
+                />
+              </article>
+            ))}
+          </div>
+        )
       )}
 
       <LookupModal
@@ -557,7 +896,7 @@ function VariantManager({
       <LookupModal
         isOpen={modal.open && modal.type === 'size'}
         title={modal.mode === 'edit' ? 'Sửa kích thước' : 'Thêm kích thước mới'}
-        fields={[{ name: 'name', label: 'Tên size (VD: XL)', type: 'text' }]}
+        fields={[{ name: 'name', label: 'Tên kích cỡ (ví dụ: XL)', type: 'text' }]}
         initialData={modal.mode === 'edit' && modal.target ? { name: modal.target.name } : {}}
         onSave={handleSaveSize}
         onClose={closeModal}

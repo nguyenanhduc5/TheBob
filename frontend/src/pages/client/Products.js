@@ -1,12 +1,26 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useNotification } from '../../context/NotificationContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import '../../styles/Products.css';
 
 export default function Products() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { addNotification } = useNotification();
+  const { t } = usePreferences();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setFiltersOpen(false);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [filtersOpen]);
 
   // ✅ FIX: Dùng ref để dùng addNotification trong useCallback mà không cần đưa vào deps
   // Trước đây: addNotification trong deps → fetchProducts thay đổi mỗi render → fetch liên tục
@@ -165,18 +179,41 @@ export default function Products() {
   return (
     <div className="products-page">
       <div className="products-header">
-        <h1>Sản Phẩm</h1>
-        <p>Khám phá bộ sưu tập áo quần chất lượng cao</p>
+        <h1>{t('products.title')}</h1>
+        <p>{t('products.subtitle')}</p>
       </div>
 
       <div className="products-container">
-        {/* Sidebar - Filters */}
-        <aside className="products-sidebar">
+        {filtersOpen && (
+          <button
+            type="button"
+            className="products-filter-backdrop"
+            aria-label={t('products.closeFilters')}
+            onClick={() => setFiltersOpen(false)}
+          />
+        )}
+        <aside
+          id="products-filter-drawer"
+          className={`products-sidebar ${filtersOpen ? 'products-sidebar--open' : ''}`}
+          aria-label={t('products.filters')}
+          aria-hidden={!filtersOpen}
+        >
+          <div className="filter-drawer-heading">
+            <h2>{t('products.filters')}</h2>
+            <button
+              type="button"
+              className="filter-drawer-close"
+              onClick={() => setFiltersOpen(false)}
+              aria-label={t('products.closeFilters')}
+            >
+              ×
+            </button>
+          </div>
           <div className="filter-section search-filter-section">
-            <h3>Tìm Kiếm</h3>
+            <h3>{t('products.search')}</h3>
             <input
               type="text"
-              placeholder="Tên sản phẩm..."
+              placeholder={t('products.searchPlaceholder')}
               value={localFilters.query}
               onChange={(e) => handleLocalFilterChange('query', e.target.value)}
               onFocus={() => setShowSuggestions(true)}
@@ -209,14 +246,14 @@ export default function Products() {
           </div>
 
           <div className="filter-section">
-            <h3>Danh Mục</h3>
+            <h3>{t('products.category')}</h3>
             <select
               value={localFilters.categoryId}
               onChange={(e) => handleLocalFilterChange('categoryId', e.target.value)}
               className="filter-select"
-              aria-label="Lọc theo danh mục sản phẩm"
+              aria-label={t('products.filterByCategory')}
             >
-              <option value="">Tất cả danh mục</option>
+              <option value="">{t('products.allCategories')}</option>
               {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   {cat.name}
@@ -226,10 +263,10 @@ export default function Products() {
           </div>
 
           <div className="filter-section">
-            <h3>Màu Sắc</h3>
+            <h3>{t('products.color')}</h3>
             <input
               type="text"
-              placeholder="Ví dụ: Đỏ, Xanh..."
+              placeholder={t('products.colorPlaceholder')}
               value={localFilters.color}
               onChange={(e) => handleLocalFilterChange('color', e.target.value)}
               className="filter-input"
@@ -237,14 +274,14 @@ export default function Products() {
           </div>
 
           <div className="filter-section">
-            <h3>Khoảng Giá</h3>
+            <h3>{t('products.price')}</h3>
             <div className="price-presets">
               {[
-                { label: 'Tất cả giá', min: '', max: '' },
-                { label: 'Dưới 100k', min: '', max: '100000' },
-                { label: '100k - 300k', min: '100000', max: '300000' },
-                { label: '300k - 500k', min: '300000', max: '500000' },
-                { label: 'Trên 500k', min: '500000', max: '' },
+                { label: t('products.allPrices'), min: '', max: '' },
+                { label: t('products.under100'), min: '', max: '100000' },
+                { label: t('products.range100300'), min: '100000', max: '300000' },
+                { label: t('products.range300500'), min: '300000', max: '500000' },
+                { label: t('products.over500'), min: '500000', max: '' },
               ].map((preset, index) => {
                 const isActive = localFilters.minPrice === preset.min && localFilters.maxPrice === preset.max;
                 return (
@@ -267,25 +304,25 @@ export default function Products() {
             </div>
 
             <div style={{ marginTop: '12px', marginBottom: '6px', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#666', fontWeight: 'bold' }}>
-              Tự nhập khoảng giá:
+              {t('products.customPrice')}
             </div>
             <div className="price-range">
               <input
                 type="number"
-                placeholder="Từ"
+                placeholder={t('products.minimumPrice')}
                 value={localFilters.minPrice}
                 onChange={(e) => handleLocalFilterChange('minPrice', e.target.value)}
                 className="filter-input"
-                aria-label="Giá tối thiểu"
+                aria-label={t('products.minimumPrice')}
               />
               <span>-</span>
               <input
                 type="number"
-                placeholder="Đến"
+                placeholder={t('products.maximumPrice')}
                 value={localFilters.maxPrice}
                 onChange={(e) => handleLocalFilterChange('maxPrice', e.target.value)}
                 className="filter-input"
-                aria-label="Giá tối đa"
+                aria-label={t('products.maximumPrice')}
               />
             </div>
           </div>
@@ -298,38 +335,54 @@ export default function Products() {
             }}
             className="btn-clear-filters"
           >
-            Xóa Bộ Lọc
+            {t('products.clearFilters')}
           </button>
         </aside>
 
         {/* Main Content */}
         <main className="products-main">
           <div className="products-top">
+            <button
+              type="button"
+              className="products-filter-toggle"
+              onClick={() => setFiltersOpen(true)}
+              aria-label={t('products.openFilters')}
+              aria-expanded={filtersOpen}
+              aria-controls="products-filter-drawer"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 6h16M7 12h10m-7 6h4" />
+                <circle cx="8" cy="6" r="1.5" />
+                <circle cx="15" cy="12" r="1.5" />
+                <circle cx="12" cy="18" r="1.5" />
+              </svg>
+              <span>{t('products.filter')}</span>
+            </button>
             <div className="product-count">
-              {loading ? 'Đang tải...' : `${products.length} sản phẩm`}
+              {loading ? t('products.loading') : t('products.count').replace('{count}', products.length)}
             </div>
             <div className="sort-select">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                aria-label="Sắp xếp sản phẩm theo tiêu chí"
+                aria-label={t('products.sort')}
               >
-                <option value="newest">Mới nhất</option>
-                <option value="price-low">Giá: Thấp → Cao</option>
-                <option value="price-high">Giá: Cao → Thấp</option>
-                <option value="rating">Đánh giá cao nhất</option>
+                <option value="newest">{t('products.sortNewest')}</option>
+                <option value="price-low">{t('products.sortPriceLow')}</option>
+                <option value="price-high">{t('products.sortPriceHigh')}</option>
+                <option value="rating">{t('products.sortRating')}</option>
               </select>
             </div>
           </div>
 
           {products.length === 0 && !loading ? (
-            <div className="no-products">Không tìm thấy sản phẩm nào.</div>
+            <div className="no-products">{t('products.none')}</div>
           ) : (
             <>
               <div className={`products-grid ${loading ? 'grid-loading' : ''}`}>
                 {loading && products.length === 0 ? (
                   <div className="loading-placeholder" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '100px', fontSize: '0.9rem', color: '#666', letterSpacing: '0.05em' }}>
-                    Đang tải sản phẩm...
+                    {t('products.loadingProducts')}
                   </div>
                 ) : (
                   currentProducts.map((product) => {
@@ -355,11 +408,11 @@ export default function Products() {
                             alt={product.name}
                             className="product-image"
                           />
-                          {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
+                          {product.isFeatured && <span className="badge-featured">{t('products.featured')}</span>}
                           {(product.productVariants ?? []).reduce(
                             (sum, v) => sum + (Number(v.stock ?? v.Stock) || 0), 0
                           ) === 0 && (
-                            <span className="badge-sold-out">Hết Hàng</span>
+                            <span className="badge-sold-out">{t('products.soldOut')}</span>
                           )}
                         </div>
                         <div className="product-info">
@@ -399,7 +452,7 @@ export default function Products() {
                             onClick={() => handleProductClick(product)}
                             className="btn-add-to-cart"
                           >
-                            Xem chi tiết
+                            {t('products.details')}
                           </button>
                         </div>
                       </div>
@@ -415,7 +468,7 @@ export default function Products() {
                     disabled={currentPage === 1}
                     className="pagination-arrow"
                   >
-                    PREV
+                    {t('products.previous')}
                   </button>
 
                   {Array.from({ length: totalPages }, (_, index) => (
@@ -433,7 +486,7 @@ export default function Products() {
                     disabled={currentPage === totalPages}
                     className="pagination-arrow"
                   >
-                    NEXT
+                    {t('products.next')}
                   </button>
                 </div>
               )}

@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';import { useParams, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { recommendationAPI } from '../../api/app';
 import { useCart } from '../../context/CartContext';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
+import { usePreferences } from '../../context/PreferencesContext';
+import { buildProductGalleryImages } from '../../utils/productGallery';
 import '../../styles/ProductDetail.css';
 import '../../styles/Products.css';
 
@@ -78,12 +81,23 @@ export default function ProductDetail() {
   const addNotificationRef = useRef(addNotification);
   useEffect(() => { addNotificationRef.current = addNotification; }, [addNotification]);
   const { token } = useAuth();
+  const { t } = usePreferences();
 
   const [product, setProduct] = useState(null);
   const [selectedColorId, setSelectedColorId] = useState('');
   const [selectedSizeId, setSelectedSizeId] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const activeImageIndexRef = useRef(0);
+  const selectedColorIdRef = useRef('');
+  const galleryImagesRef = useRef(null);
+  const mainImageRef = useRef(null);
+  const galleryScrollLockRef = useRef(false);
+  const galleryScrollTimerRef = useRef(null);
+  const galleryWheelDeltaRef = useRef(0);
+  const galleryTouchStartYRef = useRef(null);
+  const galleryTouchStartIndexRef = useRef(0);
+  const [thumbnailFrameWidth, setThumbnailFrameWidth] = useState(null);
   const [loading, setLoading] = useState(true);
   const [related, setRelated] = useState([]);
   const [fbt, setFbt] = useState([]);
@@ -130,7 +144,7 @@ export default function ProductDetail() {
     try {
       const response = await fetch(`${API_BASE_URL}/products/${identifier}`);
       if (!response.ok) {
-        addNotificationRef.current('Sản phẩm không tồn tại', 'error');
+        addNotificationRef.current(t('product.notFound'), 'error');
         navigate('/products');
         return;
       }
@@ -141,11 +155,11 @@ export default function ProductDetail() {
       setQuantity(1);
     } catch (error) {
       console.error('Failed to fetch product:', error);
-      addNotificationRef.current('Lỗi khi tải sản phẩm', 'error');
+      addNotificationRef.current(t('product.fetchError'), 'error');
     } finally {
       setLoading(false);
     }
-  }, [identifier, navigate]);
+  }, [identifier, navigate, t]);
 
   useEffect(() => {
     fetchProduct();
@@ -153,12 +167,27 @@ export default function ProductDetail() {
 
   const variants = useMemo(() => getVariants(product), [product]);
 
+  const colorImagesById = useMemo(() => {
+    const groups = Array.isArray(product?.colorImages)
+      ? product.colorImages
+      : Array.isArray(product?.ColorImages)
+        ? product.ColorImages
+        : [];
+
+    return new Map(
+      groups.map((group) => [
+        normalizeId(group.colorId ?? group.ColorId),
+        getImageUrls(group.images ?? group.Images ?? group.imageUrls ?? group.ImageUrls),
+      ])
+    );
+  }, [product]);
+
   const colorOptions = useMemo(() => {
     return uniqueById(
       variants.map((variant) => {
         const hasStock = selectedSizeId
-          ? variants.some(item => normalizeId(item.colorId) === normalizeId(variant.colorId) && normalizeId(item.sizeId) === normalizeId(selectedSizeId) && item.stock > 0)
-          : variants.some(item => normalizeId(item.colorId) === normalizeId(variant.colorId) && item.stock > 0);
+          ? variants.some(item => normalizeId(item.colorId) === normalizeId(variant.colorId) && normalizeId(item.sizeId) === normalizeId(selectedSizeId) && item.stock > 0 && item.isAvailable)
+          : variants.some(item => normalizeId(item.colorId) === normalizeId(variant.colorId) && item.stock > 0 && item.isAvailable);
           
         return {
           id: variant.colorId,
@@ -174,8 +203,8 @@ export default function ProductDetail() {
     return uniqueById(
       variants.map((variant) => {
         const hasStock = selectedColorId
-          ? variants.some(item => normalizeId(item.sizeId) === normalizeId(variant.sizeId) && normalizeId(item.colorId) === normalizeId(selectedColorId) && item.stock > 0)
-          : variants.some(item => normalizeId(item.sizeId) === normalizeId(variant.sizeId) && item.stock > 0);
+          ? variants.some(item => normalizeId(item.sizeId) === normalizeId(variant.sizeId) && normalizeId(item.colorId) === normalizeId(selectedColorId) && item.stock > 0 && item.isAvailable)
+          : variants.some(item => normalizeId(item.sizeId) === normalizeId(variant.sizeId) && item.stock > 0 && item.isAvailable);
 
         return {
           id: variant.sizeId,
@@ -196,25 +225,149 @@ export default function ProductDetail() {
     [variants, selectedColorId, selectedSizeId]
   );
 
- const productImages = useMemo(() => {
-    const mainImage = toText(product?.mainImageUrl);
-    const otherImages = getImageUrls(product?.images).filter((img) => img !== mainImage);
-    // Ảnh bìa (mainImage) luôn đứng đầu, sau đó mới tới các ảnh phụ
-    const baseImages = mainImage ? [mainImage, ...otherImages] : otherImages;
-    const fallbackImages = baseImages.length > 0 ? baseImages : ['/placeholder.jpg'];
+  const galleryImages = useMemo(
+    () => buildProductGalleryImages(product, variants, colorOptions, colorImagesById),
+    [colorImagesById, colorOptions, product, variants]
+  );
 
-    if (!selectedColorId) return fallbackImages;
+  const productImages = useMemo(
+    () => galleryImages.map((image) => image.url),
+    [galleryImages]
+  );
 
-    const colorImages = variants
-      .filter((variant) => normalizeId(variant.colorId) === normalizeId(selectedColorId))
-      .flatMap((variant) => getImageUrls(variant.images));
-
-    return colorImages.length > 0 ? [...new Set(colorImages)] : fallbackImages;
-  }, [variants, product, selectedColorId]);
+  const selectColorForImage = useCallback((index) => {
+    const colorId = galleryImages[index]?.colorId;
+    if (!colorId || normalizeId(selectedColorIdRef.current) === normalizeId(colorId)) return;
+    selectedColorIdRef.current = colorId;
+    setSelectedColorId(colorId);
+    setQuantity(1);
+  }, [galleryImages]);
 
   useEffect(() => {
-    setActiveImageIndex(0);
+    selectedColorIdRef.current = selectedColorId;
   }, [selectedColorId]);
+
+  useEffect(() => {
+    if (activeImageIndexRef.current < productImages.length) return;
+    activeImageIndexRef.current = 0;
+    setActiveImageIndex(0);
+    selectColorForImage(0);
+  }, [productImages.length, selectColorForImage]);
+
+  const scheduleGalleryUnlock = useCallback((delay = 520) => {
+    window.clearTimeout(galleryScrollTimerRef.current);
+    galleryScrollTimerRef.current = window.setTimeout(() => {
+      galleryScrollLockRef.current = false;
+    }, delay);
+  }, []);
+
+  const scrollToImage = useCallback((index) => {
+    galleryScrollLockRef.current = true;
+    galleryWheelDeltaRef.current = 0;
+    scheduleGalleryUnlock();
+    activeImageIndexRef.current = index;
+    setActiveImageIndex(index);
+    selectColorForImage(index);
+  }, [scheduleGalleryUnlock, selectColorForImage]);
+
+  const moveToAdjacentImage = useCallback((direction) => {
+    const nextIndex = activeImageIndex + direction;
+    if (nextIndex < 0 || nextIndex >= productImages.length) return false;
+    if (galleryScrollLockRef.current) return true;
+
+    scrollToImage(nextIndex);
+    return true;
+  }, [activeImageIndex, productImages.length, scrollToImage]);
+
+  const handleGalleryWheel = useCallback((event) => {
+    if (event.ctrlKey || event.deltaY === 0) return;
+    if (galleryScrollLockRef.current) {
+      event.preventDefault();
+      scheduleGalleryUnlock(420);
+      return;
+    }
+
+    const direction = event.deltaY > 0 ? 1 : -1;
+    const nextIndex = activeImageIndex + direction;
+    if (nextIndex < 0 || nextIndex >= productImages.length) {
+      galleryWheelDeltaRef.current = 0;
+      return;
+    }
+
+    event.preventDefault();
+    galleryWheelDeltaRef.current += event.deltaY;
+    if (Math.abs(galleryWheelDeltaRef.current) < 24) return;
+
+    const accumulatedDirection = galleryWheelDeltaRef.current > 0 ? 1 : -1;
+    galleryWheelDeltaRef.current = 0;
+    moveToAdjacentImage(accumulatedDirection);
+  }, [activeImageIndex, moveToAdjacentImage, productImages.length, scheduleGalleryUnlock]);
+
+  useEffect(() => {
+    const gallery = galleryImagesRef.current;
+    if (!gallery) return undefined;
+
+    gallery.addEventListener('wheel', handleGalleryWheel, { passive: false });
+    return () => gallery.removeEventListener('wheel', handleGalleryWheel);
+  }, [handleGalleryWheel]);
+
+  const handleGalleryTouchStart = useCallback((event) => {
+    galleryTouchStartYRef.current = event.touches[0]?.clientY ?? null;
+    galleryTouchStartIndexRef.current = activeImageIndexRef.current;
+  }, []);
+
+  const handleGalleryTouchEnd = useCallback((event) => {
+    const startY = galleryTouchStartYRef.current;
+    const endY = event.changedTouches[0]?.clientY;
+    galleryTouchStartYRef.current = null;
+    if (startY === null || endY === undefined) return;
+
+    const distance = startY - endY;
+    if (Math.abs(distance) < 50) return;
+    const targetIndex = galleryTouchStartIndexRef.current + (distance > 0 ? 1 : -1);
+    if (targetIndex >= 0 && targetIndex < productImages.length) scrollToImage(targetIndex);
+  }, [productImages.length, scrollToImage]);
+
+  const syncThumbnailFrameWidth = useCallback(() => {
+    const image = mainImageRef.current;
+    const container = image?.closest('.main-image-container');
+    if (!image || !container || !image.naturalWidth || !image.naturalHeight) return;
+
+    const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
+    if (!containerWidth || !containerHeight) return;
+
+    const scale = Math.min(
+      containerWidth / image.naturalWidth,
+      containerHeight / image.naturalHeight
+    );
+    const displayedWidth = Math.min(containerWidth, image.naturalWidth * scale);
+    setThumbnailFrameWidth((currentWidth) => (
+      currentWidth !== null && Math.abs(currentWidth - displayedWidth) < 0.5
+        ? currentWidth
+        : displayedWidth
+    ));
+  }, []);
+
+  useEffect(() => {
+    const container = galleryImagesRef.current?.querySelector('.main-image-container');
+    if (!container) return undefined;
+
+    syncThumbnailFrameWidth();
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(syncThumbnailFrameWidth);
+    resizeObserver?.observe(container);
+    window.addEventListener('resize', syncThumbnailFrameWidth);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', syncThumbnailFrameWidth);
+    };
+  }, [activeImageIndex, syncThumbnailFrameWidth]);
+
+  useEffect(() => () => {
+    window.clearTimeout(galleryScrollTimerRef.current);
+  }, []);
 
   // Reset conflicting selections if combination becomes invalid
   useEffect(() => {
@@ -240,45 +393,56 @@ export default function ProductDetail() {
   }, [selectedVariant, variants, product]);
 
   const totalStock = useMemo(
-    () => variants.reduce((sum, variant) => sum + variant.stock, 0),
+    () => variants.reduce((sum, variant) => sum + (variant.isAvailable ? variant.stock : 0), 0),
     [variants]
   );
 
   const selectedColorName = colorOptions.find((color) => normalizeId(color.id) === normalizeId(selectedColorId))?.name || '';
   const selectedSizeName = sizeOptions.find((size) => normalizeId(size.id) === normalizeId(selectedSizeId))?.name || '';
-  const displayStock = selectedVariant?.stock ?? totalStock;
+  const displayStock = selectedVariant
+    ? (selectedVariant.isAvailable ? selectedVariant.stock : 0)
+    : totalStock;
 
   const handleColorSelect = (colorId) => {
     if (normalizeId(selectedColorId) !== normalizeId(colorId)) {
       setSelectedColorId(colorId);
       setQuantity(1);
     }
+    const imageIndex = galleryImages.findIndex(
+      (image) => normalizeId(image.colorId) === normalizeId(colorId)
+    );
+    if (imageIndex >= 0) scrollToImage(imageIndex);
   };
 
   const handleAddToCart = () => {
     if (!token) {
-      addNotification('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng!', 'warning');
+      addNotification(t('product.add.login'), 'warning');
       navigate(`/login?returnUrl=${encodeURIComponent(window.location.pathname)}`);
       return;
     }
 
     if (!selectedColorId) {
-      addNotification('Vui lòng chọn màu sắc', 'warning');
+      addNotification(t('product.chooseColor'), 'warning');
       return;
     }
 
     if (!selectedSizeId) {
-      addNotification('Vui lòng chọn kích thước', 'warning');
+      addNotification(t('product.chooseSize'), 'warning');
       return;
     }
 
     if (!selectedVariant) {
-      addNotification('Biến thể này không khả dụng', 'warning');
+      addNotification(t('product.variant.unavailable'), 'warning');
       return;
     }
 
     if (selectedVariant.stock <= 0) {
-      addNotification('Biến thể này đã hết hàng', 'warning');
+      addNotification(t('product.variant.soldOut'), 'warning');
+      return;
+    }
+
+    if (!selectedVariant.isAvailable) {
+      addNotification(t('product.variant.unavailable'), 'warning');
       return;
     }
 
@@ -287,7 +451,7 @@ export default function ProductDetail() {
 )?.quantity ?? 0;
 const totalQty = alreadyInCart + quantity;
 if (totalQty > selectedVariant.stock) {
-  addNotification(`Chỉ còn ${selectedVariant.stock} sản phẩm trong kho`, 'warning');
+  addNotification(t('product.stock.remaining', { count: selectedVariant.stock }), 'warning');
   return;
 }
 
@@ -302,7 +466,9 @@ try {
       sizeId: selectedVariant.sizeId,
       name: product.name,
       sku: selectedVariant.sku || product.sku,
-      mainImageUrl: productImages[0],
+      mainImageUrl: galleryImages.find(
+        (image) => normalizeId(image.colorId) === normalizeId(selectedColorId)
+      )?.url || productImages[0],
       price: productPrice,
       stock: selectedVariant.stock,
       selectedSize: selectedSizeName,
@@ -311,12 +477,12 @@ try {
     quantity
   );
   // ✅ Chỉ hiện success khi KHÔNG có lỗi
-  addNotification(`${product.name} đã được thêm vào giỏ hàng! 🛒`, 'success');
+  addNotification(t('product.add.success', { name: product.name }), 'success');
 }
  catch (error) {
   // ✅ Bắt lỗi → hiện toast thay vì crash
   addNotification(
-    error?.message || 'Không thể thêm vào giỏ hàng. Vui lòng thử lại.',
+    error?.message || t('product.add.error'),
     'warning'
   );
 }
@@ -324,44 +490,75 @@ try {
 
 
 
-  if (loading && !product) return <div className="loading-page">Đang tải sản phẩm...</div>;
-  if (!product) return <div className="error-page">Sản phẩm không tồn tại</div>;
+  if (loading && !product) return <div className="loading-page">{t('product.loading')}</div>;
+  if (!product) return <div className="error-page">{t('product.notFound')}</div>;
 
   return (
-    <div className={loading ? 'grid-loading' : ''}>
+    <div className={`product-detail-page ${loading ? 'grid-loading' : ''}`}>
       <div className="product-detail-container">
         <div className="product-gallery">
-          <div className="main-image-container">
-            <div className="main-image">
-              <img src={productImages[activeImageIndex]} alt={toText(product.name)} />
-              {product.isFeatured && <span className="badge-featured">Nổi Bật</span>}
-            </div>
-            {productImages.length > 1 && (
-              <>
-                <button
-                  className="arrow-button prev-arrow"
-                  onClick={() => setActiveImageIndex((activeImageIndex - 1 + productImages.length) % productImages.length)}
-                  title="Ảnh trước"
-                >
-                  ‹
-                </button>
-                <button
-                  className="arrow-button next-arrow"
-                  onClick={() => setActiveImageIndex((activeImageIndex + 1) % productImages.length)}
-                  title="Ảnh tiếp theo"
-                >
-                  ›
-                </button>
-              </>
-            )}
+          <div
+            className="product-gallery-images"
+            ref={galleryImagesRef}
+            onTouchStart={handleGalleryTouchStart}
+            onTouchEnd={handleGalleryTouchEnd}
+          >
+            <div
+              className="main-image-container active"
+              data-image-index={activeImageIndex}
+              data-color-id={galleryImages[activeImageIndex]?.colorId || undefined}
+            >
+                <div className="main-image">
+                  <img
+                    key={`${productImages[activeImageIndex]}-${activeImageIndex}`}
+                    ref={mainImageRef}
+                    src={productImages[activeImageIndex]}
+                    alt={`${toText(product.name)} - ảnh ${activeImageIndex + 1}`}
+                    onLoad={syncThumbnailFrameWidth}
+                  />
+                  {activeImageIndex === 0 && product.isFeatured && <span className="badge-featured">{t('product.featured')}</span>}
+                </div>
+                {productImages.length > 1 && (
+                  <>
+                    <button
+                      className="arrow-button prev-arrow"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        scrollToImage((activeImageIndex - 1 + productImages.length) % productImages.length);
+                      }}
+                      title={t('product.previousImage')}
+                      aria-label={t('product.viewPreviousImage')}
+                    >
+                      ‹
+                    </button>
+                    <button
+                      className="arrow-button next-arrow"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        scrollToImage((activeImageIndex + 1) % productImages.length);
+                      }}
+                      title={t('product.nextImage')}
+                      aria-label={t('product.viewNextImage')}
+                    >
+                      ›
+                    </button>
+                  </>
+                )}
+              </div>
           </div>
           {productImages.length > 1 && (
-            <div className="thumbnail-list">
+            <div
+              className="thumbnail-list"
+              style={thumbnailFrameWidth ? { width: `${thumbnailFrameWidth}px`, maxWidth: '100%' } : undefined}
+            >
               {productImages.map((img, index) => (
                 <button
+                  type="button"
                   key={`${img}-${index}`}
                   className={`thumbnail ${index === activeImageIndex ? 'active' : ''}`}
-                  onClick={() => setActiveImageIndex(index)}
+                  onClick={() => scrollToImage(index)}
+                  aria-label={t('product.viewImage', { number: index + 1 })}
+                  aria-current={index === activeImageIndex ? 'true' : undefined}
                 >
                   <img src={img} alt={`${toText(product.name)} - ${index + 1}`} />
                 </button>
@@ -376,9 +573,9 @@ try {
           </div>
 
           <div className="product-meta">
-            <span className="brand">Thương hiệu: {toText(product.brandName ?? product.brand, 'Không xác định')}</span>
-            <span className="sku">Mã: {selectedVariant?.sku || toText(product.sku, '-')}</span>
-            <span className="category">{toText(product.categoryName ?? product.category, 'Không xác định')}</span>
+            <span className="brand">{t('product.brand')} {toText(product.brandName ?? product.brand, t('product.unknown'))}</span>
+            <span className="sku">{t('product.sku')} {selectedVariant?.sku || toText(product.sku, '-')}</span>
+            <span className="category">{toText(product.categoryName ?? product.category, t('product.unknown'))}</span>
           </div>
 
 
@@ -390,37 +587,37 @@ try {
             </div>
           <div className={`stock-badge ${displayStock > 0 ? 'in-stock' : 'out-of-stock'}`}>
   {selectedVariant
-    ? (displayStock > 0 ? `Còn ${displayStock} sản phẩm` : '🚫 Hết hàng')
+    ? (displayStock > 0 ? t('product.stock.available', { count: displayStock }) : t('product.stock.soldOut'))
     : totalStock === 0
-      ? '🚫 Sản phẩm đã hết hàng'
-      : `Tổng kho: ${totalStock}`}
+      ? t('product.stock.allSoldOut')
+      : t('product.stock.total', { count: totalStock })}
 </div>
           </div>
 
           <div className="product-description">
-            <h3>Mô Tả</h3>
+            <h3>{t('product.description')}</h3>
             <p>{toText(product.description)}</p>
           </div>
 
           <div className="product-details-info">
             <div className="detail-item">
-              <span className="label">Chất Liệu:</span>
-              <span className="value">{toText(product.material, 'Không xác định')}</span>
+              <span className="label">{t('product.material')}</span>
+              <span className="value">{toText(product.material, t('product.unknown'))}</span>
             </div>
             <div className="detail-item">
-              <span className="label">Màu Sắc:</span>
-              <span className="value">{selectedColorName || 'Chưa chọn'}</span>
+              <span className="label">{t('product.color')}</span>
+              <span className="value">{selectedColorName || t('product.unselected')}</span>
             </div>
             <div className="detail-item">
-              <span className="label">Hướng Dẫn Chăm Sóc:</span>
-              <span className="value">{toText(product.careInstructions, 'Không xác định')}</span>
+              <span className="label">{t('product.care')}</span>
+              <span className="value">{toText(product.careInstructions, t('product.unknown'))}</span>
             </div>
           </div>
 
           <div className="product-options">
             {colorOptions.length > 0 && (
               <div className="option-group">
-                <label>Màu Sắc</label>
+                <label>{t('product.color')}</label>
                 <div className="color-options">
                   {colorOptions.map((color) => (
                     <button
@@ -450,7 +647,7 @@ try {
 
             {sizeOptions.length > 0 && (
               <div className="option-group">
-                <label>Kích Thước</label>
+                <label>{t('product.size')}</label>
                 <div className="size-options">
                   {sizeOptions.map((size) => (
                     <button
@@ -472,13 +669,16 @@ try {
             )}
 
             <div className="option-group">
-              <label>Số Lượng</label>
+              <label>{t('product.quantity')}</label>
               <div className="quantity-selector">
                 <button onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1}>
                   −
                 </button>
                 <input type="number" value={quantity} readOnly />
-                <button onClick={() => setQuantity(quantity + 1)} disabled={!selectedVariant || quantity >= selectedVariant.stock}>
+                <button
+                  onClick={() => setQuantity(quantity + 1)}
+                  disabled={!selectedVariant || !selectedVariant.isAvailable || quantity >= selectedVariant.stock}
+                >
                   +
                 </button>
               </div>
@@ -489,12 +689,14 @@ try {
             <button
               onClick={handleAddToCart}
               className="btn-add-to-cart-large"
-              disabled={selectedVariant && selectedVariant.stock <= 0}
+              disabled={selectedVariant && (selectedVariant.stock <= 0 || !selectedVariant.isAvailable)}
             >
-              {selectedVariant && selectedVariant.stock <= 0 ? 'Hết hàng' : 'Thêm vào giỏ hàng'}
+              {selectedVariant && (selectedVariant.stock <= 0 || !selectedVariant.isAvailable)
+                ? t('product.stock.soldOut')
+                : t('product.addToCart')}
             </button>
             <button onClick={() => navigate('/products')} className="btn-continue-shopping">
-              Tiếp tục mua sắm
+              {t('product.continueShopping')}
             </button>
           </div>
         </div>
@@ -505,7 +707,7 @@ try {
         <section className="rec-section">
           <div className="rec-section-header">
             <span className="rec-section-label">Bundle</span>
-            <h2 className="rec-section-title">THƯỜNG MUA CÙNG NHAU</h2>
+            <h2 className="rec-section-title">{t('product.related.frequentlyBought')}</h2>
           </div>
           <div className="rec-grid">
             {fbt.map((item) => (
@@ -516,7 +718,7 @@ try {
                 <div className="rec-card-info">
                   <h3 className="rec-card-name">{item.name}</h3>
                   <div className="rec-card-price">{item.price?.toLocaleString('vi-VN')} VNĐ</div>
-                  <button className="rec-card-btn" onClick={(e) => { e.stopPropagation(); navigate(`/product/${item.slug || item.id}`); }}>Xem chi tiết</button>
+                  <button className="rec-card-btn" onClick={(e) => { e.stopPropagation(); navigate(`/product/${item.slug || item.id}`); }}>{t('product.viewDetails')}</button>
                 </div>
               </div>
             ))}
@@ -529,7 +731,7 @@ try {
         <section className="rec-section rec-section--alt">
           <div className="rec-section-header">
             <span className="rec-section-label">You May Also Like</span>
-            <h2 className="rec-section-title">SẢN PHẨM LIÊN QUAN</h2>
+            <h2 className="rec-section-title">{t('product.related.title')}</h2>
           </div>
           <div className="rec-grid">
             {related.map((item) => (
@@ -540,7 +742,7 @@ try {
                 <div className="rec-card-info">
                   <h3 className="rec-card-name">{item.name}</h3>
                   <div className="rec-card-price">{item.price?.toLocaleString('vi-VN')} VNĐ</div>
-                  <button className="rec-card-btn" onClick={(e) => { e.stopPropagation(); navigate(`/product/${item.slug || item.id}`); }}>Xem chi tiết</button>
+                  <button className="rec-card-btn" onClick={(e) => { e.stopPropagation(); navigate(`/product/${item.slug || item.id}`); }}>{t('product.viewDetails')}</button>
                 </div>
               </div>
             ))}

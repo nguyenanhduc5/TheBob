@@ -52,7 +52,7 @@ function ProductImagesManager({ mainImageUrl, images, onMainImageChange, onImage
             type="url"
             value={mainImageUrl || ''}
             onChange={(event) => onMainImageChange(event.target.value)}
-            placeholder="https://example.com/main.jpg"
+            placeholder="Dán đường dẫn ảnh đại diện"
           />
         </label>
         <div className="pm-image-preview pm-main-preview">
@@ -71,7 +71,7 @@ function ProductImagesManager({ mainImageUrl, images, onMainImageChange, onImage
               addImage();
             }
           }}
-          placeholder="Thêm URL ảnh album"
+          placeholder="Dán đường dẫn ảnh album"
         />
         <button className="pm-button pm-button-secondary" type="button" onClick={addImage}>
           Thêm ảnh

@@ -208,7 +208,14 @@ namespace THEBOB.Controllers
         public bool IsAvailable { get; set; } = true;
         public int? CategoryId { get; set; }
         public List<string>? ImageUrls { get; set; }
+        public List<ColorImageGroupDto>? ColorImages { get; set; }
         public List<VariantItemDto>? Variants { get; set; }
+    }
+
+    public class ColorImageGroupDto
+    {
+        public int? ColorId { get; set; }
+        public List<string> ImageUrls { get; set; } = new();
     }
 
     public class VariantItemDto

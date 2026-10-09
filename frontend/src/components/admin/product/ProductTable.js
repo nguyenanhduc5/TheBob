@@ -1,4 +1,5 @@
 import React, { memo, useMemo } from 'react';
+import { usePreferences } from '../../../context/PreferencesContext';
 
 const currencyFormatter = new Intl.NumberFormat('vi-VN', {
   style: 'currency',
@@ -36,13 +37,14 @@ const getTotalStock = (product) =>
   getVariants(product).reduce((sum, variant) => sum + toNumber(variant?.stock), 0);
 
 const statusLabel = {
-  available: 'Đang bán',
-  lowStock: 'Sắp hết',
-  outOfStock: 'Hết hàng',
-  inactive: 'Tạm ẩn',
+  available: 'admin.products.available',
+  lowStock: 'admin.products.lowStock',
+  outOfStock: 'admin.products.outOfStock',
+  inactive: 'admin.products.inactive',
 };
 
 function ProductTable({ products, getProductStatus, onEdit, onDelete, onView }) {
+  const { t } = usePreferences();
   const rows = useMemo(
     () =>
       (Array.isArray(products) ? products : []).map((product) => {
@@ -69,17 +71,17 @@ function ProductTable({ products, getProductStatus, onEdit, onDelete, onView }) 
       <table className="pm-table">
         <thead>
           <tr>
-            <th>Ảnh</th>
-            <th>Tên sản phẩm</th>
-            <th>Thương hiệu</th>
-            <th>Danh mục</th>
-            <th>Giá sản phẩm</th>
-            <th>Tổng tồn kho</th>
-            <th>Biến thể</th>
-            <th>Trạng thái</th>
-            <th>Xem</th>
-            <th>Sửa</th>
-            <th>Xóa</th>
+            <th>{t('admin.productTable.image')}</th>
+            <th>{t('admin.productTable.name')}</th>
+            <th>{t('admin.productTable.brand')}</th>
+            <th>{t('admin.productTable.category')}</th>
+            <th>{t('admin.productTable.price')}</th>
+            <th>{t('admin.productTable.stock')}</th>
+            <th>{t('admin.productTable.variants')}</th>
+            <th>{t('admin.productTable.status')}</th>
+            <th>{t('admin.productTable.view')}</th>
+            <th>{t('admin.productTable.edit')}</th>
+            <th>{t('admin.productTable.delete')}</th>
           </tr>
         </thead>
         <tbody>
@@ -90,7 +92,7 @@ function ProductTable({ products, getProductStatus, onEdit, onDelete, onView }) 
                   {row.image ? (
                     <img src={row.image} alt={row.name} loading="lazy" />
                   ) : (
-                    <span>Không có ảnh</span>
+                    <span>{t('admin.productTable.noImage')}</span>
                   )}
                 </div>
               </td>
@@ -108,22 +110,22 @@ function ProductTable({ products, getProductStatus, onEdit, onDelete, onView }) 
               <td>{row.variantCount}</td>
               <td>
                 <span className={`pm-status pm-status-${row.status}`}>
-                  {statusLabel[row.status] || 'Không rõ'}
+                  {statusLabel[row.status] ? t(statusLabel[row.status]) : t('admin.productTable.unknown')}
                 </span>
               </td>
               <td>
-                <button className="pm-icon-button" type="button" onClick={() => onView(row.slug || row.id)} title="Xem sản phẩm">
-                  Xem
+                <button className="pm-icon-button" type="button" onClick={() => onView(row.slug || row.id)} title={t('admin.productTable.viewTitle')}>
+                  {t('admin.productTable.view')}
                 </button>
               </td>
               <td>
-                <button className="pm-icon-button" type="button" onClick={() => onEdit(row.id)} title="Sửa sản phẩm">
-                  Sửa
+                <button className="pm-icon-button" type="button" onClick={() => onEdit(row.id)} title={t('admin.productTable.editTitle')}>
+                  {t('admin.productTable.edit')}
                 </button>
               </td>
               <td>
-                <button className="pm-icon-button pm-danger" type="button" onClick={() => onDelete(row.id)} title="Xóa sản phẩm">
-                  Xóa
+                <button className="pm-icon-button pm-danger" type="button" onClick={() => onDelete(row.id)} title={t('admin.productTable.deleteTitle')}>
+                  {t('admin.productTable.delete')}
                 </button>
               </td>
             </tr>
